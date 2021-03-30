@@ -411,16 +411,33 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
         PAL_ERR(LOG_TAG, "get stream KV failed %d", status);
         goto exit;
     }
-    if (sAttr.type != PAL_STREAM_ACD &&
-        sAttr.type != PAL_STREAM_CONTEXT_PROXY &&
-        sAttr.type != PAL_STREAM_SENSOR_PCM_DATA) {
-        status = builder->populateStreamCkv(streamHandle, streamCKV, 0,
-                (struct pal_volume_data **)nullptr);
-        if (status) {
-            PAL_ERR(LOG_TAG, "get stream ckv failed %d", status);
-            goto exit;
-        }
+
+    switch (sAttr.type) {
+        case PAL_STREAM_ACD :
+        case PAL_STREAM_CONTEXT_PROXY :
+        case PAL_STREAM_SENSOR_PCM_DATA:
+            // No need to set volume ckv
+        break;
+        case PAL_STREAM_LOOPBACK:
+            if ((sAttr.info.opt_stream_info.loopback_type ==
+                            PAL_STREAM_LOOPBACK_PLAYBACK_ONLY) ||
+                (sAttr.info.opt_stream_info.loopback_type ==
+                            PAL_STREAM_LOOPBACK_CAPTURE_ONLY)) {
+                // Will continue without setting volume CKV
+                break;
+            }
+            [[fallthrough]]; //Intentional fallthrough
+        default:
+            // Set the volume CKV
+            status = builder->populateStreamCkv(streamHandle, streamCKV, 0,
+                    (struct pal_volume_data **)nullptr);
+            if (status) {
+                PAL_ERR(LOG_TAG, "get stream ckv failed %d", status);
+                goto exit;
+            }
+
     }
+
     if ((streamKV.size() > 0) || (streamCKV.size() > 0)) {
         getAgmMetaData(streamKV, streamCKV, (struct prop_data *)streamPropId,
                 streamMetaData);
@@ -561,8 +578,10 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
 
         deviceKV.clear();
         streamDeviceKV.clear();
-        free(streamDeviceMetaData.buf);
-        free(deviceMetaData.buf);
+        if (streamDeviceMetaData.buf)
+            free(streamDeviceMetaData.buf);
+        if (deviceMetaData.buf)
+            free(deviceMetaData.buf);
         streamDeviceMetaData.buf = nullptr;
         deviceMetaData.buf = nullptr;
     }
