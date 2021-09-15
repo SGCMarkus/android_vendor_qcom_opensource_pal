@@ -427,21 +427,19 @@ int32_t StreamSoundTrigger::getParameters(uint32_t param_id, void **payload) {
         }
 
         if (!mDevices.size()) {
-            struct pal_device* dattr = new (struct pal_device);
             std::shared_ptr<Device> dev = nullptr;
 
             // update best device
             pal_device_id_t dev_id = GetAvailCaptureDevice();
             PAL_DBG(LOG_TAG, "Select available caputre device %d", dev_id);
 
-            dev = GetPalDevice(dev_id, dattr, false);
+            dev = GetPalDevice(this, dev_id);
             if (!dev) {
                 PAL_ERR(LOG_TAG, "Device creation is failed");
                 return -EINVAL;
             }
             mDevices.push_back(dev);
             dev = nullptr;
-            delete dattr;
         }
 
         if (mDevices.size() > 0 && !device_opened_) {
@@ -708,54 +706,6 @@ int32_t StreamSoundTrigger::Pause() {
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
 
     return status;
-}
-
-std::shared_ptr<Device> StreamSoundTrigger::GetPalDevice(
-    pal_device_id_t dev_id, struct pal_device *dev, bool use_rm_profile) {
-    std::shared_ptr<CaptureProfile> cap_prof = nullptr;
-    std::shared_ptr<Device> device = nullptr;
-
-    if (!dev) {
-        PAL_ERR(LOG_TAG, "Invalid pal device object");
-        goto exit;
-    }
-
-    dev->id = dev_id;
-
-    if (use_rm_profile) {
-        cap_prof = rm->GetSoundTriggerCaptureProfile();
-        if (!cap_prof) {
-            PAL_DBG(LOG_TAG, "Failed to get common capture profile");
-            cap_prof = GetCurrentCaptureProfile();
-        }
-    } else {
-        /* TODO: we may need to add input param for this function
-        * to indicate the device id we need for capture profile
-        */
-        cap_prof = GetCurrentCaptureProfile();
-    }
-
-    if (!cap_prof) {
-        PAL_ERR(LOG_TAG, "Failed to get common capture profile");
-        goto exit;
-    }
-    dev->config.bit_width = cap_prof->GetBitWidth();
-    dev->config.ch_info.channels = cap_prof->GetChannels();
-    dev->config.sample_rate = cap_prof->GetSampleRate();
-    dev->config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S16_LE;
-
-    device = Device::getInstance(dev, rm);
-    if (!device) {
-        PAL_ERR(LOG_TAG, "Failed to get device instance");
-        goto exit;
-    }
-
-    device->setDeviceAttributes(*dev);
-    device->setSndName(cap_prof->GetSndName());
-
-exit:
-
-    return device;
 }
 
 int32_t StreamSoundTrigger::isSampleRateSupported(uint32_t sampleRate) {
@@ -2989,14 +2939,13 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
             }
 
             if (!st_stream_.mDevices.size()) {
-                struct pal_device* dattr = new (struct pal_device);
                 std::shared_ptr<Device> dev = nullptr;
 
                 // update best device
                 pal_device_id_t dev_id = st_stream_.GetAvailCaptureDevice();
                 PAL_DBG(LOG_TAG, "Select available caputre device %d", dev_id);
 
-                dev = st_stream_.GetPalDevice(dev_id, dattr, false);
+                dev = st_stream_.GetPalDevice(&st_stream_, dev_id);
                 if (!dev) {
                     PAL_ERR(LOG_TAG, "Device creation is failed");
                     status = -EINVAL;
@@ -3004,7 +2953,6 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
                 }
                 st_stream_.mDevices.push_back(dev);
                 dev = nullptr;
-                delete dattr;
             }
 
             cap_prof = st_stream_.GetCurrentCaptureProfile();
@@ -3102,7 +3050,6 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
             break;
         }
         case ST_EV_DEVICE_CONNECTED: {
-            struct pal_device *pal_dev = new struct pal_device;
             std::shared_ptr<Device> dev = nullptr;
             StDeviceConnectedEventConfigData *data =
                 (StDeviceConnectedEventConfigData *)ev_cfg->data_.get();
@@ -3115,7 +3062,7 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
                 goto connect_err;
             }
 
-            dev = st_stream_.GetPalDevice(dev_id, pal_dev, false);
+            dev = st_stream_.GetPalDevice(&st_stream_, dev_id);
             if (!dev) {
                 PAL_ERR(LOG_TAG, "Device creation failed");
                 status = -EINVAL;
@@ -3124,7 +3071,6 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
 
             st_stream_.mDevices.push_back(dev);
         connect_err:
-            delete pal_dev;
             break;
         }
         case ST_EV_CONCURRENT_STREAM: {
@@ -3157,14 +3103,13 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
                     new_cap_prof->isECRequired());
                 if (active) {
                     if (!st_stream_.mDevices.size()) {
-                        struct pal_device dattr;
                         std::shared_ptr<Device> dev = nullptr;
 
                         // update best device
                         pal_device_id_t dev_id = st_stream_.GetAvailCaptureDevice();
                         PAL_DBG(LOG_TAG, "Select available caputre device %d", dev_id);
 
-                        dev = st_stream_.GetPalDevice(dev_id, &dattr, false);
+                        dev = st_stream_.GetPalDevice(&st_stream_, dev_id);
                         if (!dev) {
                             PAL_ERR(LOG_TAG, "Device creation is failed");
                             status = -EINVAL;
@@ -3475,7 +3420,6 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
             break;
         }
         case ST_EV_DEVICE_CONNECTED: {
-            struct pal_device *pal_dev = new struct pal_device;
             std::shared_ptr<Device> dev = nullptr;
             StDeviceConnectedEventConfigData *data =
                 (StDeviceConnectedEventConfigData *)ev_cfg->data_.get();
@@ -3488,7 +3432,7 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
                 goto connect_err;
             }
 
-            dev = st_stream_.GetPalDevice(dev_id, pal_dev, false);
+            dev = st_stream_.GetPalDevice(&st_stream_, dev_id);
             if (!dev) {
                 PAL_ERR(LOG_TAG, "Dev creation failed");
                 status = -EINVAL;
@@ -3548,7 +3492,6 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
                 TransitTo(ST_STATE_ACTIVE);
             }
         connect_err:
-            delete pal_dev;
             break;
         }
         case ST_EV_CONCURRENT_STREAM: {
@@ -3793,7 +3736,6 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
             break;
         }
         case ST_EV_DEVICE_CONNECTED: {
-            struct pal_device *pal_dev = new struct pal_device;
             std::shared_ptr<Device> dev = nullptr;
             StDeviceConnectedEventConfigData *data =
                 (StDeviceConnectedEventConfigData *)ev_cfg->data_.get();
@@ -3806,7 +3748,7 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
                 goto connect_err;
             }
 
-            dev = st_stream_.GetPalDevice(dev_id, pal_dev, false);
+            dev = st_stream_.GetPalDevice(&st_stream_, dev_id);
             if (!dev) {
                 PAL_ERR(LOG_TAG, "Device creation failed");
                 status = -EINVAL;
@@ -3861,7 +3803,6 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
                 st_stream_.rm->registerDevice(dev, &st_stream_);
             }
         connect_err:
-            delete pal_dev;
             break;
         }
         case ST_EV_CONCURRENT_STREAM: {
