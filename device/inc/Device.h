@@ -69,7 +69,7 @@ public:
     virtual int deinit(pal_param_device_connection_t device_conn);
     virtual int getDefaultConfig(pal_param_device_capability_t capability);
     int open();
-    int close();
+    virtual int close();
     virtual int start();
     int start_l();
     virtual int stop();

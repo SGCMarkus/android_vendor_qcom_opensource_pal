@@ -136,6 +136,9 @@
 
 #define CLOCK_SRC_DEFAULT 1
 
+#define WAIT_LL_PB 4
+#define WAIT_RECOVER_FET 150000
+
 /*this can be over written by the config file settings*/
 uint32_t pal_log_lvl = (PAL_LOG_ERR|PAL_LOG_INFO);
 
@@ -360,6 +363,7 @@ std::vector <int> ResourceManager::mixerTag = {0};
 std::vector <int> ResourceManager::devicePpTag = {0};
 std::vector <int> ResourceManager::deviceTag = {0};
 std::mutex ResourceManager::mResourceManagerMutex;
+std::mutex ResourceManager::mChargerBoostMutex;
 std::mutex ResourceManager::mGraphMutex;
 std::mutex ResourceManager::mActiveStreamMutex;
 std::mutex ResourceManager::mSleepMonitorMutex;
@@ -1331,47 +1335,180 @@ int32_t ResourceManager::voteSleepMonitor(Stream *str, bool vote)
 }
 #endif
 
-int ResourceManager::setDeviceParamConfig(uint32_t param_id, std::shared_ptr<Device> dev,
-                                          int tag)
+/*
+  Playback is going on and charger Insertion occurs, Below
+  steps to smooth recovery of FET which avoid its fault.
+  1. Wait for 4s to honour usb insertion notification.
+  2. Mute PA by using stream_mute tag = 1(writing 0 buffers).
+  3. Need 150 ms, wait for settling current load from 550mA(approx) to 5mA mean.
+  4. Audio notifies charger driver about concurrency.
+  5. Unmute PA by using stream_mute tag = 0.
+*/
+int ResourceManager::handlePBChargerInsertion(Stream *stream)
 {
     int status = 0;
-    Stream *stream = nullptr;
-    Session *session = nullptr;
-    std::vector<Stream*> activestreams;
 
-    PAL_DBG(LOG_TAG, "Enter param id: %d", param_id);
+
+    PAL_DBG(LOG_TAG, "Enter. charger status %d", is_charger_online_);
+
+    if (!stream) {
+        status = -EINVAL;
+        PAL_ERR(LOG_TAG, "Stream dont exists, status %d", status);
+        goto exit;
+    }
+
+    /*
+     Use below Lock for
+      a. Avoid notify PMIC and eventually FET fault when insertion notif.
+         comes from HAL thread of USB insertion in mid of this process.
+      b. Update charger_online to false which will avoid notifying  PMIC.
+    */
+    mChargerBoostMutex.lock();
+    //TODO handle below varaiable when dispatcher thread comes into picture.
+    if (is_charger_online_)
+        is_charger_online_ = false;
+
+    //Unlock HAL thread to setparam for enabling insertion notif. Playback.
+    mChargerBoostMutex.unlock();
+
+    // Wait for 4s to honour low latency playback.
+    sleep(WAIT_LL_PB);
+
+    mChargerBoostMutex.lock();
+    //Retain charger_online status to true after notif. PB
+    if (!is_charger_online_)
+        is_charger_online_ = true;
+
+
+    status = stream->mute(true);
+    if (0 != status) {
+        PAL_ERR(LOG_TAG, "failed to set Mute with status %d", status);
+        mChargerBoostMutex.unlock();
+        goto exit;
+    }
+    /*
+     Need 150 ms wait to recover FET, when Boost to Buck mode
+     transition occurs before writing concurrency.
+    */
+    usleep(WAIT_RECOVER_FET);
+    status = rm->chargerListenerSetBoostState(true, PB_ON_CHARGER_INSERT);
+
+    /*
+     If notifying concurrency failed then continue Playback in Boost state
+     (Only Audio PB) otherwise continue in Buck state(when charging and PB continues)
+    */
+    status = stream->mute(false);
+    if (0 != status)
+        PAL_ERR(LOG_TAG, "Failed to set UnMute with status %d", status);
+
+    mChargerBoostMutex.unlock();
+exit:
+    PAL_DBG(LOG_TAG, "Exit status: %d", status);
+    return status;
+}
+
+/*
+  Playback is going on and charger Removal occurs, Below
+  steps avoid HW fault in FET.
+  1. Mute PA by muting particular stream (writing 0 buffers).
+  2. Force Device Switch from spkr->spkr to Unvote and Vote for Boost vdd.
+  3. Unmute PA.
+*/
+
+int ResourceManager::handlePBChargerRemoval(Stream *stream)
+{
+    int status = 0;
+    struct pal_device newDevAttr;
+    std::shared_ptr<Device> dev = nullptr;
+
+    PAL_DBG(LOG_TAG, "Enter. ");
+
+    if (!stream) {
+        status = -EINVAL;
+        PAL_ERR(LOG_TAG, "Stream dont exists, status %d", status);
+        goto exit;
+    }
+
+    status = stream->mute(true);
+    if (0 != status) {
+        PAL_ERR(LOG_TAG, "Failed to set Mute with status %d", status);
+        goto exit;
+    }
+
+    newDevAttr.id = PAL_DEVICE_OUT_SPEAKER;
+    dev = Device::getInstance(&newDevAttr, rm);
+
+    if (!dev)
+        goto exit;
+
+    status = dev->getDeviceAttributes(&newDevAttr);
+    if (0 != status) {
+        PAL_ERR(LOG_TAG, "Failed to get Device Attribute with status %d", status);
+        goto exit;
+    }
+
+    mResourceManagerMutex.unlock();
+    status = forceDeviceSwitch(dev, &newDevAttr);
+    if (0 != status) {
+        PAL_ERR(LOG_TAG, "Failed to do Force Device switch %d", status);
+        goto exit;
+    }
+
+    status = stream->mute(false);
+    if (0 != status) {
+        PAL_ERR(LOG_TAG, "Setting UnMute failed with status %d", status);
+        goto exit;
+    }
+
+    status = rm->chargerListenerSetBoostState(false, PB_ON_CHARGER_REMOVE);
+
+exit:
+    PAL_DBG(LOG_TAG, "Exit status: %d", status);
+    return status;
+}
+
+int ResourceManager::setSessionParamConfig(uint32_t param_id, Stream *stream, int tag)
+{
+    int status = 0;
+    Session *session = nullptr;
+    struct audio_route *audioRoute = nullptr;
+
+    PAL_DBG(LOG_TAG, "Enter param id: %d with tag: %d", param_id, tag);
+
+    if (!stream) {
+        PAL_ERR(LOG_TAG, "No Stream opened");
+        status = -EINVAL;
+        goto exit;
+    }
+    stream->getAssociatedSession(&session);
+    if (!session) {
+        PAL_ERR(LOG_TAG, "No associated session for stream exist");
+        status = -EINVAL;
+        goto exit;
+    }
 
     switch (param_id) {
         case PAL_PARAM_ID_CHARGER_STATE:
         {
-            if (dev) {
-                //Setting deviceRX: Config ICL Tag in AL module.
-                status = rm->getActiveStream_l(dev, activestreams);
-                if ((0 != status) || (activestreams.size() == 0)) {
-                    PAL_DBG(LOG_TAG, "no active stream available");
-                    goto exit;
-                }
-                stream = static_cast<Stream*>(activestreams[0]);
-                stream->getAssociatedSession(&session);
-                status = session->setConfig(stream, MODULE, tag);
-                if (0 != status) {
-                    PAL_ERR(LOG_TAG, "Setting Param failed with status %d", status);
-                    goto exit;
-                }
-                if (!is_concurrent_boost_state_ && tag == CHARGE_CONCURRENCY_ON_TAG)
-                    status = rm->chargerListenerSetBoostState(true);
-                else if (is_concurrent_boost_state_ && tag == CHARGE_CONCURRENCY_OFF_TAG)
-                    status = rm->chargerListenerSetBoostState(false);
-                else
-                    PAL_DBG(LOG_TAG, "Concurrency state unchanged");
-
-                if (0 != status)
-                    PAL_ERR(LOG_TAG, "Failed to notify PMIC: %d", status);
+            status = session->setConfig(stream, MODULE, tag);
+            if (0 != status) {
+                PAL_ERR(LOG_TAG, "Failed to setParam with status %d", status);
+                goto exit;
             }
+
+            if (!is_concurrent_boost_state_ && tag == CHARGE_CONCURRENCY_ON_TAG)
+                status = handlePBChargerInsertion(stream);
+            else if (is_concurrent_boost_state_ && tag == CHARGE_CONCURRENCY_OFF_TAG)
+                status = handlePBChargerRemoval(stream);
+            else
+                PAL_DBG(LOG_TAG, "Concurrency state unchanged");
+
+            if (0 != status)
+                PAL_ERR(LOG_TAG, "Failed to notify PMIC: %d", status);
         }
         break;
         default:
-            PAL_INFO(LOG_TAG, "Unknown ParamID:%d", param_id);
+            PAL_DBG(LOG_TAG, "Unknown ParamID:%d", param_id);
             break;
     }
 
@@ -1386,6 +1523,9 @@ void ResourceManager::onChargerListenerStatusChanged(int event_type, int status,
     int result = 0;
     pal_param_charger_state_t charger_state;
     std::shared_ptr<ResourceManager> rm = nullptr;
+
+    PAL_DBG(LOG_TAG, "Enter: Event %d status %d concurrent_state %d",
+            event_type, status, concurrent_state);
 
     switch (event_type) {
         case CHARGER_EVENT:
@@ -1408,10 +1548,14 @@ void ResourceManager::onChargerListenerStatusChanged(int event_type, int status,
             PAL_ERR(LOG_TAG, "Invalid Uevent_type");
             break;
     }
+    PAL_DBG(LOG_TAG, "Exit: call back executed for event %d result %d", event_type, result);
 }
 
 void ResourceManager::chargerListenerInit(charger_status_change_fn_t fn)
 {
+    if (!fn)
+        return;
+
     cl_lib_handle = dlopen(CL_LIBRARY_PATH, RTLD_NOW);
 
     if (!cl_lib_handle) {
@@ -1455,21 +1599,54 @@ void ResourceManager::chargerListenerDeinit()
     cl_set_boost_state = NULL;
 }
 
-int ResourceManager::chargerListenerSetBoostState(bool state)
+int ResourceManager::chargerListenerSetBoostState(bool state, charger_boost_mode_t mode)
 {
     int status = 0;
 
+    PAL_DBG(LOG_TAG, "Enter: state %d mode %d", state, mode);
+
     if (cl_set_boost_state) {
+        switch (mode) {
+            case CHARGER_ON_PB_STARTS:
+                if (!current_concurrent_state_)
+                    goto notify_charger;
+            break;
+            case PB_ON_CHARGER_INSERT:
+                if (state && current_concurrent_state_ == 0 &&
+                    is_concurrent_boost_state_ == 0) {
+                    goto notify_charger;
+                }
+            break;
+            case PB_ON_CHARGER_REMOVE:
+                if (!state && current_concurrent_state_ == 0 &&
+                    is_concurrent_boost_state_ == 1) {
+                    goto notify_charger;
+                }
+            break;
+            case CONCURRENCY_PB_STOPS:
+                 if (!state && is_concurrent_boost_state_)
+                     goto notify_charger;
+            break;
+            default:
+                PAL_ERR(LOG_TAG, "Invalid mode to Notify charger");
+            break;
+        }
+        goto exit;
+notify_charger:
         status = cl_set_boost_state(state);
         if (0 == status)
             is_concurrent_boost_state_ = state;
+        PAL_DBG(LOG_TAG, "Updated Concurrent Boost state is  %d: with Setting status %d",
+                 is_concurrent_boost_state_, status);
     }
-    PAL_INFO(LOG_TAG, "Concurrent Boost state is set: status %d", status);
+exit:
+    PAL_DBG(LOG_TAG, "Exit:  status %d", status);
     return status;
 }
 
 void ResourceManager::chargerListenerFeatureInit()
 {
+    is_concurrent_boost_state_ = false;
     ResourceManager::chargerListenerInit(onChargerListenerStatusChanged);
 }
 
@@ -7375,6 +7552,8 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
         {
             int i, tag;
             struct pal_device dattr;
+            Stream *stream = nullptr;
+            std::vector<Stream*> activestreams;
             std::shared_ptr<Device> dev = nullptr;
 
             pal_param_charger_state *charger_state =
@@ -7391,14 +7570,25 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
             if (is_charger_online_ != charger_state->is_charger_online) {
                 dattr.id = PAL_DEVICE_OUT_SPEAKER;
                 is_charger_online_ = charger_state->is_charger_online;
-                is_concurrent_boost_state_ = charger_state->is_concurrent_boost_enable;
+                current_concurrent_state_ = charger_state->is_concurrent_boost_enable;
                 for (i = 0; i < active_devices.size(); i++) {
                     int deviceId = active_devices[i].first->getSndDeviceId();
                     if (deviceId == dattr.id) {
                         dev = Device::getInstance(&dattr, rm);
                         tag = is_charger_online_ ? CHARGE_CONCURRENCY_ON_TAG
                         : CHARGE_CONCURRENCY_OFF_TAG;
-                        status = setDeviceParamConfig(param_id, dev, tag);
+                        //Setting deviceRX: Config ICL Tag in AL module.
+                        status = rm->getActiveStream_l(dev, activestreams);
+                        if ((0 != status) || (activestreams.size() == 0)) {
+                            PAL_DBG(LOG_TAG, "no active stream available");
+                            goto exit;
+                        }
+                        stream = static_cast<Stream*>(activestreams[0]);
+                        mResourceManagerMutex.unlock();
+                        status = setSessionParamConfig(param_id, stream, tag);
+                         mResourceManagerMutex.lock();
+                        if (0 != status)
+                            PAL_ERR(LOG_TAG, "SetSession Param config failed %d", status);
                         break;
                     }
                 }

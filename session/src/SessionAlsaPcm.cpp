@@ -1061,6 +1061,23 @@ set_mixer:
                         goto exit;
                     }
                 }
+                if ((ResourceManager::isChargeConcurrencyEnabled) &&
+                    (dAttr.id == PAL_DEVICE_OUT_SPEAKER)) {
+                    status = Session::NotifyChargerConcurrency(rm, true);
+                    if (0 == status) {
+                        status = Session::EnableChargerConcurrency(rm, s);
+                        //Handle failure case of ICL config
+                        if (0 != status) {
+                            PAL_DBG(LOG_TAG, "Failed to set ICL Config status %d", status);
+                            status = Session::NotifyChargerConcurrency(rm, false);
+                        }
+                    }
+                    /*
+                     Irespective of status, Audio continues to play for success
+                     status, PB continues in Buck mode otherwise play in Boost mode.
+                   */
+                    status = 0;
+                }
             }
 
 pcm_start:
@@ -1135,6 +1152,19 @@ pcm_start:
                         PAL_ERR(LOG_TAG, "setMixerParameter failed");
                         goto exit;
                     }
+                }
+                if ((ResourceManager::isChargeConcurrencyEnabled) &&
+                    (dAttr.id == PAL_DEVICE_OUT_SPEAKER)) {
+                    status = Session::NotifyChargerConcurrency(rm, true);
+                    if (0 == status) {
+                        status = Session::EnableChargerConcurrency(rm, s);
+                        //Handle failure case of ICL config
+                        if (0 != status) {
+                            PAL_DBG(LOG_TAG, "Failed to set ICL Config status %d", status);
+                            status = Session::NotifyChargerConcurrency(rm, false);
+                        }
+                    }
+                    status = 0;
                 }
             }
 

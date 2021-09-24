@@ -126,17 +126,17 @@ int32_t Speaker::isBitWidthSupported(uint32_t bitWidth)
     return rc;
 }
 
-int Speaker::stop()
+int Speaker::close()
 {
     int status = 0;
 
-    status = Device::stop();
+    status = Device::close();
     if (status == 0 && deviceCount == 0) {
         std::shared_ptr<ResourceManager> Rm = nullptr;
         Rm = ResourceManager::getInstance();
         if (Rm && Rm->isChargeConcurrencyEnabled && Rm->getChargerOnlineState() &&
             Rm->getConcurrentBoostState()) {
-            status = Rm->chargerListenerSetBoostState(false);
+            status = Rm->chargerListenerSetBoostState(false, CONCURRENCY_PB_STOPS);
             if (0 != status)
                 PAL_ERR(LOG_TAG, "Failed to notify PMIC: %d", status);
         } else {

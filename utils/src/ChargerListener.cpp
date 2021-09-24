@@ -27,7 +27,6 @@
 #include "ChargerListener.h"
 
 #define N_OF_EVNT_REG     2
-#define UEVENT_MSG_LEN    32
 #define MAX_BUFFER_LEN    16
 #define UEVENT_SOCKET_RCVBUF_SIZE  64 * 1024
 #define SET_BOOST_CONCURRENT_BIT   "1"
@@ -86,8 +85,7 @@ int ChargerListenerImpl::getInitialStatus()
               charger_state = ONLINE;
 
             int status_bit = getConcurrentState();
-            concurrent_state = ((status_bit >= 0) && (status_bit == 1))
-                                 ? true : false;
+            concurrent_state = (status_bit == 1) ? true : false;
             info->c_state = (charger_state_t)charger_state;
             mcb(CHARGER_EVENT, charger_state, concurrent_state);
         }
@@ -125,12 +123,10 @@ void ChargerListenerImpl::getStateUpdate(int type)
                           __func__, __LINE__, charger_state, info->c_state);
                     info->c_state = (charger_state_t)charger_state;
                     int status_bit = getConcurrentState();
-                    concurrent_state = ((status_bit >= 0) && (status_bit == 1))
-                                         ? true : false;
+                    concurrent_state = (status_bit == 1) ? true : false;
                     mcb(CHARGER_EVENT, charger_state, concurrent_state);
-                } else {
-                    ALOGD("%s %d, charger cb thread No state change", __func__,
-                          __LINE__);
+                    //TODO dispatcher_thread = std::thread (mcb, CHARGER_EVENT, charger_state, concurrent_state);
+                    //TODO dispatcher_thread.detach();
                 }
             }
             break;
@@ -147,15 +143,15 @@ void ChargerListenerImpl::getStateUpdate(int type)
 
 void  ChargerListenerImpl::readEvent(void *context,  struct charger_info *info)
 {
-    char msg_info [UEVENT_MSG_LEN+2];
+    char msg_info [PAGE_SIZE];
     int size_rcv;
     int uevent_type;
 
     size_rcv = uevent_kernel_multicast_recv(info->uevent_fd,
-                                            msg_info, UEVENT_MSG_LEN);
+                                            msg_info, sizeof(msg_info));
     /* underflow and overflow condition*/
     if (size_rcv <= 0 ||
-        size_rcv >= UEVENT_MSG_LEN) {
+        size_rcv >= sizeof(msg_info)) {
         ALOGE("%s %d, rcv size is not under size limit", __func__, __LINE__);
         return;
     }
@@ -170,19 +166,24 @@ void  ChargerListenerImpl::readEvent(void *context,  struct charger_info *info)
     else
         uevent_type = UNKNOWN_EVENT;
 
-    reinterpret_cast<ChargerListenerImpl*>(context)->getStateUpdate(uevent_type);
+    /* Customize condition for other event*/
+    if (uevent_type == CHARGER_EVENT)
+        reinterpret_cast<ChargerListenerImpl*>(context)->getStateUpdate(uevent_type);
 }
 
 int ChargerListenerImpl::addEvent(func_ptr event_fun, int event_type, int fd)
 {
     int status = 0;
+    struct epoll_event reg_event;
+
+    ALOGD("%s %d, Enter :", __func__, __LINE__);
 
     switch(event_type) {
         case PIPE_EVENT:
-            reg_event[info->event_count].data.fd = fd;
-            reg_event[info->event_count].events = EPOLLIN | EPOLLWAKEUP;
+            reg_event.data.fd = fd;
+            reg_event.events = EPOLLIN | EPOLLWAKEUP;
 
-            if (epoll_ctl(info->epoll_fd, EPOLL_CTL_ADD, fd, reg_event) == -1) {
+            if (epoll_ctl(info->epoll_fd, EPOLL_CTL_ADD, fd, &reg_event) == -1) {
                 ALOGE("%s %d, Failed to add non uevent :%s\n", __func__,
                       __LINE__, strerror(errno));
                 status = -errno;
@@ -191,10 +192,10 @@ int ChargerListenerImpl::addEvent(func_ptr event_fun, int event_type, int fd)
             }
             break;
         case U_EVENT:
-            reg_event[info->event_count].data.ptr = (void *)event_fun;
-            reg_event[info->event_count].events = EPOLLIN | EPOLLWAKEUP;
+            reg_event.data.ptr = (void *)event_fun;
+            reg_event.events = EPOLLIN | EPOLLWAKEUP;
 
-            if (epoll_ctl(info->epoll_fd, EPOLL_CTL_ADD, fd, reg_event) == -1) {
+            if (epoll_ctl(info->epoll_fd, EPOLL_CTL_ADD, fd, &reg_event) == -1) {
                 ALOGE("%s %d, Failed to add uevent :%s\n", __func__, __LINE__,
                       strerror(errno));
                 status = -errno;
@@ -206,6 +207,7 @@ int ChargerListenerImpl::addEvent(func_ptr event_fun, int event_type, int fd)
             ALOGI("%s %d, Unknown event", __func__, __LINE__);
             break;
     }
+    ALOGD("%s %d, Exit status %d", __func__, __LINE__, status);
     return status;
 }
 
@@ -213,19 +215,15 @@ int ChargerListenerImpl::initEvent()
 {
     int status = 0;
 
-    reg_event = (struct epoll_event *)calloc(sizeof(struct epoll_event),
-                                                    N_OF_EVNT_REG);
-    if (!reg_event) {
-        ALOGE("%s %d, Calloc failed for registering event", __func__, __LINE__);
-        return -ENOMEM;
-    }
+    ALOGD("%s %d, Enter ", __func__, __LINE__);
+
     pipe_status = pipe(intPipe);
 
     if (pipe_status < 0) {
         ALOGE("%s %d, Failed to open_pipe: %s", __func__, __LINE__,
               strerror(errno));
         status = -errno;
-        goto free_reg_event;
+        goto exit;
     }
     /* Adding pipe Event in Interested List to unblock epoll thread*/
     fcntl(intPipe[0], F_SETFL, O_NONBLOCK);
@@ -263,20 +261,21 @@ close_pipe:
         intPipe[0] = 0;
     }
 
-free_reg_event:
-    if (reg_event) {
-        free(reg_event);
-        reg_event = NULL;
-    }
-
 exit:
+    ALOGD("%s %d, Exit status %d", __func__, __LINE__, status);
     return status;
 }
 
 void ChargerListenerImpl::chargerMonitor()
 {
     func_ptr event_cb = NULL;
-    char buf[2] = {0};
+    /**
+     *Initialise buf with "P" to continue poll unless set as "Q" to unblock
+     *charger monitor thread when rm deinit happen.
+    **/
+    char buf[2] = "P";
+
+    ALOGD("%s %d, Enter chargerMonitor", __func__, __LINE__);
 
     while (1) {
         int no_events = epoll_wait(info->epoll_fd, info->events,
@@ -301,6 +300,7 @@ void ChargerListenerImpl::chargerMonitor()
             }
         }
     }
+    ALOGD("%s %d, Exit : ChargerMonitor is unblocked from poll", __func__, __LINE__);
 }
 
 void ChargerListenerImpl::CLImplInit()
@@ -327,7 +327,7 @@ void ChargerListenerImpl::CLImplInit()
 
     ALOGI("%s %d, Charger Listener Impl init is successful", __func__, __LINE__);
 
-    mThread = std::thread (&ChargerListenerImpl::chargerMonitor, this);
+    poll_thread = std::thread (&ChargerListenerImpl::chargerMonitor, this);
     goto exit;
 
 close_epoll_fd:
@@ -378,8 +378,8 @@ int ChargerListenerImpl::setConcurrentState(bool is_boost_enable)
                   __LINE__, strerror(errno));
             status = -errno;
         } else {
-            ALOGD("%s %d, charger + boost concurr. bit status: %d", __func__,
-                  __LINE__, status_bit);
+            ALOGD("%s %d, Success on setting charger + boost concurr. bit %d", __func__,
+                  __LINE__, is_boost_enable);
         }
 
         close(intfd);
@@ -404,22 +404,21 @@ ChargerListenerImpl::ChargerListenerImpl(cb_fn_t cb) :
 
 ChargerListenerImpl *chargerListener = NULL;
 ChargerListenerImpl::~ChargerListenerImpl()
-{
+{   /*TODO
+    if (dispatcher_thread.joinable())
+        dispatcher_thread.join();
+    */
     if (0 == pipe_status) {
         write(intPipe[1], "Q", 1);
-        if (mThread.joinable()) {
-            mThread.join();
+        if (poll_thread.joinable()) {
+            poll_thread.join();
         }
         if (intPipe[0])
             close(intPipe[0]);
         if (intPipe[1])
             close(intPipe[1]);
     }
-    //Deallocating registered epoll_event and info
-    if (reg_event) {
-        free(reg_event);
-        reg_event = NULL;
-    }
+    //Deallocating charger info
     if (info) {
         if (info->epoll_fd)
             close(info->epoll_fd);

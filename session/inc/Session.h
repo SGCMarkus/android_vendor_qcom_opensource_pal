@@ -146,6 +146,8 @@ public:
     virtual uint32_t getMIID(const char *backendName __unused, uint32_t tagId __unused, uint32_t *miid __unused) { return -EINVAL; }
     int getEffectParameters(Stream *s, effect_pal_payload_t *effectPayload);
     int rwACDBParameters(void *payload, uint32_t sampleRate, bool isParamWrite);
+    int NotifyChargerConcurrency(std::shared_ptr<ResourceManager>rm, bool state);
+    int EnableChargerConcurrency(std::shared_ptr<ResourceManager>rm, Stream *s);
     virtual struct mixer_ctl* getFEMixerCtl(const char *controlName __unused, int *device __unused) {return nullptr;}
     virtual int createMmapBuffer(Stream *s __unused, int32_t min_size_frames __unused,
                                    struct pal_mmap_buffer *info __unused) {return -EINVAL;}

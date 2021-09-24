@@ -205,6 +205,13 @@ typedef enum {
     AUDIO_BIT_WIDTH_32 = 32,
 } audio_bit_width_t;
 
+typedef enum {
+    CHARGER_ON_PB_STARTS,
+    PB_ON_CHARGER_INSERT,
+    PB_ON_CHARGER_REMOVE,
+    CONCURRENCY_PB_STOPS
+} charger_boost_mode_t;
+
 struct usecase_custom_config_info
 {
     std::string key;
@@ -428,6 +435,7 @@ protected:
     bool charging_state_;
     bool is_charger_online_;
     bool is_concurrent_boost_state_;
+    bool current_concurrent_state_;
     pal_speaker_rotation_type rotation_type_;
     bool isDeviceSwitch = false;
     static std::mutex mResourceManagerMutex;
@@ -526,6 +534,7 @@ public:
     static bool isContextManagerEnabled;
     static bool isDualMonoEnabled;
     static bool isUHQAEnabled;
+    static std::mutex mChargerBoostMutex;
     /* Variable to store which speaker side is being used for call audio.
      * Valid for Stereo case only
      */
@@ -621,8 +630,7 @@ public:
     int setParameter(uint32_t param_id, void *param_payload,
                      size_t payload_size, pal_device_id_t pal_device_id,
                      pal_stream_type_t pal_stream_type);
-    int setDeviceParamConfig(uint32_t param_id, std::shared_ptr<Device> dev,
-                             int tag);
+    int setSessionParamConfig(uint32_t param_id, Stream *stream, int tag);
     int rwParameterACDB(uint32_t param_id, void *param_payload,
                      size_t payload_size, pal_device_id_t pal_device_id,
                      pal_stream_type_t pal_stream_type, uint32_t sample_rate,
@@ -814,7 +822,9 @@ public:
     static void chargerListenerDeinit();
     static void onChargerListenerStatusChanged(int event_type, int status,
                                                  bool concurrent_state);
-    int chargerListenerSetBoostState(bool state);
+    int chargerListenerSetBoostState(bool state, charger_boost_mode_t mode);
+    int handlePBChargerInsertion(Stream *stream);
+    int handlePBChargerRemoval(Stream *stream);
     static bool isGroupConfigAvailable(group_dev_config_idx_t idx);
     int checkAndUpdateGroupDevConfig(struct pal_device *deviceattr,
                                  const struct pal_stream_attributes *sAttr,
