@@ -2643,7 +2643,12 @@ int ResourceManager::registerDevice(std::shared_ptr<Device> d, Stream *s)
             status = s->setECRef_l(dev, true);
             mResourceManagerMutex.lock();
             if (status) {
-                PAL_ERR(LOG_TAG, "Failed to enable EC Ref");
+                if(status != -ENODEV) {
+                    PAL_ERR(LOG_TAG, "Failed to enable EC Ref");
+                } else {
+                    status = 0;
+                    PAL_VERBOSE(LOG_TAG, "Failed to enable EC Ref because of -ENODEV");
+                }
                 // reset ec map if set ec failed for tx device
                 updateECDeviceMap(dev, d, s, 0, true);
             }
@@ -2674,7 +2679,12 @@ int ResourceManager::registerDevice(std::shared_ptr<Device> d, Stream *s)
                     status = str->setECRef(device, true);
                     mResourceManagerMutex.lock();
                     if (status) {
-                        PAL_ERR(LOG_TAG, "Failed to enable EC Ref");
+                        if(status != -ENODEV) {
+                            PAL_ERR(LOG_TAG, "Failed to enable EC Ref");
+                        } else {
+                            status = 0;
+                            PAL_VERBOSE(LOG_TAG, "Failed to enable EC Ref because of -ENODEV");
+                        }
                     }
                 }
             }
@@ -2686,8 +2696,14 @@ int ResourceManager::registerDevice(std::shared_ptr<Device> d, Stream *s)
             status = s->setECRef_l(d, true);
             s->getAssociatedDevices(tx_devices);
             if (status || tx_devices.empty()) {
-                PAL_ERR(LOG_TAG, "Failed to set EC Ref with status %d or tx_devices with size %zu",
-                    status, tx_devices.size());
+                if(status != -ENODEV) {
+                    PAL_ERR(LOG_TAG, "Failed to set EC Ref with status %d"
+                        "or tx_devices with size %zu",
+                        status, tx_devices.size());
+                } else {
+                    status = 0;
+                    PAL_VERBOSE(LOG_TAG, "Failed to enable EC Ref because of -ENODEV");
+                }
             } else {
                 for(auto& tx_device: tx_devices) {
                     if (tx_device->getSndDeviceId() > PAL_DEVICE_IN_MIN &&
@@ -2712,7 +2728,12 @@ int ResourceManager::registerDevice(std::shared_ptr<Device> d, Stream *s)
                     status = str->setECRef(d, true);
                     mResourceManagerMutex.lock();
                     if (status) {
-                        PAL_ERR(LOG_TAG, "Failed to enable EC Ref");
+                        if(status != -ENODEV) {
+                            PAL_ERR(LOG_TAG, "Failed to enable EC Ref");
+                        } else {
+                            status = 0;
+                            PAL_VERBOSE(LOG_TAG, "Failed to enable EC Ref because of -ENODEV");
+                        }
                     }
                 }
             }
