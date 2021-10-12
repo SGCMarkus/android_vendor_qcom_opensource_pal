@@ -877,20 +877,20 @@ err_pcm_open :
         if (status) {
             PAL_ERR(LOG_TAG, "Failed to deregister callback to rm");
         }
-        disableDevice(audioRoute, mSndDeviceName_vi);
         if (isTxStarted)
             pcm_stop(txPcm);
 
         pcm_close(txPcm);
+        disableDevice(audioRoute, mSndDeviceName_vi);
 
         txPcm = NULL;
     }
 
     if (rxPcm) {
-        disableDevice(audioRoute, mSndDeviceName_rx);
         if (isRxStarted)
             pcm_stop(rxPcm);
         pcm_close(rxPcm);
+        disableDevice(audioRoute, mSndDeviceName_rx);
         rxPcm = NULL;
     }
 
@@ -1701,7 +1701,6 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
         PAL_DBG(LOG_TAG, "pcm start for TX");
         if (pcm_start(txPcm) < 0) {
             PAL_ERR(LOG_TAG, "pcm start failed for TX path");
-            disableDevice(audioRoute, mSndDeviceName_vi);
             goto err_pcm_open;
         }
 
@@ -1728,7 +1727,6 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
             }
 
             ret = rm->getSndDeviceName(device.id , mSndDeviceName_vi);
-            disableDevice(audioRoute, mSndDeviceName_vi);
             rm->getBackendName(device.id, backEndName);
             if (!strlen(backEndName.c_str())) {
                 PAL_ERR(LOG_TAG, "Failed to obtain tx backend name for %d", device.id);
@@ -1736,6 +1734,7 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
             }
             pcm_stop(txPcm);
             pcm_close(txPcm);
+            disableDevice(audioRoute, mSndDeviceName_vi);
             txPcm = NULL;
             sAttr.type = PAL_STREAM_LOW_LATENCY;
             sAttr.direction = PAL_AUDIO_INPUT_OUTPUT;
@@ -1746,6 +1745,7 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
 err_pcm_open :
     if (txPcm) {
         pcm_close(txPcm);
+        disableDevice(audioRoute, mSndDeviceName_vi);
         txPcm = NULL;
     }
 
