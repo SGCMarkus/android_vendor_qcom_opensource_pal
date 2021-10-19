@@ -40,6 +40,12 @@
                 <!-- INSTANCE - INSTANCE_1 -->
                 <graph_kv key="0xAB000000" value="0x1"/>
             </keys_and_values>
+            <keys_and_values Direction="RX" Instance="2">
+                <!-- STREAMRX - PCM_LL_PLAYBACK -->
+                <graph_kv key="0xA1000000" value="0xA100000E"/>
+                <!-- INSTANCE - INSTANCE_2 -->
+                <graph_kv key="0xAB000000" value="0x2"/>
+            </keys_and_values>
         </stream>
         <!-- Deep Buffer stream -->
         <stream type="PAL_STREAM_DEEP_BUFFER">
@@ -420,6 +426,8 @@
                 <graph_kv key="0xA2000000" value="0xA2000003"/>
                 <!-- BT_PROFILE - A2DP -->
                 <graph_kv key="0xB4000000" value="0xB4000002"/>
+                <!-- BT_FORMAT - LC3 -->
+                <graph_kv key="0xB5000000" value="0xB5000005"/>
             </keys_and_values>
             <keys_and_values CodecFormat="CODEC_TYPE_LC3" AbrEnabled="TRUE,FALSE" Hostless="FALSE">
                 <!-- DEVICERX - BT_RX -->
@@ -457,6 +465,8 @@
                 <graph_kv key="0xA3000000" value="0xA3000002"/>
                 <!-- BT_PROFILE - A2DP -->
                 <graph_kv key="0xB4000000" value="0xB4000002"/>
+                <!-- BT_FORMAT - LC3 -->
+                <graph_kv key="0xB5000000" value="0xB5000005"/>
             </keys_and_values>
             <keys_and_values CodecFormat="CODEC_TYPE_LC3" Hostless="FALSE">
                 <!-- DEVICETX - BT_TX -->
@@ -483,6 +493,14 @@
                 <!-- BT_FORMAT - SWB -->
                 <graph_kv key="0xB5000000" value="0xB5000004"/>
             </keys_and_values>
+            <keys_and_values CodecFormat="CODEC_TYPE_LC3">
+                <!-- DEVICERX - BT_RX -->
+                <graph_kv key="0xA2000000" value="0xA2000003"/>
+                <!-- BT_PROFILE - SCO -->
+                <graph_kv key="0xB4000000" value="0xB4000001"/>
+                <!-- BT_FORMAT - LC3 -->
+                <graph_kv key="0xB5000000" value="0xB5000005"/>
+            </keys_and_values>
         </device>
         <!-- BT SCO In Headset Device -->
         <device id="PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET">
@@ -499,6 +517,14 @@
                 <graph_kv key="0xB4000000" value="0xB4000001"/>
                 <!-- BT_FORMAT - SWB -->
                 <graph_kv key="0xB5000000" value="0xB5000004"/>
+            </keys_and_values>
+            <keys_and_values CodecFormat="CODEC_TYPE_LC3">
+                <!-- DEVICERX - BT_RX -->
+                <graph_kv key="0xA3000000" value="0xA3000002"/>
+                <!-- BT_PROFILE - SCO -->
+                <graph_kv key="0xB4000000" value="0xB4000001"/>
+                <!-- BT_FORMAT - LC3 -->
+                <graph_kv key="0xB5000000" value="0xB5000005"/>
             </keys_and_values>
         </device>
     </devices>
@@ -658,6 +684,12 @@
                 <graph_kv key="0xA3000000" value="0xA3000004"/>
                 <!-- DEVICEPP_TX - DEVICEPP_TX_VOICE_FLUENCE_NN_SM -->
                 <graph_kv key="0xAD000000" value="0xAD00000F"/>
+            </keys_and_values>
+            <keys_and_values StreamType="PAL_STREAM_VOICE_CALL" CustomConfig="dual-mic-rve">
+                <!-- DEVICETX - HANDSETMIC -->
+                <graph_kv key="0xA3000000" value="0xA3000004"/>
+                <!-- DEVICEPP_TX - DEVICEPP_TX_VOICE_FLUENCE_ENDFIRE_RVE -->
+                <graph_kv key="0xAD000000" value="0xAD000013"/>
             </keys_and_values>
             <keys_and_values StreamType="PAL_STREAM_VOIP_TX">
                 <!-- DEVICETX - HANDSETMIC -->
