@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020, 2021 The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -47,6 +47,9 @@ class Speaker;
 #define LPASS_RD_FIFO_REG_PHY_ADDR 0x3250318
 #define CPS_WSA_VBATT_REG_ADDR 0x0003429
 #define CPS_WSA_TEMP_REG_ADDR 0x0003422
+
+#define CPS_WSA_VBATT_LOWER_THRESHOLD_1 168
+#define CPS_WSA_VBATT_LOWER_THRESHOLD_2 148
 
 typedef enum speaker_prot_cal_state {
     SPKR_NOT_CALIBRATED,     /* Speaker not calibrated  */
