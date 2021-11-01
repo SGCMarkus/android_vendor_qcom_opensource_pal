@@ -128,13 +128,12 @@ AM_CPPFLAGS += -I $(top_srcdir)/utils/inc
 AM_CPPFLAGS += -I $(top_srcdir)/plugins/codecs
 AM_CPPFLAGS += -I $(top_srcdir)/context_manager/inc
 AM_CPPFLAGS += -I $(top_srcdir)/
-AM_CPPFLAGS += -I ${PKG_CONFIG_SYSROOT_DIR}/${includedir}/capiv2_api/
 AM_CPPFLAGS += $(SPF_CFLAGS)/
 AM_CPPFLAGS += $(ACDBDATA_CFLAGS)
 AM_CPPFLAGS += -I $(PKG_CONFIG_SYSROOT_DIR)/usr/include/agm
 AM_CPPFLAGS += -I $(PKG_CONFIG_SYSROOT_DIR)/usr/include/spf
-AM_CPPFLAGS += -I $(PKG_CONFIG_SYSROOT_DIR)/usr/include/
-AM_CPPFLAGS += -I ${WORKSPACE}/audio/mm-audio-headers/audio-listen/
+AM_CPPFLAGS += -I $(PKG_CONFIG_SYSROOT_DIR)/usr/include/capiv2_api
+AM_CPPFLAGS += -I $(PKG_CONFIG_SYSROOT_DIR)/usr/include/audio-listen
 AM_CPPFLAGS += -Wno-sign-compare -Wno-unused-result
 AM_CPPFLAGS += -D__unused=__attribute__\(\(__unused__\)\) -DLINUX_ENABLED
 AM_CPPFLAGS += -DSND_AUDIOCODEC_ALAC=0x00000020 -DSND_AUDIOCODEC_APE=0x00000021
