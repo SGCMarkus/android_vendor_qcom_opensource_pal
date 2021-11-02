@@ -1222,6 +1222,7 @@ int SessionAlsaPcm::close(Stream * s)
             goto exit;
         }
     }
+    freeDeviceMetadata.clear();
 
     switch (sAttr.direction) {
         case PAL_AUDIO_INPUT:
@@ -1297,8 +1298,20 @@ int SessionAlsaPcm::close(Stream * s)
             pcm = NULL;
             break;
         case PAL_AUDIO_INPUT | PAL_AUDIO_OUTPUT:
+            for (auto &dev: associatedDevices) {
+                beDevId = dev->getSndDeviceId();
+                rm->getBackendName(beDevId, backendname);
+                PAL_DBG(LOG_TAG, "backendname %s", backendname.c_str());
+                if (dev->getDeviceCount() != 0) {
+                    PAL_DBG(LOG_TAG, "dev %d still active", beDevId);
+                    freeDeviceMetadata.push_back(std::make_pair(backendname, 0));
+                } else {
+                    PAL_DBG(LOG_TAG, "dev %d not active", beDevId);
+                    freeDeviceMetadata.push_back(std::make_pair(backendname, 1));
+                }
+            }
             status = SessionAlsaUtils::close(s, rm, pcmDevRxIds, pcmDevTxIds,
-                    rxAifBackEnds, txAifBackEnds);
+                    rxAifBackEnds, txAifBackEnds, freeDeviceMetadata);
             if (status) {
                 PAL_ERR(LOG_TAG, "session alsa close failed with %d", status);
             }
