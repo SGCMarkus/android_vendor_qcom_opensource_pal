@@ -89,6 +89,9 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
     second_stage_processing_ = false;
     gsl_engine_model_ = nullptr;
     gsl_conf_levels_ = nullptr;
+    gsl_engine_ = nullptr;
+    sm_info_ = nullptr;
+    sm_cfg_ = nullptr;
     mDevices.clear();
     mPalDevice.clear();
 
@@ -365,6 +368,11 @@ int32_t StreamSoundTrigger::getParameters(uint32_t param_id, void **payload) {
         }
 
         sm_cfg_ = sm_cfg_list[0];
+        if (!sm_cfg_) {
+            PAL_ERR(LOG_TAG, "Failed to get sound model config");
+            return -EINVAL;
+        }
+
         if (!mDevices.size()) {
             struct pal_device* dattr = new (struct pal_device);
             std::shared_ptr<Device> dev = nullptr;
@@ -1130,6 +1138,11 @@ int32_t StreamSoundTrigger::LoadSoundModel(
     }
     GetUUID(&uuid, sound_model);
     this->sm_cfg_ = this->st_info_->GetSmConfig(uuid);
+    if (!this->sm_cfg_) {
+        PAL_ERR(LOG_TAG, "Failed to get sound model config");
+        status = -EINVAL;
+        goto exit;
+    }
 
     /* Update stream attributes as per sound model config */
     updateStreamAttributes();
@@ -2970,6 +2983,10 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
             break;
         }
         case ST_EV_UNLOAD_SOUND_MODEL: {
+            if (st_stream_.mInstanceID == 0) {
+                PAL_DBG(LOG_TAG, "No model is loaded, ignore unload");
+                break;
+            }
 
             if (st_stream_.device_opened_ && st_stream_.mDevices.size() > 0) {
                 status = st_stream_.mDevices[0]->close();
