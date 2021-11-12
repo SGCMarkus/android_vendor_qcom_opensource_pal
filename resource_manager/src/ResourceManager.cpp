@@ -3061,7 +3061,15 @@ int ResourceManager::registerDevice(std::shared_ptr<Device> d, Stream *s)
             str_list = getConcurrentTxStream_l(s, device);
             for (auto str: str_list) {
                 tx_devices.clear();
+                if (!str) {
+                    PAL_ERR(LOG_TAG,"Stream Empty\n");
+                    continue;
+                }
                 str->getAssociatedDevices(tx_devices);
+                if (tx_devices.empty()) {
+                    PAL_ERR(LOG_TAG,"TX devices Empty\n");
+                    continue;
+                }
                 PAL_DBG(LOG_TAG, "Enter enable EC Ref");
                 // TODO: add support for stream with multi Tx devices
                 rxdevcount = updateECDeviceMap(d, tx_devices[0], str, 1, false);
@@ -3117,7 +3125,15 @@ int ResourceManager::registerDevice(std::shared_ptr<Device> d, Stream *s)
             str_list = getConcurrentTxStream_l(s, d);
             for (auto str: str_list) {
                 tx_devices.clear();
+                if (!str) {
+                    PAL_ERR(LOG_TAG,"Stream Empty\n");
+                    continue;
+                }
                 str->getAssociatedDevices(tx_devices);
+                if (tx_devices.empty()) {
+                    PAL_ERR(LOG_TAG,"TX devices Empty\n");
+                    continue;
+                }
                 // TODO: add support for stream with multi Tx devices
                 rxdevcount = updateECDeviceMap(d, tx_devices[0], str, 1, false);
                 if (rxdevcount <= 0) {
@@ -3217,7 +3233,15 @@ int ResourceManager::deregisterDevice(std::shared_ptr<Device> d, Stream *s)
             str_list = getConcurrentTxStream_l(s, d);
             for (auto str: str_list) {
                 tx_devices.clear();
+                if (!str) {
+                    PAL_ERR(LOG_TAG,"Stream Empty\n");
+                    continue;
+                }
                 str->getAssociatedDevices(tx_devices);
+                if (tx_devices.empty()) {
+                    PAL_ERR(LOG_TAG,"TX devices Empty\n");
+                    continue;
+                }
                 // TODO: add support for stream with multi Tx devices
                 rxdevcount = updateECDeviceMap(d, tx_devices[0], str, 0, false);
                 if (rxdevcount < 0) {
@@ -3248,7 +3272,15 @@ int ResourceManager::deregisterDevice(std::shared_ptr<Device> d, Stream *s)
             str_list = getConcurrentTxStream_l(s, device);
             for (auto str: str_list) {
                 tx_devices.clear();
+                if (!str) {
+                    PAL_ERR(LOG_TAG,"Stream Empty\n");
+                    continue;
+                }
                 str->getAssociatedDevices(tx_devices);
+                if (tx_devices.empty()) {
+                    PAL_ERR(LOG_TAG,"TX devices Empty\n");
+                    continue;
+                }
                 // TODO: add support for stream with multi Tx devices
                 rxdevcount = updateECDeviceMap(d, tx_devices[0], str, 0, false);
                 if (rxdevcount < 0) {
@@ -7866,7 +7898,7 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                 struct pal_device sco_rx_dattr;
                 std::shared_ptr<Device> sco_tx_dev = nullptr;
                 std::shared_ptr<Device> sco_rx_dev = nullptr;
-                struct pal_device handset_tx_dattr;
+                struct pal_device handset_tx_dattr = {};
                 struct pal_device_info devInfo = {};
                 struct pal_stream_attributes sAttr;
                 std::vector<Stream*> activestreams;
@@ -10100,7 +10132,7 @@ int ResourceManager::updatePriorityAttr(pal_device_id_t dev_id,
     pal_stream_type_t type;
     struct pal_device tempDev;
     char currentSndDeviceName[DEVICE_NAME_MAX_SIZE] = {0};
-    std::string key(incomingDev->custom_config.custom_key);
+    std::string key = "";
     std::vector <struct pal_device> palDevices;
 
     memset(&devInfo, 0, sizeof(pal_device_info));
@@ -10109,6 +10141,8 @@ int ResourceManager::updatePriorityAttr(pal_device_id_t dev_id,
         PAL_ERR(LOG_TAG, "invalid dev or stream cannot get device attr");
         return -EINVAL;
     }
+
+    key = incomingDev->custom_config.custom_key;
 
     /*get the incoming stream dev info*/
     getDeviceInfo(dev_id, currentStrAttr->type, key, &highPrioDevInfo);
