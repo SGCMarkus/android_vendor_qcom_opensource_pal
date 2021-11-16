@@ -49,9 +49,8 @@
 #include "PalDefs.h"
 #include "ChargerListener.h"
 #include "SndCardMonitor.h"
-#include "SoundTriggerPlatformInfo.h"
-#include "ACDPlatformInfo.h"
 #include "ContextManager.h"
+#include "SoundTriggerPlatformInfo.h"
 
 typedef enum {
     RX_HOSTLESS = 1,
@@ -171,7 +170,6 @@ struct xml_userdata {
     bool gain_lvl_parsed;
     snd_card_defs_xml_tags_t current_tag;
     bool is_parsing_sound_trigger;
-    bool is_parsing_acd;
     bool is_parsing_group_device;
     group_dev_config_idx_t group_dev_idx;
     resource_xml_tags_t tag;

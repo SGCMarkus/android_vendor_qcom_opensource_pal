@@ -33,18 +33,18 @@
 
 #include "capi_v2.h"
 #include "capi_v2_extn.h"
-
-#include "SoundTriggerEngine.h"
 #include "PalRingBuffer.h"
+#include "SoundTriggerEngine.h"
 
 class Stream;
-class SecondStageConfig;
+class VUISecondStageConfig;
 
-class SoundTriggerEngineCapi : public SoundTriggerEngine {
- public:
+class SoundTriggerEngineCapi : public SoundTriggerEngine
+{
+public:
     SoundTriggerEngineCapi(Stream *s,
         listen_model_indicator_enum type,
-        std::shared_ptr<SoundModelConfig> sm_cfg);
+        std::shared_ptr<VUIStreamConfig> sm_cfg);
     ~SoundTriggerEngineCapi();
     int32_t LoadSoundModel(Stream *s, uint8_t *data,
                            uint32_t data_size) override;
@@ -93,7 +93,7 @@ class SoundTriggerEngineCapi : public SoundTriggerEngine {
         return std::chrono::steady_clock::time_point::min();
     }
 
- private:
+private:
     int32_t StartSoundEngine();
     int32_t StopSoundEngine();
     int32_t StartKeywordDetection();
@@ -111,7 +111,7 @@ class SoundTriggerEngineCapi : public SoundTriggerEngine {
     bool keyword_detected_;
     int32_t confidence_threshold_;
     uint32_t buffer_size_;
-    std::shared_ptr<SecondStageConfig> ss_cfg_;
+    std::shared_ptr<VUISecondStageConfig> ss_cfg_;
     /*
      * externally to allow engine to know where
      * it can stop and start processing

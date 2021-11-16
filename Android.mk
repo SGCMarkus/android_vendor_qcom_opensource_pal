@@ -98,9 +98,9 @@ LOCAL_SRC_FILES := \
     session/src/ACDEngine.cpp \
     resource_manager/src/ResourceManager.cpp \
     resource_manager/src/SndCardMonitor.cpp \
-    utils/src/SoundTriggerXmlParser.cpp \
     utils/src/SoundTriggerPlatformInfo.cpp \
     utils/src/ACDPlatformInfo.cpp \
+    utils/src/VoiceUIPlatformInfo.cpp \
     utils/src/PalRingBuffer.cpp \
     utils/src/SoundTriggerUtils.cpp
 
