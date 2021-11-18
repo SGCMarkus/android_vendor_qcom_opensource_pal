@@ -33,10 +33,199 @@
 <!--  STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING      -->
 <!--  IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISEDOF THE          -->
 <!--  POSSIBILITY OF SUCH DAMAGE.                                                -->
-<defs>
-<card>
-    <id>100</id>
-    <name>kalamavirtualsndcard</name>
+<mixer>
+    <!-- These are the initial mixer settings -->
+    <ctl name="WSA_AIF_VI Mixer WSA_SPKR_VI_1" value="0" />
+    <ctl name="WSA_AIF_VI Mixer WSA_SPKR_VI_2" value="0" />
+
+    <!-- Codec controls -->
+    <!-- WSA controls -->
+    <ctl name="WSA RX0 MUX" value="ZERO" />
+    <ctl name="WSA RX1 MUX" value="ZERO" />
+    <ctl name="WSA_RX0 INP0" value="ZERO" />
+    <ctl name="WSA_RX1 INP0" value="ZERO" />
+    <ctl name="WSA_AIF_VI Mixer WSA_SPKR_VI_1" value="0" />
+    <ctl name="WSA_AIF_VI Mixer WSA_SPKR_VI_2" value="0" />
+    <ctl name="SpkrLeft COMP Switch" value="0" />
+    <ctl name="SpkrRight COMP Switch" value="0" />
+    <ctl name="SpkrLeft VISENSE Switch" value="0" />
+    <ctl name="SpkrRight VISENSE Switch" value="0" />
+    <ctl name="SpkrLeft SWR DAC_Port Switch" value="0" />
+    <ctl name="SpkrRight SWR DAC_Port Switch" value="0" />
+
+    <!-- RX Controls -->
+    <ctl name="RX_MACRO RX0 MUX" value="ZERO" />
+    <ctl name="RX_MACRO RX1 MUX" value="ZERO" />
+    <ctl name="RX INT0_1 MIX1 INP0" value="ZERO" />
+    <ctl name="RX INT0_1 MIX1 INP1" value="ZERO" />
+    <ctl name="RX INT0_1 MIX1 INP2" value="ZERO" />
+    <ctl name="RX INT1_1 MIX1 INP0" value="ZERO" />
+    <ctl name="RX INT1_1 MIX1 INP1" value="ZERO" />
+    <ctl name="RX INT1_1 MIX1 INP2" value="ZERO" />
+    <ctl name="RX INT0 DEM MUX" value="NORMAL_DSM_OUT" />
+    <ctl name="RX INT1 DEM MUX" value="NORMAL_DSM_OUT" />
+    <ctl name="RX_COMP1 Switch" value="0" />
+    <ctl name="RX_COMP2 Switch" value="0" />
+    <ctl name="HPHL_COMP Switch" value="0" />
+    <ctl name="HPHR_COMP Switch" value="0" />
+    <ctl name="EAR_RDAC Switch" value="0" />
+    <ctl name="HPHL_RDAC Switch" value="0" />
+    <ctl name="HPHR_RDAC Switch" value="0" />
+    <ctl name="AUX_RDAC Switch" value="0" />
+    <ctl name="RX_FIR Filter" value="OFF" />
+    <ctl name="RX_EAR Mode" value="OFF" />
+
+    <!-- TX Controls -->
+    <ctl name="VA_AIF1_CAP Mixer DEC0" value="0" />
+    <ctl name="VA_AIF1_CAP Mixer DEC1" value="0" />
+    <ctl name="VA_AIF1_CAP Mixer DEC2" value="0" />
+    <ctl name="VA_AIF1_CAP Mixer DEC3" value="0" />
+    <ctl name="VA DEC0 MUX" value="MSM_DMIC" />
+    <ctl name="VA DEC1 MUX" value="MSM_DMIC" />
+    <ctl name="VA DEC2 MUX" value="MSM_DMIC" />
+    <ctl name="VA DEC3 MUX" value="MSM_DMIC" />
+    <ctl name="VA DMIC MUX0" value="ZERO" />
+    <ctl name="VA DMIC MUX1" value="ZERO" />
+    <ctl name="VA DMIC MUX2" value="ZERO" />
+    <ctl name="VA DMIC MUX3" value="ZERO" />
+    <ctl name="VA SMIC MUX0" value="ZERO" />
+    <ctl name="VA SMIC MUX1" value="ZERO" />
+    <ctl name="VA SMIC MUX2" value="ZERO" />
+    <ctl name="VA SMIC MUX3" value="ZERO" />
+    <ctl name="VA_DEC0 MODE" value="ADC_DEFAULT" />
+    <ctl name="ADC2_BCS Disable" value="0" />
+    <ctl name="LPI Enable" value="0" />
+    <ctl name="ADC1_MIXER Switch" value="0" />
+    <ctl name="ADC2_MIXER Switch" value="0" />
+    <ctl name="ADC3_MIXER Switch" value="0" />
+    <ctl name="ADC4_MIXER Switch" value="0" />
+    <ctl name="ADC2 MUX" value="INP2" />
+    <ctl name="DEC0_BCS Switch" value="0" />
+    <ctl name="ADC2_BCS Disable" value="0" />
+    <ctl name="ADC3 MUX" value="INP4" />
+    <ctl name="ADC4 MUX" value="INP5" />
+    <ctl name="VA_AMIC1_MIXER Switch" value="0" />
+    <ctl name="VA_AMIC2_MIXER Switch" value="0" />
+    <ctl name="VA_AMIC3_MIXER Switch" value="0" />
+    <ctl name="VA_AMIC4_MIXER Switch" value="0" />
+    <ctl name="VA_AMIC5_MIXER Switch" value="0" />
+    <ctl name="AMIC1_MIXER Switch" value="0" />
+    <ctl name="AMIC2_MIXER Switch" value="0" />
+    <ctl name="AMIC3_MIXER Switch" value="0" />
+    <ctl name="AMIC4_MIXER Switch" value="0" />
+    <ctl name="AMIC5_MIXER Switch" value="0" />
+
+    <ctl name="TX_AIF1_CAP Mixer DEC0" value="0" />
+    <ctl name="TX_AIF1_CAP Mixer DEC1" value="0" />
+    <ctl name="TX_AIF1_CAP Mixer DEC2" value="0" />
+    <ctl name="TX_AIF1_CAP Mixer DEC3" value="0" />
+    <ctl name="TX_AIF1_CAP Mixer DEC4" value="0" />
+    <ctl name="TX_AIF1_CAP Mixer DEC5" value="0" />
+    <ctl name="TX_AIF1_CAP Mixer DEC6" value="0" />
+    <ctl name="TX_AIF1_CAP Mixer DEC7" value="0" />
+    <ctl name="TX DEC0 MUX" value="MSM_DMIC" />
+    <ctl name="TX DMIC MUX0" value="ZERO" />
+    <ctl name="TX SMIC MUX0" value="ZERO" />
+    <ctl name="TX DEC1 MUX" value="MSM_DMIC" />
+    <ctl name="TX DMIC MUX1" value="ZERO" />
+    <ctl name="TX SMIC MUX1" value="ZERO" />
+    <ctl name="TX DEC2 MUX" value="MSM_DMIC" />
+    <ctl name="TX DMIC MUX2" value="ZERO" />
+    <ctl name="TX SMIC MUX2" value="ZERO" />
+    <ctl name="TX DEC3 MUX" value="MSM_DMIC" />
+    <ctl name="TX DMIC MUX3" value="ZERO" />
+    <ctl name="TX SMIC MUX3" value="ZERO" />
+    <ctl name="TX DEC4 MUX" value="MSM_DMIC" />
+    <ctl name="TX DMIC MUX4" value="ZERO" />
+    <ctl name="TX SMIC MUX4" value="ZERO" />
+    <ctl name="TX DEC5 MUX" value="MSM_DMIC" />
+    <ctl name="TX DMIC MUX5" value="ZERO" />
+    <ctl name="TX SMIC MUX5" value="ZERO" />
+    <ctl name="TX DEC6 MUX" value="MSM_DMIC" />
+    <ctl name="TX DMIC MUX6" value="ZERO" />
+    <ctl name="TX SMIC MUX6" value="ZERO" />
+    <ctl name="TX DEC7 MUX" value="MSM_DMIC" />
+    <ctl name="TX DMIC MUX7" value="ZERO" />
+    <ctl name="TX SMIC MUX7" value="ZERO" />
+    <ctl name="ADC1 ChMap" value="ZERO" />
+    <ctl name="ADC2 ChMap" value="ZERO" />
+    <ctl name="ADC3 ChMap" value="ZERO" />
+    <ctl name="ADC4 ChMap" value="ZERO" />
+    <ctl name="HDR12 MUX" value="NO_HDR12" />
+    <ctl name="HDR34 MUX" value="NO_HDR34" />
+    <ctl name="TX0 MODE" value="ADC_NORMAL" />
+    <ctl name="TX1 MODE" value="ADC_NORMAL" />
+    <ctl name="TX2 MODE" value="ADC_NORMAL" />
+    <ctl name="TX3 MODE" value="ADC_NORMAL" />
+
+    <!-- Volume controls -->
+    <ctl name="WSA_RX0 Digital Volume" value="84" />
+    <ctl name="WSA_RX1 Digital Volume" value="84" />
+    <ctl name="RX_RX0 Digital Volume" value="84" />
+    <ctl name="RX_RX1 Digital Volume" value="84" />
+    <ctl name="RX_RX2 Digital Volume" value="84" />
+    <ctl name="HPHL Volume" value="20" />
+    <ctl name="HPHR Volume" value="20" />
+
+    <ctl name="TX_DEC0 Volume" value="102" />
+    <ctl name="TX_DEC1 Volume" value="102" />
+    <ctl name="TX_DEC2 Volume" value="102" />
+    <ctl name="TX_DEC3 Volume" value="102" />
+    <ctl name="TX_DEC4 Volume" value="84" />
+    <ctl name="TX_DEC5 Volume" value="84" />
+    <ctl name="TX_DEC6 Volume" value="84" />
+    <ctl name="TX_DEC7 Volume" value="84" />
+
+    <ctl name="ADC1 Volume" value="12" />
+    <ctl name="ADC2 Volume" value="12" />
+    <ctl name="ADC3 Volume" value="12" />
+
+    <!-- Compander controls -->
+    <ctl name="WSA_COMP1 Switch" value="0" />
+    <ctl name="WSA_COMP2 Switch" value="0" />
+
+    <!-- Headphone class-H mode -->
+    <ctl name="RX_HPH_PWR_MODE" value="ULP" />
+    <ctl name="RX HPH Mode" value="CLS_H_ULP" />
+
+    <!-- IIR/voice anc -->
+    <ctl name="IIR0 Band1" value="00 00 00 10 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00" />
+    <ctl name="IIR0 Band2" value="00 00 00 10 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00" />
+    <ctl name="IIR0 Band3" value="00 00 00 10 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00" />
+    <ctl name="IIR0 Band4" value="00 00 00 10 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00" />
+    <ctl name="IIR0 Band5" value="00 00 00 10 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00" />
+    <ctl name="IIR0 Enable Band1" value="0" />
+    <ctl name="IIR0 Enable Band2" value="0" />
+    <ctl name="IIR0 Enable Band3" value="0" />
+    <ctl name="IIR0 Enable Band4" value="0" />
+    <ctl name="IIR0 Enable Band5" value="0" />
+    <ctl name="IIR0 INP0 Volume" value="54" />
+    <ctl name="IIR0 INP0 MUX" value="ZERO" />
+    <ctl name="IIR0 INP1 MUX" value="ZERO" />
+    <ctl name="IIR0 INP2 MUX" value="ZERO" />
+    <ctl name="IIR0 INP3 MUX" value="ZERO" />
+
+    <!-- vbat related data -->
+    <ctl name="GSM mode Enable" value="OFF" />
+    <ctl name="WSA_Softclip0 Enable" value="0" />
+    <ctl name="WSA_Softclip1 Enable" value="0" />
+    <ctl name="WSA_RX INT0 VBAT WSA RX0 VBAT Enable" value="0" />
+    <ctl name="WSA_RX INT1 VBAT WSA RX1 VBAT Enable" value="0" />
+
+    <!-- Codec controls end -->
+
+    <!-- defaults for mmap record -->
+
+
+    <!-- HIFI Filter coefficients for headphones path -->
+    <path name="hifi-filter-coefficients">
+        <ctl name="RX0 FIR Coeff Num" value="8" />
+        <ctl name="RX0 FIR Coeff Group0" value="08 00 00 00 00 00 00 10 00 00 00 10 00 00 00 10 00 00 00 10 00 00 00 10 00 00 00 10 00 00 00 10 00 00 00 10 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0" />
+        <ctl name="RX0 FIR Coeff Group1" value="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0" />
+        <ctl name="RX1 FIR Coeff Num" value="8" />
+        <ctl name="RX1 FIR Coeff Group0" value="08 00 00 00 00 00 00 10 00 00 00 10 00 00 00 10 00 00 00 10 00 00 00 10 00 00 00 10 00 00 00 10 00 00 00 10 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0" />
+        <ctl name="RX1 FIR Coeff Group1" value="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0" />
+    </path>
 
     <!-- These are audio route (FE to BE) specific mixer settings -->
     <path name="gsm-mode">
