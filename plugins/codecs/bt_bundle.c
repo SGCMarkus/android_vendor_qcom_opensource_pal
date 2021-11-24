@@ -130,7 +130,11 @@ static int aac_pack_enc_config(bt_codec_t *codec, void *src, void **dst)
     ALOGD("%s: AAC ABR mode is %d", __func__, enc_payload->is_abr_enabled);
     if (!enc_payload->is_abr_enabled) {
         /* populate payload for PARAM_ID_REAL_MODULE_ID */
+#if defined(PLATFORM_SLATE) && defined(MODULE_ID_AAC_LC_ENC)
+        ret = bt_base_populate_real_module_id(blk[0], MODULE_ID_AAC_LC_ENC);
+#else
         ret = bt_base_populate_real_module_id(blk[0], MODULE_ID_AAC_ENC);
+#endif
     } else {
         /* populate payload for PARAM_ID_AAC_BIT_RATE_LEVEL_MAP */
         ret = bt_aac_populate_bitrate_level_map(blk[0],

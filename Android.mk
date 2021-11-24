@@ -183,5 +183,9 @@ include $(CLEAR_VARS)
 include $(PAL_BASE_PATH)/plugins/Android.mk
 include $(PAL_BASE_PATH)/ipc/HwBinders/Android.mk
 
+ifeq ($(TARGET_SUPPORTS_WEAR_AON),true)
+LOCAL_CFLAGS += -DPLATFORM_SLATE
+endif
+
 endif #TARGET_USES_QCOM_MM_AUDIO
 endif #AUDIO_USE_STUB_HAL
