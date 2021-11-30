@@ -3059,7 +3059,7 @@ int ResourceManager::registerDevice(std::shared_ptr<Device> d, Stream *s)
                     /* For Device switch, stream mutex will be already acquired,
                      * so call setECRef_l instead of setECRef.
                      */
-                    if (isDeviceSwitch)
+                    if (isDeviceSwitch && str->isMutexLockedbyRm())
                         status = str->setECRef_l(device, true);
                     else
                         status = str->setECRef(device, true);
@@ -3111,7 +3111,7 @@ int ResourceManager::registerDevice(std::shared_ptr<Device> d, Stream *s)
                     PAL_DBG(LOG_TAG, "EC ref already set");
                 } else if (str && isStreamActive(str, mActiveStreams)) {
                     mResourceManagerMutex.unlock();
-                    if (isDeviceSwitch)
+                    if (isDeviceSwitch && str->isMutexLockedbyRm())
                         status = str->setECRef_l(d, true);
                     else
                         status = str->setECRef(d, true);
@@ -3211,7 +3211,7 @@ int ResourceManager::deregisterDevice(std::shared_ptr<Device> d, Stream *s)
                     PAL_DBG(LOG_TAG, "EC ref still active, no need to reset");
                 } else if (str && isStreamActive(str, mActiveStreams)) {
                     mResourceManagerMutex.unlock();
-                    if (isDeviceSwitch)
+                    if (isDeviceSwitch && str->isMutexLockedbyRm())
                         status = str->setECRef_l(d, false);
                     else
                         status = str->setECRef(d, false);
@@ -3242,7 +3242,7 @@ int ResourceManager::deregisterDevice(std::shared_ptr<Device> d, Stream *s)
                     PAL_DBG(LOG_TAG, "EC ref still active, no need to reset");
                 } else if (str && isStreamActive(str, mActiveStreams)) {
                     mResourceManagerMutex.unlock();
-                    if (isDeviceSwitch)
+                    if (isDeviceSwitch && str->isMutexLockedbyRm())
                         status = str->setECRef_l(device, false);
                     else
                         status = str->setECRef(device, false);
