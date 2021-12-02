@@ -3071,6 +3071,7 @@ int ResourceManager::deregisterDevice(std::shared_ptr<Device> d, Stream *s)
     }
 
     mResourceManagerMutex.lock();
+    deregisterDevice_l(d, s);
     if (sAttr.direction == PAL_AUDIO_INPUT) {
         dev = getActiveEchoReferenceRxDevices_l(s);
         if (dev)
@@ -3153,7 +3154,6 @@ int ResourceManager::deregisterDevice(std::shared_ptr<Device> d, Stream *s)
             }
         }
     }
-    deregisterDevice_l(d, s);
 unlock:
     mResourceManagerMutex.unlock();
 exit:
