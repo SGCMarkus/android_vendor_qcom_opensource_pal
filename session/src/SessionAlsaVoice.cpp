@@ -752,6 +752,21 @@ int SessionAlsaVoice::start(Stream * s)
             PAL_ERR(LOG_TAG, "Failed to set data logging param status = %d", status);
     }
 
+    if (ResourceManager::isChargeConcurrencyEnabled) {
+        if (PAL_DEVICE_OUT_SPEAKER == rxDevice->getSndDeviceId()) {
+            status = Session::NotifyChargerConcurrency(rm, true);
+            if (0 == status) {
+                status = Session::EnableChargerConcurrency(rm, s);
+                //Handle failure case of ICL config
+                if (0 != status) {
+                    PAL_DBG(LOG_TAG, "Failed to set ICL Config status %d", status);
+                    status = Session::NotifyChargerConcurrency(rm, false);
+                }
+            }
+            status = 0;
+        }
+    }
+
     status = pcm_start(pcmRx);
     if (status) {
         PAL_ERR(LOG_TAG, "pcm_start rx failed %d", status);

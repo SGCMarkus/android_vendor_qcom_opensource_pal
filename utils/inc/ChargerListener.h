@@ -41,8 +41,8 @@
 #define MAX_EVENTS 3
 
 typedef enum {
-    ONLINE,
-    OFFLINE
+    OFFLINE = 0,
+    ONLINE
 } charger_state_t;
 
 typedef enum {
@@ -79,9 +79,8 @@ class ChargerListenerImpl {
     cb_fn_t mcb;
     int intPipe[2];
     int pipe_status;
-    std::thread mThread;
+    std::thread poll_thread, dispatcher_thread;
     std::mutex mlock;
-    struct epoll_event *reg_event;
     struct charger_info *info;
     int readSysfsPath(const char *path, int flag, int length, char *state);
     int getInitialStatus();

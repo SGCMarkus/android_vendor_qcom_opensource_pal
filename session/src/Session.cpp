@@ -835,6 +835,67 @@ exit:
     return status;
 }
 
+/*
+ Handle case when charging going is on and PB starts on speaker.
+ Below steps are to ensure HW transition from charging->boost->charging
+ which will avoid USB collapse due to HW transition in less moment.
+ 1. Set concurrency bit to update charger driver for respective session
+ 2. Enable Speaker boost when Audio done voting as part of PCM_open
+ 3. Set ICL config in device:Speaker module.
+*/
+int Session::NotifyChargerConcurrency(std::shared_ptr<ResourceManager>rm, bool state)
+{
+    int status = -EINVAL;
+
+    if (!rm)
+        goto exit;
+
+    PAL_DBG(LOG_TAG, "Enter concurrency state %d Notify state %d \n",
+            rm->getConcurrentBoostState(), state);
+
+    ResourceManager::mChargerBoostMutex.lock();
+    if (rm->getChargerOnlineState()) {
+        if (rm->getConcurrentBoostState() ^ state)
+            status = rm->chargerListenerSetBoostState(state, CHARGER_ON_PB_STARTS);
+
+        if (0 != status)
+            PAL_ERR(LOG_TAG, "Failed to notify PMIC: %d", status);
+    }
+
+    PAL_DBG(LOG_TAG, "Exit concurrency state %d with status %d",
+            rm->getConcurrentBoostState(), status);
+    ResourceManager::mChargerBoostMutex.unlock();
+exit:
+    return status;
+}
+
+/* Handle case when charging going on and PB starts on speaker*/
+int Session::EnableChargerConcurrency(std::shared_ptr<ResourceManager>rm, Stream *s)
+{
+    int status = -EINVAL;
+
+    if (!rm)
+        goto exit;
+
+    PAL_DBG(LOG_TAG, "Enter concurrency state %d", rm->getConcurrentBoostState());
+
+    if ((s && rm->getChargerOnlineState()) &&
+        (rm->getConcurrentBoostState())) {
+         status = rm->setSessionParamConfig(PAL_PARAM_ID_CHARGER_STATE, s,
+                                               CHARGE_CONCURRENCY_ON_TAG);
+        if (0 != status) {
+            PAL_DBG(LOG_TAG, "Set SessionParamConfig with status %d", status);
+            status = rm->chargerListenerSetBoostState(false, CHARGER_ON_PB_STARTS);
+            if (0 != status)
+                PAL_ERR(LOG_TAG, "Failed to notify PMIC: %d", status);
+        }
+    }
+    PAL_DBG(LOG_TAG, "Exit concurrency state %d with status %d",
+            rm->getConcurrentBoostState(), status);
+exit:
+    return status;
+}
+
 #if 0
 int setConfig(Stream * s, pal_stream_type_t sType, configType type, uint32_t tag1,
         uint32_t tag2, uint32_t tag3)

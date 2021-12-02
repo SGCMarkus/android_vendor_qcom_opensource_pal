@@ -45,7 +45,7 @@ public:
     static int32_t isChannelSupported(uint32_t numChannels);
     static int32_t isBitWidthSupported(uint32_t bitWidth);
     static std::shared_ptr<Device> getObject();
-    int stop();
+    int close();
     Speaker();
     virtual ~Speaker();
 };

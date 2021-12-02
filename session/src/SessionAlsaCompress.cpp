@@ -1222,6 +1222,19 @@ int SessionAlsaCompress::start(Stream * s)
                         isPauseRegistrationDone = false;
                     }
                 }
+               if ((ResourceManager::isChargeConcurrencyEnabled) &&
+                    (dAttr.id == PAL_DEVICE_OUT_SPEAKER)) {
+                    status = Session::NotifyChargerConcurrency(rm, true);
+                    if (0 == status) {
+                        status = Session::EnableChargerConcurrency(rm, s);
+                        //Handle failure case of ICL config
+                        if (0 != status) {
+                            PAL_DBG(LOG_TAG, "Failed to set ICL Config status %d", status);
+                            status = Session::NotifyChargerConcurrency(rm, false);
+                        }
+                    }
+                    status = 0;
+                }
             }
             break;
         default:
