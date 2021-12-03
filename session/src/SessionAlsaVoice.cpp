@@ -342,7 +342,7 @@ int SessionAlsaVoice::getDeviceChannelInfo(Stream *s, uint16_t *channels)
         goto exit;
     }
 
-    if (dAttr.id == PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET)
+    if (dAttr.id == PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET || dAttr.id == PAL_DEVICE_IN_BLUETOOTH_BLE)
     {
         struct pal_media_config codecConfig;
         status = associatedDevices[idx]->getCodecConfig(&codecConfig);
@@ -351,7 +351,7 @@ int SessionAlsaVoice::getDeviceChannelInfo(Stream *s, uint16_t *channels)
             goto exit;
         }
         *channels = codecConfig.ch_info.channels;
-        PAL_DBG(LOG_TAG,"set devicePPMFC to match codec configuration for SCO\n");
+        PAL_DBG(LOG_TAG,"set devicePPMFC to match codec configuration for %d\n", dAttr.id);
     } else {
         *channels = dAttr.config.ch_info.channels;
     }
@@ -534,7 +534,7 @@ int SessionAlsaVoice::populate_rx_mfc_payload(Stream *s, uint32_t rx_mfc_tag)
         goto exit;
     }
 
-    if (dAttr.id == PAL_DEVICE_OUT_BLUETOOTH_SCO)
+    if (dAttr.id == PAL_DEVICE_OUT_BLUETOOTH_SCO || dAttr.id == PAL_DEVICE_OUT_BLUETOOTH_BLE)
     {
         struct pal_media_config codecConfig;
         status = associatedDevices[idx]->getCodecConfig(&codecConfig);
@@ -546,7 +546,7 @@ int SessionAlsaVoice::populate_rx_mfc_payload(Stream *s, uint32_t rx_mfc_tag)
         deviceData.sampleRate = codecConfig.sample_rate;
         deviceData.numChannel = codecConfig.ch_info.channels;
         deviceData.ch_info = nullptr;
-        PAL_DBG(LOG_TAG,"set devicePPMFC to match codec configuration for SCO\n");
+        PAL_DBG(LOG_TAG,"set devicePPMFC to match codec configuration for device %d\n", dAttr.id);
     } else {
         // update device pp configuration if virtual port is enabled
         if (rm->activeGroupDevConfig &&

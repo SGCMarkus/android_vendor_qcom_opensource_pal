@@ -2026,12 +2026,14 @@ int PayloadBuilder::getBtDeviceKV(int dev_id, std::vector<std::pair<int,int>>& d
     filled_selector_pairs.push_back(std::make_pair(CODECFORMAT_SEL,
                                    btCodecFormatLUT.at(codecFormat)));
 
-    if (dev_id == PAL_DEVICE_OUT_BLUETOOTH_A2DP) {
+    if (dev_id == PAL_DEVICE_OUT_BLUETOOTH_A2DP ||
+        dev_id == PAL_DEVICE_OUT_BLUETOOTH_BLE) {
         filled_selector_pairs.push_back(std::make_pair(ABR_ENABLED_SEL,
             isAbrEnabled ? "TRUE" : "FALSE"));
         filled_selector_pairs.push_back(std::make_pair(HOSTLESS_SEL,
             isHostless ? "TRUE" : "FALSE"));
-    } else if (dev_id == PAL_DEVICE_IN_BLUETOOTH_A2DP) {
+    } else if (dev_id == PAL_DEVICE_IN_BLUETOOTH_A2DP ||
+        dev_id == PAL_DEVICE_IN_BLUETOOTH_BLE) {
         filled_selector_pairs.push_back(std::make_pair(HOSTLESS_SEL,
             isHostless ? "TRUE" : "FALSE"));
     }

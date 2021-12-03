@@ -888,7 +888,8 @@ int32_t StreamPCM::write(struct pal_buffer* buf)
 
     mStreamMutex.lock();
     for (int i = 0; i < mDevices.size(); i++) {
-        if (mDevices[i]->getSndDeviceId() == PAL_DEVICE_OUT_BLUETOOTH_A2DP)
+        if (mDevices[i]->getSndDeviceId() == PAL_DEVICE_OUT_BLUETOOTH_A2DP ||
+            mDevices[i]->getSndDeviceId() == PAL_DEVICE_OUT_BLUETOOTH_BLE)
             isA2dp = true;
         if (mDevices[i]->getSndDeviceId() == PAL_DEVICE_OUT_SPEAKER)
             isSpkr = true;
