@@ -13,6 +13,11 @@ LOCAL_SRC_FILES := \
 
 LOCAL_CFLAGS += -O2 -fvisibility=hidden
 
+ifeq ($(strip $(AUDIO_FEATURE_ENABLE_BT_A2DP_LPI)),true)
+LOCAL_CFLAGS += -DBT_A2DP_LPI_ENABLED
+endif
+
+
 LOCAL_SHARED_LIBRARIES := \
     libcutils \
     liblog \
