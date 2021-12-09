@@ -678,7 +678,11 @@ int SessionAlsaVoice::start(Stream * s)
         goto exit;
     }
 
-    SessionAlsaVoice::setConfig(s, MODULE, VSID, RX_HOSTLESS);
+    status = SessionAlsaVoice::setConfig(s, MODULE, VSID, RX_HOSTLESS);
+    if (status) {
+        PAL_ERR(LOG_TAG, "setConfig failed %d", status);
+        goto exit;
+    }
 
     SessionAlsaVoice::setConfig(s, MODULE, CHANNEL_INFO, TX_HOSTLESS);
     volume = (struct pal_volume_data *)malloc(sizeof(uint32_t) +
