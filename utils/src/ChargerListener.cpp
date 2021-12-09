@@ -28,6 +28,7 @@
 
 #define N_OF_EVNT_REG     2
 #define MAX_BUFFER_LEN    16
+#define UEVENT_MSG_LEN    2048
 #define UEVENT_SOCKET_RCVBUF_SIZE  64 * 1024
 #define SET_BOOST_CONCURRENT_BIT   "1"
 #define RESET_BOOST_CONCURRENT_BIT "0"
@@ -143,7 +144,8 @@ void ChargerListenerImpl::getStateUpdate(int type)
 
 void  ChargerListenerImpl::readEvent(void *context,  struct charger_info *info)
 {
-    char msg_info [PAGE_SIZE];
+    /* Max size allowed for UEVENT_MSG_LEN is 2048 */
+    char msg_info [UEVENT_MSG_LEN];
     int size_rcv;
     int uevent_type;
 
