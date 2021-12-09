@@ -789,7 +789,7 @@ public:
     std::shared_ptr<CaptureProfile> GetCaptureProfileByPriority(Stream *s);
     bool UpdateSoundTriggerCaptureProfile(Stream *s, bool is_active);
     std::shared_ptr<CaptureProfile> GetSoundTriggerCaptureProfile();
-    int SwitchSoundTriggerDevices(bool connect_state, pal_device_id_t device_id);
+    void SwitchSoundTriggerDevices(bool connect_state, pal_device_id_t st_device);
     static void mixerEventWaitThreadLoop(std::shared_ptr<ResourceManager> rm);
     bool isCallbackRegistered() { return (mixerEventRegisterCount > 0); }
     int handleMixerEvent(struct mixer *mixer, char *mixer_str);

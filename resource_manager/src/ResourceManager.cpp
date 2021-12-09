@@ -3955,16 +3955,13 @@ bool ResourceManager::UpdateSoundTriggerCaptureProfile(Stream *s, bool is_active
     return backend_update;
 }
 
-int ResourceManager::SwitchSoundTriggerDevices(bool connect_state,
-                                               pal_device_id_t device_id) {
-    int32_t status = 0;
-    pal_device_id_t dest_device;
+void ResourceManager::SwitchSoundTriggerDevices(bool connect_state,
+                                                pal_device_id_t st_device) {
     pal_device_id_t device_to_disconnect;
     pal_device_id_t device_to_connect;
-    bool is_ds_supported = false;
+    std::vector<pal_stream_type_t> st_streams;
     std::shared_ptr<CaptureProfile> cap_prof_priority = nullptr;
-    std::shared_ptr<SoundTriggerPlatformInfo> st_info =
-        SoundTriggerPlatformInfo::GetInstance();
+    std::shared_ptr<SoundTriggerPlatformInfo> st_info = nullptr;
 
     PAL_DBG(LOG_TAG, "Enter");
 
@@ -3972,32 +3969,14 @@ int ResourceManager::SwitchSoundTriggerDevices(bool connect_state,
      * Voice UI, ACD and Sensor PCM Data(SPD)
      * share the sound trigger platform info.
      */
-    is_ds_supported = st_info->GetSupportDevSwitch();
-
-    if (!is_ds_supported) {
-        PAL_INFO(LOG_TAG, "Device switch not supported, return");
-        goto exit;
-    }
-
-    // TODO: add support for other devices
-    if (device_id == PAL_DEVICE_IN_HANDSET_MIC ||
-        device_id == PAL_DEVICE_IN_SPEAKER_MIC) {
-        dest_device = PAL_DEVICE_IN_HANDSET_VA_MIC;
-    } else if (device_id == PAL_DEVICE_IN_WIRED_HEADSET) {
-        dest_device = PAL_DEVICE_IN_HEADSET_VA_MIC;
-    } else {
-        PAL_DBG(LOG_TAG, "Unsupported device %d", device_id);
+    st_info = SoundTriggerPlatformInfo::GetInstance();
+    if (st_info && (false == st_info->GetSupportDevSwitch())) {
+        PAL_INFO(LOG_TAG, "Device switch not supported");
         goto exit;
     }
 
     SoundTriggerCaptureProfile = nullptr;
-
-    if (is_ds_supported) {
-        cap_prof_priority = GetSVACaptureProfileByPriority(nullptr, cap_prof_priority);
-        cap_prof_priority = GetACDCaptureProfileByPriority(nullptr, cap_prof_priority);
-        cap_prof_priority = GetSPDCaptureProfileByPriority(nullptr, cap_prof_priority);
-    }
-
+    cap_prof_priority = GetCaptureProfileByPriority(nullptr);
     if (!cap_prof_priority) {
         PAL_DBG(LOG_TAG, "No SVA/ACD session active, reset capture profile");
         SoundTriggerCaptureProfile = nullptr;
@@ -4006,40 +3985,41 @@ int ResourceManager::SwitchSoundTriggerDevices(bool connect_state,
         SoundTriggerCaptureProfile = cap_prof_priority;
     }
 
-    // TODO: add support for other devices
-    if (connect_state && dest_device == PAL_DEVICE_IN_HEADSET_VA_MIC) {
-        device_to_connect = dest_device;
+    if (true == connect_state) {
+        device_to_connect = st_device;
         device_to_disconnect = PAL_DEVICE_IN_HANDSET_VA_MIC;
-    } else if (!connect_state && dest_device == PAL_DEVICE_IN_HEADSET_VA_MIC) {
+    } else {
         device_to_connect = PAL_DEVICE_IN_HANDSET_VA_MIC;
-        device_to_disconnect = dest_device;
+        device_to_disconnect = st_device;
     }
 
     /* This is called from mResourceManagerMutex lock, unlock before calling
      * HandleDetectionStreamAction */
     mResourceManagerMutex.unlock();
     mActiveStreamMutex.lock();
-    if (is_ds_supported) {
-        /* Disconnect device for all sound trigger streams */
-        HandleDetectionStreamAction(PAL_STREAM_VOICE_UI, ST_HANDLE_DISCONNECT_DEVICE, (void *)&device_to_disconnect);
-        HandleDetectionStreamAction(PAL_STREAM_ACD, ST_HANDLE_DISCONNECT_DEVICE, (void *)&device_to_disconnect);
-        HandleDetectionStreamAction(PAL_STREAM_SENSOR_PCM_DATA, ST_HANDLE_DISCONNECT_DEVICE,
+    if (active_streams_st.size())
+        st_streams.push_back(PAL_STREAM_VOICE_UI);
+    if (active_streams_acd.size())
+        st_streams.push_back(PAL_STREAM_ACD);
+    if (active_streams_sensor_pcm_data.size())
+        st_streams.push_back(PAL_STREAM_SENSOR_PCM_DATA);
+
+    for (pal_stream_type_t st_stream_type : st_streams) {
+        /* Disconnect device for all active sound trigger streams */
+        HandleDetectionStreamAction(st_stream_type, ST_HANDLE_DISCONNECT_DEVICE,
                                     (void *)&device_to_disconnect);
     }
 
-
-    if (is_ds_supported) {
-        /* Connect device for all sound trigger streams */
-        HandleDetectionStreamAction(PAL_STREAM_VOICE_UI, ST_HANDLE_CONNECT_DEVICE, (void *)&device_to_connect);
-        HandleDetectionStreamAction(PAL_STREAM_ACD, ST_HANDLE_CONNECT_DEVICE, (void *)&device_to_connect);
-        HandleDetectionStreamAction(PAL_STREAM_SENSOR_PCM_DATA, ST_HANDLE_CONNECT_DEVICE,
+    for (pal_stream_type_t st_stream_type : st_streams) {
+        /* Connect device for all active sound trigger streams */
+        HandleDetectionStreamAction(st_stream_type, ST_HANDLE_CONNECT_DEVICE,
                                     (void *)&device_to_connect);
     }
     mActiveStreamMutex.unlock();
     mResourceManagerMutex.lock();
+
 exit:
-    PAL_DBG(LOG_TAG, "Exit, status %d", status);
-    return status;
+    PAL_DBG(LOG_TAG, "Exit");
 }
 
 std::shared_ptr<CaptureProfile> ResourceManager::GetSoundTriggerCaptureProfile() {
@@ -8077,6 +8057,7 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                 (pal_param_device_connection_t *)param_payload;
             std::shared_ptr<Device> dev = nullptr;
             struct pal_device dattr;
+            pal_device_id_t st_device;
 
             PAL_INFO(LOG_TAG, "Device %d connected = %d",
                         device_connection->id,
@@ -8090,12 +8071,15 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                     if (dev)
                         status = dev->setDeviceParameter(param_id, param_payload);
                 } else {
-                    status = SwitchSoundTriggerDevices(
-                        device_connection->connection_state,
-                        device_connection->id);
-                    if (status) {
-                        PAL_ERR(LOG_TAG, "Failed to switch device for SVA");
+                    /* Handle device switch for Sound Trigger streams */
+                    if (device_connection->id == PAL_DEVICE_IN_WIRED_HEADSET) {
+                        st_device = PAL_DEVICE_IN_HEADSET_VA_MIC;
+                    } else {
+                        PAL_INFO(LOG_TAG, "Unsupported device %d for Sound Trigger streams",
+                                 device_connection->id);
+                        goto exit;
                     }
+                    SwitchSoundTriggerDevices(device_connection->connection_state, st_device);
                 }
             } else {
                 PAL_ERR(LOG_TAG,"Incorrect size : expected (%zu), received(%zu)",
