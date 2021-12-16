@@ -1154,6 +1154,7 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
     bool isCurrentDeviceProxyOut = false;
     bool isCurrentDeviceDpOut = false;
     bool matchFound = false;
+    bool voice_call_switch = false;
     uint32_t curDeviceSlots[PAL_DEVICE_IN_MAX], newDeviceSlots[PAL_DEVICE_IN_MAX];
     std::vector <std::tuple<Stream *, uint32_t>> streamDevDisconnect, sharedBEStreamDev;
     std::vector <std::tuple<Stream *, struct pal_device *>> StreamDevConnect;
@@ -1394,18 +1395,29 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
             rm->checkHapticsConcurrency(&newDevices[newDeviceSlots[i]], NULL, streamsToSwitch/* not used */, NULL);
             mStreamMutex.lock();
         }
-        /* switch all streams that are running on the current device if voice
-         * call is switching to avoid dangling ec refs
+        /*
+         * switch all streams that are running on the current device if:
+         * 1. switching device for Voice Call
+         * 2. switching device for Rx stream currently using same rx device as voice call
          */
-        if (type == PAL_STREAM_VOICE_CALL &&
-            newDeviceId != PAL_DEVICE_OUT_HEARING_AID) {
-            sharedBEStreamDev.clear();
-            for (int j = 0; j < mDevices.size(); j++) {
-                uint32_t mDeviceId = mDevices[j]->getSndDeviceId();
-                if (rm->matchDevDir(newDeviceId, mDeviceId) &&
-                    newDeviceId != mDeviceId)
-                {
-                    rm->getSharedBEActiveStreamDevs(sharedBEStreamDev, mDevices[j]->getSndDeviceId());
+        sharedBEStreamDev.clear();
+        for (int j = 0; j < mDevices.size(); j++) {
+            uint32_t mDeviceId = mDevices[j]->getSndDeviceId();
+            if (rm->matchDevDir(newDeviceId, mDeviceId) && newDeviceId != mDeviceId) {
+                rm->getSharedBEActiveStreamDevs(sharedBEStreamDev, mDevices[j]->getSndDeviceId());
+                if (type == PAL_STREAM_VOICE_CALL &&
+                    newDeviceId != PAL_DEVICE_OUT_HEARING_AID) {
+                    voice_call_switch = true;
+                } else if (rm->isOutputDevId(mDevices[j]->getSndDeviceId())) {
+                    for (const auto &elem : sharedBEStreamDev) {
+                        std::get<0>(elem)->getStreamAttributes(&strAttr);
+                        if (strAttr.type == PAL_STREAM_VOICE_CALL) {
+                            voice_call_switch = true;
+                            break;
+                        }
+                    }
+                }
+                if (voice_call_switch) {
                     for (const auto &elem : sharedBEStreamDev) {
                         streamDevDisconnect.push_back(elem);
                         StreamDevConnect.push_back({std::get<0>(elem), &newDevices[newDeviceSlots[i]]});
@@ -1413,7 +1425,6 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
                 }
             }
         }
-
 
         /* Add device associated with current stream to streamDevDisconnect/StreamDevConnect list */
         for (int j = 0; j < disconnectCount; j++) {
@@ -1446,7 +1457,8 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
                 }
             }
         }
-        if (matchFound) {
+
+        if (matchFound || (disconnectCount == 0)) {
             dev = Device::getInstance(&newDevices[newDeviceSlots[i]],rm);
             StreamDevConnect.push_back({streamHandle, &newDevices[newDeviceSlots[i]]});
         }
