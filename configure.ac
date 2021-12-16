@@ -22,6 +22,17 @@ AC_PROG_LN_S
 AC_PROG_MAKE_SET
 PKG_PROG_PKG_CONFIG
 
+#basemachine
+AC_MSG_CHECKING([which base machine to use])
+AC_ARG_WITH([basemachine],
+            [AS_HELP_STRING([--with-basemachine],
+            [Specify the base machine])],
+            [machine_selected="$withval"],
+            [machine_selected=none])
+
+AC_MSG_RESULT([$machine_selected])
+AC_SUBST([MACHINE_ENABLED],[$machine_selected])
+
 AC_ARG_WITH([openwrt],
     AS_HELP_STRING([use openwrt (default is no)]),
     [with_openwrt=$withval],
@@ -29,7 +40,7 @@ AC_ARG_WITH([openwrt],
 AM_CONDITIONAL([BUILDSYSTEM_OPENWRT], [test "x${with_openwrt}" = "xyes"])
 
 AC_ARG_WITH([glib],
-      AC_HELP_STRING([--with-glib],
+      AS_HELP_STRING([--with-glib],
          [enable glib, Build against glib. Use this when building for HLOS systems which use glib]))
 
 if (test "x${with_glib}" = "xyes"); then
@@ -46,23 +57,15 @@ fi
 
 AM_CONDITIONAL(USE_GLIB, test "x${with_glib}" = "xyes")
 
-AC_ARG_WITH([spf],
-      AC_HELP_STRING([--with-spf],
-         [enable spf, Build against spf. Use this when building for HLOS systems which use spf]))
+# Checks for libraries
+PKG_CHECK_MODULES([AGM], [agm])
+AC_SUBST([AGM_CFLAGS])
 
-SPF_CFLAGS=
-AS_IF([test "x$with_spf" != "xno"], [SPF_CFLAGS="-I$with_spf"])
+PKG_CHECK_MODULES([SPF], [spf])
+AC_SUBST([SPF_CFLAGS])
 
-AC_SUBST(SPF_CFLAGS)
-
-AC_ARG_WITH([acdbdata],
-      AC_HELP_STRING([--with-acdbdata],
-         [enable acdbdata, Build against acdbdata. Use this when building for HLOS systems which use acdbdata]))
-
-ACDBDATA_CFLAGS=
-AS_IF([test "x$with_acdbdata" != "xno"], [ACDBDATA_CFLAGS="-I$with_acdbdata"])
-
-AC_SUBST(ACDBDATA_CFLAGS)
+PKG_CHECK_MODULES([MMHEADERS], [mm-audio-headers])
+AC_SUBST([MMHEADERS_CFLAGS])
 
 AC_ARG_WITH([compress],
     AS_HELP_STRING([compile compress (default is no)]),
