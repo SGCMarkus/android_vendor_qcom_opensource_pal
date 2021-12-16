@@ -124,6 +124,9 @@ typedef enum {
     TAG_CONFIG_VOLUME,
     TAG_CONFIG_VOLUME_SET_PARAM_SUPPORTED_STREAM,
     TAG_CONFIG_VOLUME_SET_PARAM_SUPPORTED_STREAMS,
+    TAG_CONFIG_LPM,
+    TAG_CONFIG_LPM_SUPPORTED_STREAM,
+    TAG_CONFIG_LPM_SUPPORTED_STREAMS,
 } resource_xml_tags_t;
 
 typedef enum {
@@ -267,6 +270,11 @@ struct volume_set_param_info {
     std::vector<uint32_t> streams_;
 };
 
+struct disable_lpm_info {
+    int isDisableLpm;
+    std::vector<uint32_t> streams_;
+};
+
 struct tx_ecinfo {
     int tx_stream_type;
     std::vector<int> disabled_rx_streams;
@@ -405,6 +413,7 @@ private:
     int updateECDeviceMap(std::shared_ptr<Device> rx_dev,
                         std::shared_ptr<Device> tx_dev,
                         Stream *tx_str, int count, bool is_txstop);
+    int clearInternalECRefCounts(Stream *tx_str, std::shared_ptr<Device> tx_dev);
     static bool isBitWidthSupported(uint32_t bitWidth);
     uint32_t getNTPathForStreamAttr(const pal_stream_attributes attr);
     ssize_t getAvailableNTStreamInstance(const pal_stream_attributes attr);
@@ -485,6 +494,7 @@ protected:
     static std::vector<tx_ecinfo> txEcInfo;
     static struct vsid_info vsidInfo;
     static struct volume_set_param_info volumeSetParamInfo_;
+    static struct disable_lpm_info disableLpmInfo_;
     static std::vector<struct pal_amp_db_and_gain_table> gainLvlMap;
     static SndCardMonitor *sndmon;
     static std::vector <uint32_t> lpi_vote_streams_;
@@ -585,6 +595,7 @@ public:
     bool getEcRefStatus(pal_stream_type_t tx_streamtype,pal_stream_type_t rx_streamtype);
     int32_t getVsidInfo(struct vsid_info  *info);
     int32_t getVolumeSetParamInfo(struct volume_set_param_info *volinfo);
+    int32_t getDisableLpmInfo(struct disable_lpm_info *lpminfo);
     int getMaxVoiceVol();
     void getChannelMap(uint8_t *channel_map, int channels);
     pal_audio_fmt_t getAudioFmt(uint32_t bitWidth);
@@ -726,6 +737,9 @@ public:
         Stream *rx_str, std::shared_ptr<Device> rx_device);
     bool checkECRef(std::shared_ptr<Device> rx_dev,
                     std::shared_ptr<Device> tx_dev);
+    bool isExternalECSupported(std::shared_ptr<Device> tx_dev);
+    bool isExternalECRefEnabled(int rx_dev_id);
+    void disableInternalECRefs(Stream *s);
 
     static void endTag(void *userdata __unused, const XML_Char *tag_name);
     static void snd_reset_data_buf(struct xml_userdata *data);
@@ -734,6 +748,7 @@ public:
     static void process_input_streams(struct xml_userdata *data, const XML_Char *tag_name);
     static void process_config_voice(struct xml_userdata *data, const XML_Char *tag_name);
     static void process_config_volume(struct xml_userdata *data, const XML_Char *tag_name);
+    static void process_config_lpm(struct xml_userdata *data, const XML_Char *tag_name);
     static void process_lpi_vote_streams(struct xml_userdata *data, const XML_Char *tag_name);
     static void process_kvinfo(const XML_Char **attr, bool overwrite);
     static void process_voicemode_info(const XML_Char **attr);

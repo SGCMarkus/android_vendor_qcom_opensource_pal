@@ -681,6 +681,8 @@ int SessionAlsaPcm::start(Stream * s)
     struct agm_event_reg_cfg *acd_event_cfg = nullptr;
     int tagId = 0;
     int DeviceId;
+    struct disable_lpm_info lpm_info;
+    bool isStreamAvail = false;
 
     PAL_DBG(LOG_TAG, "Enter");
 
@@ -1081,8 +1083,12 @@ set_mixer:
             }
 
 pcm_start:
-            if (sAttr.type == PAL_STREAM_LOW_LATENCY ||
-                    sAttr.type == PAL_STREAM_ULTRA_LOW_LATENCY) {
+            memset(&lpm_info, 0, sizeof(struct disable_lpm_info));
+            rm->getDisableLpmInfo(&lpm_info);
+            isStreamAvail = (find(lpm_info.streams_.begin(),
+                            lpm_info.streams_.end(), sAttr.type) !=
+                            lpm_info.streams_.end());
+            if (isStreamAvail && lpm_info.isDisableLpm) {
                 std::lock_guard<std::mutex> lock(pcmLpmRefCntMtx);
                 PAL_DBG(LOG_TAG,"pcmLpmRefCnt %d\n", pcmLpmRefCnt);
                 pcmLpmRefCnt++;
@@ -1326,6 +1332,8 @@ int SessionAlsaPcm::close(Stream * s)
     std::vector<std::shared_ptr<Device>> associatedDevices;
     int ldir = 0;
     std::vector<int> pcmId;
+    struct disable_lpm_info lpm_info;
+    bool isStreamAvail = false;
 
     PAL_DBG(LOG_TAG, "Enter");
     if (!frontEndIdAllocated) {
@@ -1404,8 +1412,12 @@ int SessionAlsaPcm::close(Stream * s)
                 !(sAttr.flags & PAL_STREAM_FLAG_MMAP_NO_IRQ_MASK))
                 deRegisterAdmStream(s);
 
-            if (sAttr.type == PAL_STREAM_LOW_LATENCY ||
-                    sAttr.type == PAL_STREAM_ULTRA_LOW_LATENCY) {
+            memset(&lpm_info, 0, sizeof(struct disable_lpm_info));
+            rm->getDisableLpmInfo(&lpm_info);
+            isStreamAvail = (find(lpm_info.streams_.begin(),
+                            lpm_info.streams_.end(), sAttr.type) !=
+                            lpm_info.streams_.end());
+            if (isStreamAvail && lpm_info.isDisableLpm) {
                 std::lock_guard<std::mutex> lock(pcmLpmRefCntMtx);
                 PAL_DBG(LOG_TAG, "pcm_close pcmLpmRefCnt %d", pcmLpmRefCnt);
                 pcmLpmRefCnt--;
@@ -2116,7 +2128,7 @@ int SessionAlsaPcm::register_asps_event(uint32_t reg)
 int SessionAlsaPcm::setECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_enable)
 {
     int status = 0;
-    struct pal_stream_attributes sAttr;
+    struct pal_stream_attributes sAttr = {};
     std::vector <std::shared_ptr<Device>> rxDeviceList;
     std::vector <std::string> backendNames;
     struct pal_device rxDevAttr = {};
@@ -2187,7 +2199,7 @@ int SessionAlsaPcm::setECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_
             }
         }
     } else if (is_enable && rx_dev) {
-        if (rx_dev && ecRefDevId == rx_dev->getSndDeviceId()) {
+        if (ecRefDevId == rx_dev->getSndDeviceId()) {
             PAL_DBG(LOG_TAG, "EC Ref already set for dev %d", ecRefDevId);
             goto exit;
         }
@@ -2196,12 +2208,26 @@ int SessionAlsaPcm::setECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_
         backendNames = rm->getBackEndNames(rxDeviceList);
 
         if (rxDevInfo.isExternalECRefEnabledFlag) {
+            // reset EC if internal EC is being used
+            if (ecRefDevId != PAL_DEVICE_OUT_MIN && !rm->isExternalECRefEnabled(ecRefDevId)) {
+                status = SessionAlsaUtils::setECRefPath(mixer, pcmDevIds.at(0), "ZERO");
+                if (status) {
+                    PAL_ERR(LOG_TAG, "Failed to reset before set ext EC, status %d", status);
+                    goto exit;
+                }
+            }
             status = checkAndSetExtEC(rm, s, true);
             if (status) {
                 PAL_ERR(LOG_TAG, "Failed to enable External EC, status %d", status);
                 goto exit;
             }
         } else {
+            // avoid set internal ec if ext ec connected
+            if (ecRefDevId != PAL_DEVICE_OUT_MIN && rm->isExternalECRefEnabled(ecRefDevId)) {
+                PAL_ERR(LOG_TAG, "Cannot be set internal EC with external EC connected");
+                status = -EINVAL;
+                goto exit;
+            }
             status = SessionAlsaUtils::setECRefPath(mixer, pcmDevIds.at(0),
                     backendNames[0].c_str());
             if (status) {
