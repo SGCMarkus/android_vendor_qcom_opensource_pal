@@ -102,7 +102,8 @@ LOCAL_SRC_FILES := \
     utils/src/ACDPlatformInfo.cpp \
     utils/src/VoiceUIPlatformInfo.cpp \
     utils/src/PalRingBuffer.cpp \
-    utils/src/SoundTriggerUtils.cpp
+    utils/src/SoundTriggerUtils.cpp \
+    utils/src/SignalHandler.cpp
 
 LOCAL_HEADER_LIBRARIES := \
     libspf-headers \
