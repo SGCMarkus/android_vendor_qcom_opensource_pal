@@ -55,6 +55,9 @@ SessionAlsaVoice::SessionAlsaVoice(std::shared_ptr<ResourceManager> Rm)
    streamHandle = NULL;
    pcmRx = NULL;
    pcmTx = NULL;
+   customPayload = NULL;
+   customPayloadSize = 0;
+
    max_vol_index = rm->getMaxVoiceVol();
    if (max_vol_index == -1){
       max_vol_index = MAX_VOL_INDEX;
@@ -682,7 +685,7 @@ int SessionAlsaVoice::start(Stream * s)
     status = SessionAlsaVoice::setConfig(s, MODULE, VSID, RX_HOSTLESS);
     if (status) {
         PAL_ERR(LOG_TAG, "setConfig failed %d", status);
-        goto exit;
+        goto err_pcm_open;
     }
 
     SessionAlsaVoice::setConfig(s, MODULE, CHANNEL_INFO, TX_HOSTLESS);
