@@ -1029,6 +1029,7 @@ int32_t Stream::disconnectStreamDevice_l(Stream* streamHandle, pal_device_id_t d
             break;
         }
     }
+    rm->checkAndSetDutyCycleParam();
 
 exit:
     return status;
@@ -1130,6 +1131,8 @@ int32_t Stream::connectStreamDevice_l(Stream* streamHandle, struct pal_device *d
     rm->unlockGraph();
     if (currentState != STREAM_STOPPED)
         rm->registerDevice(dev, this);
+
+    rm->checkAndSetDutyCycleParam();
     goto exit;
 
 dev_stop:

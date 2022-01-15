@@ -237,6 +237,7 @@ int32_t StreamCompress::close()
     }
     PAL_VERBOSE(LOG_TAG,"closed the devices successfully");
     currentState = STREAM_IDLE;
+    rm->checkAndSetDutyCycleParam();
     mStreamMutex.unlock();
 
     PAL_DBG(LOG_TAG,"Exit status: %d",status);
@@ -525,6 +526,7 @@ int32_t StreamCompress::write(struct pal_buffer *buf)
             for (int i = 0; i < mDevices.size(); i++) {
                 rm->registerDevice(mDevices[i], this);
             }
+            rm->checkAndSetDutyCycleParam();
         }
     } else {
         PAL_ERR(LOG_TAG, "Stream not opened yet, state %d", currentState);

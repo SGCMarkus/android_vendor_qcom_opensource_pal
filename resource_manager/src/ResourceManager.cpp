@@ -472,6 +472,7 @@ bool ResourceManager::isVIRecordStarted;
 bool ResourceManager::lpi_logging_ = false;
 bool ResourceManager::isUpdDedicatedBeEnabled = false;
 bool ResourceManager::isDeviceMuxConfigEnabled = false;
+bool ResourceManager::isUpdDutyCycleEnabled = false;
 int ResourceManager::max_voice_vol = -1;     /* Variable to store max volume index for voice call */
 bool ResourceManager::isSignalHandlerEnabled = false;
 
@@ -3585,6 +3586,11 @@ bool ResourceManager::IsDedicatedBEForUPDEnabled()
     return ResourceManager::isUpdDedicatedBeEnabled;
 }
 
+bool ResourceManager::IsDutyCycleForUPDEnabled()
+{
+    return ResourceManager::isUpdDutyCycleEnabled;
+}
+
 void ResourceManager::GetSoundTriggerConcurrencyCount(
     pal_stream_type_t type,
     int32_t *enable_count, int32_t *disable_count) {
@@ -5418,6 +5424,117 @@ int ResourceManager::checkAndUpdateGroupDevConfig(struct pal_device *deviceattr,
     return 0;
 }
 
+void ResourceManager::checkAndSetDutyCycleParam()
+{
+    pal_stream_attributes StrAttr;
+    std::shared_ptr<Device> dev = nullptr;
+    struct pal_device DevAttr;
+    std::string backEndName;
+    Stream *UPDStream = nullptr;
+    bool is_upd_active = false;
+    bool is_wsa_upd = false;
+    bool enable_duty = false;
+    std::vector<Stream*> activeStream;
+    std::vector <std::shared_ptr<Device>> aDevices;
+    pal_device_id_t conc_dev[] = {PAL_DEVICE_OUT_SPEAKER, PAL_DEVICE_OUT_HANDSET};
+
+    if (!IsDutyCycleForUPDEnabled()) {
+        PAL_DBG(LOG_TAG, "duty cycle for UPD not enabled");
+        return;
+    }
+
+    // check if UPD is already active
+    for (auto& str: mActiveStreams) {
+        str->getStreamAttributes(&StrAttr);
+        if (StrAttr.type == PAL_STREAM_ULTRASOUND &&
+            str->isActive()) {
+            is_upd_active = true;
+            // enable duty by default, this may change based on concurrency.
+            // during device switch, upd stream can active, but RX device is
+            // disabled, so do not enable duty
+            str->getAssociatedDevices(aDevices);
+            if (aDevices.size() == 2)
+                enable_duty = true;
+            UPDStream = str;
+            break;
+        } else {
+            continue;
+        }
+    }
+
+    if (!is_upd_active) {
+        PAL_DBG(LOG_TAG, "no active UPD stream found");
+        return;
+    }
+
+    for (int i = 0; i < sizeof(conc_dev)/sizeof(conc_dev[0]); i++) {
+        activeStream.clear();
+        DevAttr.id = conc_dev[i];
+        dev = Device::getInstance(&DevAttr, rm);
+        if (!dev)
+            continue;
+        getActiveStream_l(activeStream, dev);
+        if (activeStream.empty())
+            continue;
+        // if virtual port is enabled, if handset or speaker is active, disable duty cycle
+        if (rm->activeGroupDevConfig) {
+            enable_duty = false;
+            PAL_DBG(LOG_TAG, "upd on virtual port, dev %d active", dev->getSndDeviceId());
+        } else if (IsDedicatedBEForUPDEnabled()) {
+            // for dedicated upd backend, check if upd on wsa or wcd
+            if (getBackendName(PAL_DEVICE_OUT_ULTRASOUND, backEndName) == 0){
+                bool is_same_codec = false;
+                if (strstr(backEndName.c_str(), "CODEC_DMA-LPAIF_WSA-RX"))
+                    is_wsa_upd = true;
+                if (getBackendName(dev->getSndDeviceId(), backEndName) == 0) {
+                    if (strstr(backEndName.c_str(), "CODEC_DMA-LPAIF_WSA-RX")) {
+                        if (is_wsa_upd) {
+                            PAL_DBG(LOG_TAG, "upd and audio device %d on wsa", dev->getSndDeviceId());
+                            is_same_codec = true;
+                        }
+                    } else {
+                        if (!is_wsa_upd) {
+                            PAL_DBG(LOG_TAG, "upd and audio device %d on wcd", dev->getSndDeviceId());
+                            is_same_codec = true;
+                        }
+                    }
+                    if (is_same_codec) {
+                        if (dev->getDeviceCount() > 0)
+                            enable_duty = false;
+                        else
+                            enable_duty = true;
+                    }
+                }
+            }
+        } else {
+            // upd shares backend with handset, check if device count > 1
+            aDevices.clear();
+            UPDStream->getAssociatedDevices(aDevices);
+            for (auto &upd_dev : aDevices) {
+                if (ResourceManager::isOutputDevId(upd_dev->getSndDeviceId())) {
+                    if (upd_dev->getDeviceCount() > 1) {
+                        enable_duty = false;
+                        PAL_DBG(LOG_TAG, "upd and audio stream active on %d", dev->getSndDeviceId());
+                    } else {
+                        enable_duty = true;
+                        PAL_DBG(LOG_TAG, "only upd is active on %d, enable duty", dev->getSndDeviceId());
+                    }
+                }
+            }
+        }
+    }
+
+    if (UPDStream->getDutyCycleEnable() != enable_duty) {
+        Session *session = NULL;
+        UPDStream->getAssociatedSession(&session);
+        if (session != NULL) {
+            UPDStream->setDutyCycleEnable(enable_duty);
+            session->setParameters(UPDStream, 0, PAL_PARAM_ID_SET_UPD_DUTY_CYCLE, &enable_duty);
+            PAL_DBG(LOG_TAG, "set duty cycling: %d", enable_duty);
+        }
+    }
+}
+
 std::shared_ptr<ResourceManager> ResourceManager::getInstance()
 {
     if(!rm) {
@@ -6872,8 +6989,8 @@ int ResourceManager::setConfigParams(struct str_parms *parms)
     ret = setUpdDedicatedBeEnableParam(parms, value, len);
     ret = setDualMonoEnableParam(parms, value, len);
     ret = setSignalHandlerEnableParam(parms, value, len);
-
     ret = setMuxconfigEnableParam(parms, value, len);
+    ret = setUpdDutyCycleEnableParam(parms, value, len);
 
     /* Not checking return value as this is optional */
     setLpiLoggingParams(parms, value, len);
@@ -6988,7 +7105,28 @@ int ResourceManager::setMuxconfigEnableParam(struct str_parms *parms,
     }
 
     return ret;
+}
 
+int ResourceManager::setUpdDutyCycleEnableParam(struct str_parms *parms,
+                                 char *value, int len)
+{
+    int ret = -EINVAL;
+
+    if (!value || !parms)
+        return ret;
+
+    ret = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_UPD_DUTY_CYCLE,
+                            value, len);
+    PAL_VERBOSE(LOG_TAG," value %s", value);
+
+    if (ret >= 0) {
+        if (value && !strncmp(value, "true", sizeof("true")))
+            ResourceManager::isUpdDutyCycleEnabled = true;
+
+        str_parms_del(parms, AUDIO_PARAMETER_KEY_UPD_DUTY_CYCLE);
+    }
+
+    return ret;
 }
 
 int ResourceManager::setDualMonoEnableParam(struct str_parms *parms,

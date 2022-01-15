@@ -251,6 +251,7 @@ int32_t  StreamCommon::close()
     }
     PAL_VERBOSE(LOG_TAG, "closed the devices successfully");
     currentState = STREAM_IDLE;
+    rm->checkAndSetDutyCycleParam();
 
     mStreamMutex.unlock();
 
@@ -298,6 +299,7 @@ int32_t StreamCommon::start()
          *so directly jump to STREAM_STARTED state.
          */
         currentState = STREAM_STARTED;
+        rm->checkAndSetDutyCycleParam();
     } else if (currentState == STREAM_STARTED) {
         PAL_INFO(LOG_TAG, "Stream already started, state %d", currentState);
     } else {
