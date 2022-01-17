@@ -6551,7 +6551,7 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> *inDev,
 
     /* handle headphone and haptics concurrency */
     checkHapticsConcurrency(inDevAttr, inStrAttr, streamsToSwitch, &streamDevAttr);
-    for(sIter = streamsToSwitch.begin(); sIter != streamsToSwitch.end(); sIter++) {
+    for (sIter = streamsToSwitch.begin(); sIter != streamsToSwitch.end(); sIter++) {
         streamDevDisconnect.push_back({(*sIter), streamDevAttr.id});
         streamDevConnect.push_back({(*sIter), &streamDevAttr});
     }
@@ -6607,7 +6607,8 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> *inDev,
                                    inStrAttr);
                 mActiveStreamMutex.unlock();
             }
-            if (doDevAttrDiffer(inDevAttr, inSndDeviceName, &curDevAttr)) {
+            if (doDevAttrDiffer(inDevAttr, inSndDeviceName, &curDevAttr) &&
+                    isDeviceReady(inDevAttr->id)) {
                 mActiveStreamMutex.lock();
                 streamDevDisconnect.push_back(elem);
                 streamDevConnect.push_back({std::get<0>(elem), inDevAttr});
@@ -6623,7 +6624,7 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> *inDev,
 
         /* handle special case for UPD with virtual backend */
         if (!streamsToSwitch.empty()) {
-            for(sIter = streamsToSwitch.begin(); sIter != streamsToSwitch.end(); sIter++) {
+            for (sIter = streamsToSwitch.begin(); sIter != streamsToSwitch.end(); sIter++) {
                 streamDevDisconnect.push_back({(*sIter), streamDevAttr.id});
                 streamDevConnect.push_back({(*sIter), &streamDevAttr});
             }
