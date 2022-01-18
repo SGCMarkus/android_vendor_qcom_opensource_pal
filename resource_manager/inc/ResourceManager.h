@@ -499,6 +499,7 @@ protected:
     bool is_concurrent_boost_state_;
     bool use_lpi_;
     bool current_concurrent_state_;
+    bool is_limiter_configured_;
     pal_speaker_rotation_type rotation_type_;
     bool isDeviceSwitch = false;
     static std::mutex mResourceManagerMutex;
@@ -774,6 +775,7 @@ public:
     bool getChargerOnlineState(void) const { return is_charger_online_; }
     bool getConcurrentBoostState(void) const { return is_concurrent_boost_state_; }
     bool getLPIUsage() const { return use_lpi_; }
+    bool getLimiterConfigureStatus(void) const { return is_limiter_configured_; }
     bool CheckForForcedTransitToNonLPI();
     void GetVoiceUIProperties(struct pal_st_properties *qstp);
     int HandleDetectionStreamAction(pal_stream_type_t type, int32_t action, void *data);

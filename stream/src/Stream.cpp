@@ -1093,6 +1093,15 @@ int32_t Stream::connectStreamDevice_l(Stream* streamHandle, struct pal_device *d
         }
     }
 
+    /* For UC2: USB insertion on playback, after disabling PA, notify PMIC
+     * assuming that current Concurrent Boost status is false and Limiter
+     * is not configured for speaker.
+     */
+    if (ResourceManager::isChargeConcurrencyEnabled && dev
+        && dev->getSndDeviceId() == PAL_DEVICE_OUT_SPEAKER &&
+        !rm->getConcurrentBoostState() && !rm->getLimiterConfigureStatus())
+        status = rm->chargerListenerSetBoostState(true, PB_ON_CHARGER_INSERT);
+
     PAL_DBG(LOG_TAG, "device %d name %s, going to start",
         dev->getSndDeviceId(), dev->getPALDeviceName().c_str());
 
@@ -1133,6 +1142,16 @@ int32_t Stream::connectStreamDevice_l(Stream* streamHandle, struct pal_device *d
         rm->registerDevice(dev, this);
 
     rm->checkAndSetDutyCycleParam();
+
+    /* For UC2: USB insertion on playback, After USB online notification,
+     * As enabling PA is done assuming that current Concurrent Boost state
+     * is True and Audio will config Limiter for speaker.
+     */
+    if (ResourceManager::isChargeConcurrencyEnabled && dev &&
+        (dev->getSndDeviceId() == PAL_DEVICE_OUT_SPEAKER) &&
+        !rm->getLimiterConfigureStatus() && rm->getChargerOnlineState())
+        status = rm->setSessionParamConfig(PAL_PARAM_ID_CHARGER_STATE, streamHandle,
+                                           CHARGE_CONCURRENCY_ON_TAG);
     goto exit;
 
 dev_stop:
