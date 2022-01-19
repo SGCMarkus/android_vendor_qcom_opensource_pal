@@ -81,6 +81,7 @@ private:
         uint32_t idx);
     static struct mixer_ctl *getBeMixerControl(struct mixer *am, std::string beName,
         uint32_t idx);
+    static struct mixer_ctl *getStaticMixerControl(struct mixer *am, std::string name);
 public:
     ~SessionAlsaUtils();
     static bool isRxDevice(uint32_t devId);
@@ -96,6 +97,8 @@ public:
                     const std::vector<int> &RxDevIds, const std::vector<int> &TxDevIds,
                     const std::vector<std::pair<int32_t, std::string>> &rxBackEnds,
                     const std::vector<std::pair<int32_t, std::string>> &txBackEnds);
+    static int rwACDBTunnel(Stream * streamHandle, std::shared_ptr<ResourceManager> rmHandle,
+                    pal_device_id_t deviceId, void *payload, bool isParamWrite, uint32_t instanceId);
     static int close(Stream * s, std::shared_ptr<ResourceManager> rm, const std::vector<int> &DevIds,
             const std::vector<std::pair<int32_t, std::string>> &BackEnds, std::vector<std::pair<std::string, int>> &freedevicemetadata);
     static int close(Stream * s, std::shared_ptr<ResourceManager> rm,

@@ -109,6 +109,20 @@ Session* Session::makeSession(const std::shared_ptr<ResourceManager>& rm, const 
     return s;
 }
 
+Session* Session::makeACDBSession(const std::shared_ptr<ResourceManager>& rm,
+                                    const struct pal_stream_attributes *sAttr)
+{
+    if (!rm || !sAttr) {
+        PAL_ERR(LOG_TAG,"Invalid parameters passed");
+        return nullptr;
+    }
+
+    Session* s = (Session*) nullptr;
+    s = new SessionAgm(rm);
+
+    return s;
+}
+
 void Session::getSamplerateChannelBitwidthTags(struct pal_media_config *config,
         uint32_t &mfc_sr_tag, uint32_t &ch_tag, uint32_t &bitwidth_tag)
 {
@@ -340,6 +354,33 @@ exit:
     PAL_ERR(LOG_TAG, "Exit. status %d", status);
     return status;
 }
+
+int Session::rwACDBParamTunnel(void *payload, pal_device_id_t palDeviceId,
+                        pal_stream_type_t palStreamType, uint32_t sampleRate,
+                        uint32_t instanceId, bool isParamWrite, Stream * s)
+{
+    int status = -EINVAL;
+    struct pal_stream_attributes sAttr;
+
+    PAL_DBG(LOG_TAG, "Enter");
+    status = s->getStreamAttributes(&sAttr);
+    streamHandle = s;
+    if (0 != status) {
+        PAL_ERR(LOG_TAG,"getStreamAttributes Failed \n");
+        goto exit;
+    }
+
+    PAL_INFO(LOG_TAG, "PAL device id=0x%x", palDeviceId);
+    status = SessionAlsaUtils::rwACDBTunnel(s, rm, palDeviceId, payload, isParamWrite, instanceId);
+    if (status) {
+        PAL_ERR(LOG_TAG, "session alsa open failed with %d", status);
+    }
+
+exit:
+    PAL_DBG(LOG_TAG, "Exit status: %d", status);
+    return status;
+}
+
 
 int Session::updateCustomPayload(void *payload, size_t size)
 {
