@@ -44,6 +44,7 @@ public:
     ~StreamUltraSound();
    int32_t setVolume( struct pal_volume_data *volume __unused) {return 0;}
    int32_t setParameters(uint32_t param_id, void *payload);
+   int32_t stop();
 private:
     static void HandleCallBack(uint64_t hdl, uint32_t event_id,
                                void *data, uint32_t event_size);

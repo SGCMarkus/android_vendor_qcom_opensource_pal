@@ -52,6 +52,61 @@ StreamUltraSound::~StreamUltraSound()
     rm->deregisterStream(this);
 }
 
+int32_t StreamUltraSound::stop()
+{
+    int32_t status = 0;
+
+    mStreamMutex.lock();
+    PAL_DBG(LOG_TAG, "Enter. session handle - %pK mStreamAttr->direction - %d state %d",
+                session, mStreamAttr->direction, currentState);
+
+    if (currentState == STREAM_STARTED || currentState == STREAM_PAUSED) {
+
+        status = session->setParameters(this, DEVICE_POP_SUPPRESSOR,
+                                            PAL_PARAM_ID_ULTRASOUND_RAMPDOWN, NULL);
+        if (0 != status) {
+            PAL_ERR(LOG_TAG, "SetParameters failed for Rampdown, status = %d", status);
+        }
+        /* Adjust the delay based on requirement */
+        usleep(20000);
+
+        for (int i = 0; i < mDevices.size(); i++) {
+            rm->deregisterDevice(mDevices[i], this);
+        }
+        PAL_VERBOSE(LOG_TAG, "In %s, device count - %zu",
+                    GET_DIR_STR(mStreamAttr->direction), mDevices.size());
+
+        rm->lockGraph();
+        status = session->stop(this);
+        if (0 != status) {
+            PAL_ERR(LOG_TAG, "Error:%s session stop failed with status %d",
+                    GET_DIR_STR(mStreamAttr->direction), status);
+        }
+        PAL_VERBOSE(LOG_TAG, "session stop successful");
+        for (int32_t i=0; i < mDevices.size(); i++) {
+             status = mDevices[i]->stop();
+             if (0 != status) {
+                 PAL_ERR(LOG_TAG, "Error:%s device stop failed with status %d",
+                         GET_DIR_STR(mStreamAttr->direction), status);
+             }
+        }
+        rm->unlockGraph();
+        PAL_VERBOSE(LOG_TAG, "devices stop successful");
+        currentState = STREAM_STOPPED;
+    } else if (currentState == STREAM_STOPPED || currentState == STREAM_IDLE) {
+        PAL_INFO(LOG_TAG, "Stream is already in Stopped state %d", currentState);
+    } else {
+        PAL_ERR(LOG_TAG, "Error:Stream should be in start/pause state, %d", currentState);
+        status = -EINVAL;
+    }
+    PAL_DBG(LOG_TAG, "Exit. status %d, state %d", status, currentState);
+
+    mStreamMutex.unlock();
+    return status;
+}
+
+
+
 int32_t  StreamUltraSound::setParameters(uint32_t param_id, void *payload)
 {
     int32_t status = 0;
