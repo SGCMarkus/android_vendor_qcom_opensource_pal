@@ -45,12 +45,18 @@
     <ctl name="WSA_RX1 INP0" value="ZERO" />
     <ctl name="WSA_AIF_VI Mixer WSA_SPKR_VI_1" value="0" />
     <ctl name="WSA_AIF_VI Mixer WSA_SPKR_VI_2" value="0" />
+    <ctl name="WSA PBR Enable" value="0" />
+    <ctl name="WSA SPKRRECV" value="0" />
     <ctl name="SpkrLeft COMP Switch" value="0" />
     <ctl name="SpkrRight COMP Switch" value="0" />
     <ctl name="SpkrLeft VISENSE Switch" value="0" />
     <ctl name="SpkrRight VISENSE Switch" value="0" />
     <ctl name="SpkrLeft SWR DAC_Port Switch" value="0" />
     <ctl name="SpkrRight SWR DAC_Port Switch" value="0" />
+    <ctl name="SpkrLeft PBR Switch" value="0" />
+    <ctl name="SpkrRight PBR Switch" value="0" />
+    <ctl name="SpkrLeft WSA MODE" value="0" />
+    <ctl name="SpkrRight WSA MODE" value="0" />
 
     <!-- RX Controls -->
     <ctl name="RX_MACRO RX0 MUX" value="ZERO" />
@@ -346,6 +352,9 @@
         <ctl name="SpkrRight COMP Switch" value="1" />
         <ctl name="SpkrRight VISENSE Switch" value="1" />
         <ctl name="SpkrRight SWR DAC_Port Switch" value="1" />
+        <ctl name="SpkrLeft PBR Switch" value="1" />
+        <ctl name="SpkrRight PBR Switch" value="1" />
+        <ctl name="WSA PBR Enable" value="1" />
     </path>
 
     <path name="haptics-dev">
@@ -359,6 +368,8 @@
         <ctl name="SpkrLeft COMP Switch" value="1" />
         <ctl name="SpkrLeft VISENSE Switch" value="1" />
         <ctl name="SpkrLeft SWR DAC_Port Switch" value="1" />
+        <ctl name="SpkrLeft PBR Switch" value="1" />
+        <ctl name="WSA PBR Enable" value="1" />
     </path>
 
     <path name="speaker-mono-2">
@@ -368,6 +379,8 @@
         <ctl name="SpkrRight COMP Switch" value="1" />
         <ctl name="SpkrRight VISENSE Switch" value="1" />
         <ctl name="SpkrRight SWR DAC_Port Switch" value="1" />
+        <ctl name="SpkrRight PBR Switch" value="1" />
+        <ctl name="WSA PBR Enable" value="1" />
     </path>
 
     <path name="speaker-mono-vbat">
@@ -514,10 +527,12 @@
         <ctl name="WSA RX0 MUX" value="AIF1_PB" />
         <ctl name="WSA_RX0 INP0" value="RX0" />
         <ctl name="WSA_COMP1 Switch" value="1" />
+        <ctl name="WSA SPKRRECV" value="1" />
         <ctl name="SpkrLeft COMP Switch" value="1" />
         <ctl name="SpkrLeft VISENSE Switch" value="1" />
         <ctl name="SpkrLeft SWR DAC_Port Switch" value="1" />
         <ctl name="EAR SPKR PA Gain" value="G_6_DB" />
+        <ctl name="SpkrLeft WSA MODE" value="1" />
     </path>
 
     <path name="handset-mic">
@@ -528,10 +543,12 @@
         <ctl name="WSA RX_MIX0 MUX" value="AIF_MIX1_PB" />
         <ctl name="WSA_RX0 MIX INP" value="RX_MIX0" />
         <ctl name="WSA_COMP1 Switch" value="1" />
+        <ctl name="WSA SPKRRECV" value="1" />
         <ctl name="SpkrLeft COMP Switch" value="1" />
         <ctl name="SpkrLeft VISENSE Switch" value="1" />
         <ctl name="SpkrLeft SWR DAC_Port Switch" value="1" />
         <ctl name="EAR SPKR PA Gain" value="G_6_DB" />
+        <ctl name="SpkrLeft WSA MODE" value="1" />
     </path>
 
     <path name="ultrasound-mic">
