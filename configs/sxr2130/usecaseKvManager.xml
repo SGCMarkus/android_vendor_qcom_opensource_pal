@@ -70,6 +70,13 @@
         </stream>
     </streams>
     <devices>
+         <!-- In VI feedback Device -->
+         <device id="PAL_DEVICE_IN_VI_FEEDBACK">
+             <keys_and_values>
+                 <!-- DEVICETX - VI_TX -->
+                 <graph_kv key="0xA3000000" value="0xA3000009"/>
+             </keys_and_values>
+         </device>
         <!-- Speaker Device -->
         <device id="PAL_DEVICE_OUT_SPEAKER">
             <keys_and_values>
