@@ -499,7 +499,7 @@ protected:
     bool is_concurrent_boost_state_;
     bool use_lpi_;
     bool current_concurrent_state_;
-    bool is_limiter_configured_;
+    bool is_ICL_config_;
     pal_speaker_rotation_type rotation_type_;
     bool isDeviceSwitch = false;
     static std::mutex mResourceManagerMutex;
@@ -714,6 +714,7 @@ public:
                      size_t payload_size, pal_device_id_t pal_device_id,
                      pal_stream_type_t pal_stream_type);
     int setSessionParamConfig(uint32_t param_id, Stream *stream, int tag);
+    int handleChargerEvent(Stream *stream, int tag);
     int rwParameterACDB(uint32_t param_id, void *param_payload,
                      size_t payload_size, pal_device_id_t pal_device_id,
                      pal_stream_type_t pal_stream_type, uint32_t sample_rate,
@@ -775,7 +776,7 @@ public:
     bool getChargerOnlineState(void) const { return is_charger_online_; }
     bool getConcurrentBoostState(void) const { return is_concurrent_boost_state_; }
     bool getLPIUsage() const { return use_lpi_; }
-    bool getLimiterConfigureStatus(void) const { return is_limiter_configured_; }
+    bool getInputCurrentLimitorConfigStatus(void) const { return is_ICL_config_; }
     bool CheckForForcedTransitToNonLPI();
     void GetVoiceUIProperties(struct pal_st_properties *qstp);
     int HandleDetectionStreamAction(pal_stream_type_t type, int32_t action, void *data);
