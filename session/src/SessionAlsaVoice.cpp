@@ -589,10 +589,9 @@ int SessionAlsaVoice::setTaggedSlotMask(Stream * s)
         status = -EINVAL;
         return status;
     }
-    if (rm->activeGroupDevConfig &&
-        (dAttr.id == PAL_DEVICE_OUT_SPEAKER ||
+    if ((dAttr.id == PAL_DEVICE_OUT_SPEAKER ||
          dAttr.id == PAL_DEVICE_OUT_HANDSET)) {
-        status = setSlotMask(rm, sAttr, dAttr, pcmDevRxIds);
+         setSlotMask(rm, sAttr, dAttr, pcmDevRxIds);
     }
 
     return status;
