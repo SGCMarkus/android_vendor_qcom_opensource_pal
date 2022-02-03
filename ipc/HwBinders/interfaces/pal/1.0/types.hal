@@ -60,6 +60,7 @@ enum PalStreamType : uint32_t {
     PAL_STREAM_CONTEXT_PROXY = 24,        /**< Context Proxy Stream */
     PAL_STREAM_SENSOR_PCM_DATA = 25,      /**< Sensor PCM Data Stream */
     PAL_STREAM_ULTRASOUND = 26,           /**< Ultrasound Proximity detection */
+    PAL_STREAM_SPATIAL_AUDIO = 27,        /**< Spatial audio playback */
 };
 
 struct PalStreamInfo {

@@ -166,6 +166,7 @@
 #define MAX_SESSIONS_ULTRASOUND 1
 #define MAX_SESSIONS_SENSOR_PCM_DATA 1
 #define MAX_SESSIONS_VOICE_RECOGNITION 1
+#define MAX_SESSIONS_SPATIAL_AUDIO 2
 
 #define WAKE_LOCK_NAME "audio_pal_wl"
 #define WAKE_LOCK_PATH "/sys/power/wake_lock"
@@ -2507,6 +2508,10 @@ bool ResourceManager::isStreamSupported(struct pal_stream_attributes *attributes
             cur_sessions = active_streams_db.size();
             max_sessions = MAX_SESSIONS_DEEP_BUFFER;
             break;
+        case PAL_STREAM_SPATIAL_AUDIO:
+            cur_sessions = active_streams_sa.size();
+            max_sessions = MAX_SESSIONS_SPATIAL_AUDIO;
+            break;
         case PAL_STREAM_COMPRESSED:
             cur_sessions = active_streams_comp.size();
             max_sessions = MAX_SESSIONS_COMPRESSED;
@@ -2585,6 +2590,7 @@ bool ResourceManager::isStreamSupported(struct pal_stream_attributes *attributes
         case PAL_STREAM_LOW_LATENCY:
         case PAL_STREAM_ULTRA_LOW_LATENCY:
         case PAL_STREAM_DEEP_BUFFER:
+        case PAL_STREAM_SPATIAL_AUDIO:
         case PAL_STREAM_GENERIC:
         case PAL_STREAM_VOIP:
         case PAL_STREAM_VOIP_RX:
@@ -2749,6 +2755,12 @@ int ResourceManager::registerStream(Stream *s)
         {
             StreamPCM* sDB = dynamic_cast<StreamPCM*>(s);
             ret = registerstream(sDB, active_streams_db);
+            break;
+        }
+        case PAL_STREAM_SPATIAL_AUDIO:
+        {
+            StreamPCM* sSA = dynamic_cast<StreamPCM*>(s);
+            ret = registerstream(sSA, active_streams_sa);
             break;
         }
         case PAL_STREAM_COMPRESSED:
@@ -2922,6 +2934,12 @@ int ResourceManager::deregisterStream(Stream *s)
         {
             StreamPCM* sDB = dynamic_cast<StreamPCM*>(s);
             ret = deregisterstream(sDB, active_streams_db);
+            break;
+        }
+        case PAL_STREAM_SPATIAL_AUDIO:
+        {
+            StreamPCM* sSA = dynamic_cast<StreamPCM*>(s);
+            ret = deregisterstream(sSA, active_streams_sa);
             break;
         }
         case PAL_STREAM_COMPRESSED:
@@ -5005,6 +5023,7 @@ int ResourceManager::getActiveStream_l(std::vector<Stream*> &activestreams,
     getActiveStreams(d, activestreams, active_streams_ull);
     getActiveStreams(d, activestreams, active_streams_ulla);
     getActiveStreams(d, activestreams, active_streams_db);
+    getActiveStreams(d, activestreams, active_streams_sa);
     getActiveStreams(d, activestreams, active_streams_raw);
     getActiveStreams(d, activestreams, active_streams_comp);
     getActiveStreams(d, activestreams, active_streams_st);
@@ -5072,6 +5091,7 @@ int ResourceManager::getOrphanStream_l(std::vector<Stream*> &orphanstreams,
     getOrphanStreams(orphanstreams, retrystreams, active_streams_ull);
     getOrphanStreams(orphanstreams, retrystreams, active_streams_ulla);
     getOrphanStreams(orphanstreams, retrystreams, active_streams_db);
+    getOrphanStreams(orphanstreams, retrystreams, active_streams_sa);
     getOrphanStreams(orphanstreams, retrystreams, active_streams_comp);
     getOrphanStreams(orphanstreams, retrystreams, active_streams_st);
     getOrphanStreams(orphanstreams, retrystreams, active_streams_acd);
@@ -5811,6 +5831,7 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const struct pal_str
         case PAL_STREAM_ULTRA_LOW_LATENCY:
         case PAL_STREAM_GENERIC:
         case PAL_STREAM_DEEP_BUFFER:
+        case PAL_STREAM_SPATIAL_AUDIO:
         case PAL_STREAM_VOIP:
         case PAL_STREAM_VOIP_RX:
         case PAL_STREAM_VOIP_TX:
@@ -8319,6 +8340,7 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                          (sAttr.type == PAL_STREAM_ULTRA_LOW_LATENCY) ||
                          (sAttr.type == PAL_STREAM_VOIP_RX) ||
                          (sAttr.type == PAL_STREAM_PCM_OFFLOAD) ||
+                         (sAttr.type == PAL_STREAM_SPATIAL_AUDIO) ||
                          (sAttr.type == PAL_STREAM_DEEP_BUFFER) ||
                          (sAttr.type == PAL_STREAM_COMPRESSED))) {
                         str->getAssociatedDevices(associatedDevices);
@@ -8567,6 +8589,7 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                             (streamType == PAL_STREAM_VOIP_RX) ||
                             (streamType == PAL_STREAM_PCM_OFFLOAD) ||
                             (streamType == PAL_STREAM_DEEP_BUFFER) ||
+                            (streamType == PAL_STREAM_SPATIAL_AUDIO) ||
                             (streamType == PAL_STREAM_COMPRESSED)) {
                             (*sIter)->suspendedDevIds.clear();
                             (*sIter)->suspendedDevIds.push_back(a2dp_dattr.id);

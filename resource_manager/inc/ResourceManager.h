@@ -476,6 +476,7 @@ protected:
     std::list <StreamPCM*> active_streams_ulla;
     std::list <StreamPCM*> active_streams_ull;
     std::list <StreamPCM*> active_streams_db;
+    std::list <StreamPCM*> active_streams_sa;
     std::list <StreamPCM*> active_streams_po;
     std::list <StreamPCM*> active_streams_proxy;
     std::list <StreamPCM*> active_streams_haptics;

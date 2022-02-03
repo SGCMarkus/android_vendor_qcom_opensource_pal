@@ -195,6 +195,7 @@ stream_create:
         switch (sAttr->type) {
             case PAL_STREAM_LOW_LATENCY:
             case PAL_STREAM_DEEP_BUFFER:
+            case PAL_STREAM_SPATIAL_AUDIO:
             case PAL_STREAM_GENERIC:
             case PAL_STREAM_VOIP_TX:
             case PAL_STREAM_VOIP_RX:
@@ -435,6 +436,9 @@ uint32_t Stream::getRenderLatency()
     case PAL_STREAM_LOW_LATENCY:
         delayMs = PAL_LOW_LATENCY_PLATFORM_DELAY / 1000;
         break;
+    case PAL_STREAM_SPATIAL_AUDIO:
+        delayMs = PAL_SPATIAL_AUDIO_PLATFORM_DELAY / 1000;
+        break;
     case PAL_STREAM_COMPRESSED:
     case PAL_STREAM_PCM_OFFLOAD:
         delayMs = PAL_PCM_OFFLOAD_PLATFORM_DELAY / 1000;
@@ -470,6 +474,10 @@ uint32_t Stream::getLatency()
     case PAL_STREAM_LOW_LATENCY:
         latencyMs = PAL_LOW_LATENCY_OUTPUT_PERIOD_DURATION *
             PAL_LOW_LATENCY_PLAYBACK_PERIOD_COUNT;
+        break;
+    case PAL_STREAM_SPATIAL_AUDIO:
+        latencyMs = PAL_SPATIAL_AUDIO_PERIOD_DURATION *
+            PAL_SPATIAL_AUDIO_PLAYBACK_PERIOD_COUNT;
         break;
     case PAL_STREAM_COMPRESSED:
     case PAL_STREAM_PCM_OFFLOAD:

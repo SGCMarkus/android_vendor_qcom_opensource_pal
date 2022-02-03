@@ -2881,6 +2881,7 @@ int PayloadBuilder::populateDevicePPCkv(Stream *s, std::vector <std::pair<int,in
                 break;
             case PAL_STREAM_LOW_LATENCY:
             case PAL_STREAM_DEEP_BUFFER:
+            case PAL_STREAM_SPATIAL_AUDIO:
             case PAL_STREAM_PCM_OFFLOAD:
             case PAL_STREAM_COMPRESSED:
                 if (dAttr.id == PAL_DEVICE_OUT_SPEAKER) {

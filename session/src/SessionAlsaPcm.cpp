@@ -166,6 +166,7 @@ int SessionAlsaPcm::open(Stream * s)
             }
             else if ((sAttr.type == PAL_STREAM_PCM_OFFLOAD) ||
                      (sAttr.type == PAL_STREAM_DEEP_BUFFER) ||
+                     (sAttr.type == PAL_STREAM_SPATIAL_AUDIO) ||
                      (sAttr.type == PAL_STREAM_LOW_LATENCY)) {
                      // Register for SoftPause callback for
                      // only playback related streams
