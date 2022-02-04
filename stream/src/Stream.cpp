@@ -153,7 +153,8 @@ Stream* Stream::create(struct pal_stream_attributes *sAttr, struct pal_device *d
         if (palDevsAttr[count].id == PAL_DEVICE_OUT_USB_DEVICE ||
             palDevsAttr[count].id == PAL_DEVICE_OUT_USB_HEADSET ||
             palDevsAttr[count].id == PAL_DEVICE_IN_USB_DEVICE ||
-            palDevsAttr[count].id == PAL_DEVICE_IN_USB_HEADSET) {
+            palDevsAttr[count].id == PAL_DEVICE_IN_USB_HEADSET ||
+            rm->isBtDevice(palDevsAttr[count].id)) {
             palDevsAttr[count].address = dAttr[i].address;
         }
         PAL_INFO(LOG_TAG, "count: %d, i: %d, length of dAttr custom_config: %d", count, i, strlen(dAttr[i].custom_config.custom_key));
@@ -520,6 +521,17 @@ int32_t Stream::getAssociatedPalDevices(std::vector <struct pal_device> &palDevi
     }
 
     return status;
+}
+
+int32_t Stream::getSoundCardId()
+{
+    if (mPalDevice.size()) {
+        PAL_DBG(LOG_TAG, "sound card id = 0x%x",
+                    mPalDevice[0].address.card_id);
+        return mPalDevice[0].address.card_id;
+    }
+
+    return -EINVAL;
 }
 
 int32_t Stream::getAssociatedSession(Session **s)
