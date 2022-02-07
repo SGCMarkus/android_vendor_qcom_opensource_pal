@@ -31,7 +31,7 @@
 #ifndef SPEAKER_PROT
 #define SPEAKER_PROT
 
-#include "Speaker.h"
+#include "Device.h"
 #include "sp_vi.h"
 #include "sp_rx.h"
 #include "cps_data_router.h"
@@ -42,7 +42,7 @@
 #include<vector>
 #include "apm_api.h"
 
-class Speaker;
+class Device;
 
 #define LPASS_WR_CMD_REG_PHY_ADDR 0x3250300
 #define LPASS_RD_CMD_REG_PHY_ADDR 0x3250304
@@ -85,7 +85,7 @@ struct agmMetaData {
 };
 
 
-class SpeakerProtection : public Speaker
+class SpeakerProtection : public Device
 {
 protected :
     bool spkrProtEnable;
@@ -158,7 +158,7 @@ public:
 
 };
 
-class SpeakerFeedback : public Speaker
+class SpeakerFeedback : public Device
 {
     protected :
     struct pal_device mDeviceAttr;

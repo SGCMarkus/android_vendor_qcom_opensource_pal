@@ -113,6 +113,7 @@ typedef enum {
 #define DEVICEPP_MUTE 45
 #define DEVICEPP_UNMUTE 46
 #define ORIENTATION_TAG 47
+#define HANDSET_PROT_ENABLE 48
 
 /* This sleep is added to give time to kernel and
  * spf to recover from SSR so that audio-hal will
