@@ -471,6 +471,7 @@ bool ResourceManager::isContextManagerEnabled = false;
 bool ResourceManager::isVIRecordStarted;
 bool ResourceManager::lpi_logging_ = false;
 bool ResourceManager::isUpdDedicatedBeEnabled = false;
+bool ResourceManager::isDeviceMuxConfigEnabled = false;
 int ResourceManager::max_voice_vol = -1;     /* Variable to store max volume index for voice call */
 bool ResourceManager::isSignalHandlerEnabled = false;
 
@@ -6872,6 +6873,8 @@ int ResourceManager::setConfigParams(struct str_parms *parms)
     ret = setDualMonoEnableParam(parms, value, len);
     ret = setSignalHandlerEnableParam(parms, value, len);
 
+    ret = setMuxconfigEnableParam(parms, value, len);
+
     /* Not checking return value as this is optional */
     setLpiLoggingParams(parms, value, len);
 
@@ -6965,6 +6968,28 @@ int ResourceManager::setUpdDedicatedBeEnableParam(struct str_parms *parms,
 
 }
 
+int ResourceManager::setMuxconfigEnableParam(struct str_parms *parms,
+                                 char *value, int len)
+{
+    int ret = -EINVAL;
+
+    if (!value || !parms)
+        return ret;
+
+    ret = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_DEVICE_MUX,
+                                value, len);
+    PAL_VERBOSE(LOG_TAG," value %s", value);
+
+    if (ret >= 0) {
+        if (value && !strncmp(value, "true", sizeof("true")))
+            isDeviceMuxConfigEnabled = true;
+
+        str_parms_del(parms, AUDIO_PARAMETER_KEY_DEVICE_MUX);
+    }
+
+    return ret;
+
+}
 
 int ResourceManager::setDualMonoEnableParam(struct str_parms *parms,
                                  char *value, int len)

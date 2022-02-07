@@ -107,6 +107,7 @@ typedef enum {
 #define AUDIO_PARAMETER_KEY_UPD_DEDICATED_BE "upd_dedicated_be"
 #define AUDIO_PARAMETER_KEY_DUAL_MONO "dual_mono"
 #define AUDIO_PARAMETER_KEY_SIGNAL_HANDLER "signal_handler"
+#define AUDIO_PARAMETER_KEY_DEVICE_MUX "device_mux_config"
 #define MAX_PCM_NAME_SIZE 50
 #define MAX_STREAM_INSTANCES (sizeof(uint64_t) << 3)
 #define MIN_USECASE_PRIORITY 0xFFFFFFFF
@@ -587,6 +588,7 @@ public:
     static bool isGaplessEnabled;
     static bool isContextManagerEnabled;
     static bool isDualMonoEnabled;
+    static bool isDeviceMuxConfigEnabled;
     static bool isUHQAEnabled;
     static bool isSignalHandlerEnabled;
     static std::mutex mChargerBoostMutex;
@@ -826,6 +828,7 @@ public:
     static int setUpdDedicatedBeEnableParam(struct str_parms *parms,char *value, int len);
     static int setDualMonoEnableParam(struct str_parms *parms,char *value, int len);
     static int setSignalHandlerEnableParam(struct str_parms *parms,char *value, int len);
+    static int setMuxconfigEnableParam(struct str_parms *parms,char *value, int len);
     static bool isLpiLoggingEnabled();
     static void processConfigParams(const XML_Char **attr);
     static bool isValidDevId(int deviceId);

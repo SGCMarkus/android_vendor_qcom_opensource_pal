@@ -515,7 +515,7 @@ int Session::setSlotMask(const std::shared_ptr<ResourceManager>& rm, struct pal_
 
     if (rm->activeGroupDevConfig)
         tkv.push_back(std::make_pair(TAG_KEY_SLOT_MASK, rm->activeGroupDevConfig->grp_dev_hwep_cfg.slot_mask));
-    else
+    else if (rm->isDeviceMuxConfigEnabled)
          tkv.push_back(std::make_pair(TAG_KEY_SLOT_MASK, slotMaskLUT.at(dAttr.config.ch_info.channels)));
 
     tagConfig = (struct agm_tag_config*)malloc(sizeof(struct agm_tag_config) +
@@ -641,8 +641,8 @@ int Session::configureMFC(const std::shared_ptr<ResourceManager>& rm, struct pal
 
         /* set TKV for slot mask */
         setSlotMask(rm, sAttr, dAttr, pcmDevIds);
-    } else if (dAttr.id == PAL_DEVICE_OUT_SPEAKER ||
-              dAttr.id == PAL_DEVICE_OUT_HANDSET) {
+    } else if (rm->isDeviceMuxConfigEnabled && (dAttr.id == PAL_DEVICE_OUT_SPEAKER ||
+              dAttr.id == PAL_DEVICE_OUT_HANDSET)) {
         setSlotMask(rm, sAttr, dAttr, pcmDevIds);
     }
 

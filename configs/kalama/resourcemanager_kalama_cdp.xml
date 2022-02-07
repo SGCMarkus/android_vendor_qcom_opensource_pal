@@ -80,6 +80,7 @@
         <param key="lpi_logging_enable" value ="false" />
         <param key="upd_dedicated_be" value ="true" />
         <param key="signal_handler" value ="true" />
+        <param key="device_mux_config" value ="true" />
     </config_params>
     <config_gapless key="gapless_supported" value="1"/>
     <bt_codecs>
