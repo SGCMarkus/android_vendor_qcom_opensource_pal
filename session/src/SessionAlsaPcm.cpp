@@ -1028,6 +1028,11 @@ set_mixer:
                     pcmDevIds.at(0), customPayload, customPayloadSize);
                 freeCustomPayload();            }
             if (ResourceManager::isLpiLoggingEnabled()) {
+                struct audio_route *audioRoute;
+
+                status = rm->getAudioRoute(&audioRoute);
+                if (!status)
+                    audio_route_apply_and_update_path(audioRoute, "lpi-pcm-logging");
                 PAL_INFO(LOG_TAG, "LPI data logging Param ON");
                 /* No error check as TAG/TKV may not required for non LPI usecases */
                 setConfig(s, MODULE, LPI_LOGGING_ON);
@@ -1291,6 +1296,13 @@ int SessionAlsaPcm::stop(Stream * s)
                     status = errno;
                     PAL_ERR(LOG_TAG, "pcm_stop failed %d", status);
                 }
+            }
+            if (ResourceManager::isLpiLoggingEnabled()) {
+                struct audio_route *audioRoute;
+
+                status = rm->getAudioRoute(&audioRoute);
+                if (!status)
+                    audio_route_reset_and_update_path(audioRoute, "lpi-pcm-logging");
             }
         break;
         case PAL_AUDIO_OUTPUT:
