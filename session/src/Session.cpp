@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -511,7 +512,12 @@ int Session::setSlotMask(const std::shared_ptr<ResourceManager>& rm, struct pal_
     std::string backendname;
     int tkv_size = 0;
 
-    tkv.push_back(std::make_pair(TAG_KEY_SLOT_MASK,rm->activeGroupDevConfig->grp_dev_hwep_cfg.slot_mask));
+
+    if (rm->activeGroupDevConfig)
+        tkv.push_back(std::make_pair(TAG_KEY_SLOT_MASK, rm->activeGroupDevConfig->grp_dev_hwep_cfg.slot_mask));
+    else if (rm->isDeviceMuxConfigEnabled)
+         tkv.push_back(std::make_pair(TAG_KEY_SLOT_MASK, slotMaskLUT.at(dAttr.config.ch_info.channels)));
+
     tagConfig = (struct agm_tag_config*)malloc(sizeof(struct agm_tag_config) +
                     (tkv.size() * sizeof(agm_key_value)));
 
@@ -634,6 +640,9 @@ int Session::configureMFC(const std::shared_ptr<ResourceManager>& rm, struct pal
         }
 
         /* set TKV for slot mask */
+        setSlotMask(rm, sAttr, dAttr, pcmDevIds);
+    } else if (rm->isDeviceMuxConfigEnabled && (dAttr.id == PAL_DEVICE_OUT_SPEAKER ||
+              dAttr.id == PAL_DEVICE_OUT_HANDSET)) {
         setSlotMask(rm, sAttr, dAttr, pcmDevIds);
     }
 

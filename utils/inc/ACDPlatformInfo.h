@@ -30,15 +30,8 @@
 #ifndef ACD_PLATFORM_INFO_H
 #define ACD_PLATFORM_INFO_H
 
-#include <stdint.h>
-#include <map>
-#include <vector>
-#include <memory>
-#include <string>
-#include "PalDefs.h"
 #include "ResourceManager.h"
-#include "SoundTriggerUtils.h"
-#include "SoundTriggerXmlParser.h"
+#include "SoundTriggerPlatformInfo.h"
 
 typedef enum {
     ACD_SOUND_MODEL_ID_ENV,
@@ -49,125 +42,104 @@ typedef enum {
     ACD_SOUND_MODEL_ID_MAX,
 } acd_model_id_t;
 
-using ACDUUID = SoundTriggerUUID;
-class StreamConfig;
+class ACDStreamConfig;
 
-using acd_cap_profile_map_t =
-    std::map<std::string, std::shared_ptr<CaptureProfile>>;
-
-class ACDContextInfo {
- public:
+class ACDContextInfo
+{
+public:
     ACDContextInfo(uint32_t context_id, uint32_t type);
-    uint32_t GetContextId();
-    uint32_t GetContextType();
- private:
+    uint32_t GetContextId() const { return context_id_; }
+    uint32_t GetContextType() const { return context_type_; }
+
+private:
     uint32_t context_id_;
     uint32_t context_type_;
 };
 
-class ACDSoundModelInfo : public SoundTriggerXml {
- public:
-    ACDSoundModelInfo(StreamConfig *sm_cfg);
+class ACDSoundModelInfo : public SoundTriggerXml
+{
+public:
+    ACDSoundModelInfo(ACDStreamConfig *sm_cfg);
 
     void HandleStartTag(const char *tag, const char **attribs) override;
     void HandleEndTag(struct xml_userdata *data, const char *tag) override;
 
-    std::string GetModelType();
-    std::string GetModelBinName();
-    uint32_t GetModelUUID();
-    uint32_t GetModelId();
-    size_t GetNumContexts();
-    std::vector<std::shared_ptr<ACDContextInfo>> GetSupportedContextList();
+    std::string GetModelType() const { return model_type_; }
+    std::string GetModelBinName() const { return model_bin_name_; }
+    uint32_t GetModelUUID() const { return model_uuid_; }
+    uint32_t GetModelId() const { return model_id_; }
+    size_t GetNumContexts() const { return acd_context_info_list_.size(); }
+    std::vector<std::shared_ptr<ACDContextInfo>> GetSupportedContextList()const {
+        return acd_context_info_list_;
+    }
 
- private:
+private:
     std::string  model_type_;
     std::string  model_bin_name_;
     uint32_t     model_id_;
     uint32_t     model_uuid_;
     bool         is_parsing_contexts;
-    StreamConfig *sm_cfg_;
+    ACDStreamConfig *sm_cfg_;
     std::vector<std::shared_ptr<ACDContextInfo>> acd_context_info_list_;
 };
 
-class StreamConfig : public SoundTriggerXml {
- public:
-    StreamConfig(const acd_cap_profile_map_t&);
-    StreamConfig(StreamConfig &rhs) = delete;
-    StreamConfig & operator=(StreamConfig &rhs) = delete;
+class ACDStreamConfig : public SoundTriggerXml
+{
+public:
+    ACDStreamConfig();
+    ACDStreamConfig(ACDStreamConfig &rhs) = delete;
+    ACDStreamConfig & operator=(ACDStreamConfig &rhs) = delete;
 
     void HandleStartTag(const char *tag, const char **attribs) override;
     void HandleEndTag(struct xml_userdata *data, const char *tag) override;
 
-    ACDUUID GetUUID();
-    uint32_t GetSampleRate();
-    uint32_t GetBitWidth();
-    uint32_t GetOutChannels();
-    std::string GetStreamConfigName();
-    std::shared_ptr<CaptureProfile> GetCaptureProfile(
-        std::pair<StOperatingModes, StInputModes> mode_pair);
+    UUID GetUUID() const { return vendor_uuid_; }
+    std::string GetStreamConfigName() const { return name_; }
     std::shared_ptr<ACDSoundModelInfo> GetSoundModelInfoByModelId(uint32_t model_id);
-    std::vector<std::shared_ptr<ACDSoundModelInfo>> GetSoundModelList();
     std::shared_ptr<ACDSoundModelInfo> GetSoundModelInfoByContextId(uint32_t context_id);
     void UpdateContextModelMap(uint32_t context_id);
-    std::pair<uint32_t,uint32_t> GetStreamMetadata();
- private:
+    uint32_t GetSampleRate() const { return sample_rate_; }
+    uint32_t GetBitWidth() const { return bit_width_; }
+    uint32_t GetOutChannels() const { return out_channels_; }
+    std::vector<std::shared_ptr<ACDSoundModelInfo>> GetSoundModelList() const {
+        return acd_soundmodel_info_list_;
+    }
+    std::shared_ptr<CaptureProfile> GetCaptureProfile(
+        std::pair<StOperatingModes, StInputModes> mode_pair) const {
+        return acd_op_modes_.at(mode_pair);
+    }
+
+private:
     std::string name_;
-    ACDUUID     vendor_uuid_;
-    uint32_t    sample_rate_;
-    uint32_t    bit_width_;
-    uint32_t    out_channels_;
-    std::pair<uint32_t,uint32_t> stream_metadata_;
-    const acd_cap_profile_map_t& cap_profile_map_;
-    std::map<std::pair<StOperatingModes, StInputModes>, std::shared_ptr<CaptureProfile>> op_modes_;
+    UUID vendor_uuid_;
+    uint32_t sample_rate_;
+    uint32_t bit_width_;
+    uint32_t out_channels_;
+    st_op_modes_t acd_op_modes_;
     std::shared_ptr<SoundTriggerXml> curr_child_;
     std::vector<std::shared_ptr<ACDSoundModelInfo>> acd_soundmodel_info_list_;
     std::map<uint32_t, std::shared_ptr<ACDSoundModelInfo>> context_model_map_;
     std::map<uint32_t, std::shared_ptr<ACDSoundModelInfo>> acd_modelinfo_map_;
-
-    /* reads capture profile names into member variables */
-    void ReadCapProfileNames(StOperatingModes mode, const char **attribs);
 };
 
-class ACDPlatformInfo : public SoundTriggerXml {
- public:
-    ACDPlatformInfo(StreamConfig &rhs) = delete;
-    ACDPlatformInfo & operator=(ACDPlatformInfo &rhs) =
-         delete;
+class ACDPlatformInfo : public SoundTriggerPlatformInfo
+{
+public:
+    ACDPlatformInfo();
+    ACDPlatformInfo(ACDStreamConfig &rhs) = delete;
+    ACDPlatformInfo & operator=(ACDPlatformInfo &rhs) = delete;
 
     void HandleStartTag(const char *tag, const char **attribs) override;
     void HandleEndTag(struct xml_userdata *data, const char *tag) override;
 
     static std::shared_ptr<ACDPlatformInfo> GetInstance();
-    bool GetSupportDevSwitch() const;
-    bool GetSupportNLPISwitch() const;
-    bool GetDedicatedSvaPath() const;
-    bool GetDedicatedHeadsetPath() const;
-    bool GetLpiEnable() const;
-    bool GetEnableDebugDumps() const;
-    bool GetConcurrentCaptureEnable() const;
-    bool GetConcurrentVoiceCallEnable() const;
-    bool GetConcurrentVoipCallEnable() const;
-    bool GetLowLatencyBargeinEnable() const;
-    bool IsACDEnabled() const;
-    std::shared_ptr<StreamConfig> GetStreamConfig(const ACDUUID& uuid) const;
-    std::shared_ptr<CaptureProfile> GetCapProfile(const std::string& name) const;
+    bool IsACDEnabled() const { return acd_enable_; }
+    std::shared_ptr<ACDStreamConfig> GetStreamConfig(const UUID& uuid) const;
 
- private:
-    ACDPlatformInfo();
-    static std::shared_ptr<ACDPlatformInfo> me_;
+private:
     bool acd_enable_;
-    bool support_device_switch_;
-    bool support_nlpi_switch_;
-    bool dedicated_sva_path_;
-    bool dedicated_headset_path_;
-    bool lpi_enable_;
-    bool enable_debug_dumps_;
-    bool concurrent_capture_;
-    bool concurrent_voice_call_;
-    bool concurrent_voip_call_;
-    bool low_latency_bargein_enable_;
-    std::map<ACDUUID, std::shared_ptr<StreamConfig>> acd_cfg_list_;
-    acd_cap_profile_map_t capture_profile_map_;
+    static std::shared_ptr<ACDPlatformInfo> me_;
     std::shared_ptr<SoundTriggerXml> curr_child_;
+    std::map<UUID, std::shared_ptr<ACDStreamConfig>> acd_cfg_list_;
 };
 #endif

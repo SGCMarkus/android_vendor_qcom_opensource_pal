@@ -49,20 +49,21 @@ struct stream_context_info {
     uint32_t last_confidence_score;
 };
 
-class ACDEngine : public ContextDetectionEngine {
- public:
-    ACDEngine(Stream *s,
-               std::shared_ptr<StreamConfig> sm_cfg);
+class ACDEngine : public ContextDetectionEngine
+{
+public:
+    ACDEngine(Stream *s, std::shared_ptr<ACDStreamConfig> sm_cfg);
     ~ACDEngine();
+
     static std::shared_ptr<ContextDetectionEngine> GetInstance(Stream *s,
-                          std::shared_ptr<StreamConfig> sm_cfg);
+                          std::shared_ptr<ACDStreamConfig> sm_cfg);
     int32_t StartEngine(Stream *s) override;
     int32_t StopEngine(Stream *s) override;
     int32_t SetupEngine(Stream *s, void *config);
     int32_t TeardownEngine(Stream *s, void *config);
     int32_t ReconfigureEngine(Stream *s, void *old_config, void *new_config);
 
- private:
+private:
     static void EventProcessingThread(ACDEngine *engine);
     static void HandleSessionCallBack(uint64_t hdl, uint32_t event_id, void *data,
                                       uint32_t event_size);

@@ -435,7 +435,7 @@ class StreamACD : public Stream {
                                   uint32_t *event_size);
     static void EventNotificationThread(StreamACD *stream);
 
-    std::shared_ptr<StreamConfig> sm_cfg_;
+    std::shared_ptr<ACDStreamConfig> sm_cfg_;
     std::shared_ptr<ACDPlatformInfo> acd_info_;
     std::shared_ptr<CaptureProfile> cap_prof_;
     std::shared_ptr<ContextDetectionEngine> engine_;

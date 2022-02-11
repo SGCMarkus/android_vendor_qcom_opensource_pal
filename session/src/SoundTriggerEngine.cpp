@@ -40,7 +40,7 @@ std::shared_ptr<SoundTriggerEngine> SoundTriggerEngine::Create(
     Stream *s,
     listen_model_indicator_enum type,
     st_module_type_t module_type,
-    std::shared_ptr<SoundModelConfig> sm_cfg)
+    std::shared_ptr<VUIStreamConfig> sm_cfg)
 {
     PAL_VERBOSE(LOG_TAG, "Enter, type %d", type);
 

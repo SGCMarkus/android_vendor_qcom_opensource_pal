@@ -182,6 +182,12 @@ char rmngr_xml_file[XML_PATH_MAX_LENGTH] = {0};
 
 char vendor_config_path[VENDOR_CONFIG_PATH_MAX_LENGTH] = {0};
 
+const std::vector<int> gSignalsOfInterest = {
+    SIGABRT,
+    SIGTERM,
+    DEBUGGER_SIGNAL,
+};
+
 // default properties which will be updated based on platform configuration
 static struct pal_st_properties qst_properties = {
         "QUALCOMM Technologies, Inc",  // implementor
@@ -465,7 +471,9 @@ bool ResourceManager::isContextManagerEnabled = false;
 bool ResourceManager::isVIRecordStarted;
 bool ResourceManager::lpi_logging_ = false;
 bool ResourceManager::isUpdDedicatedBeEnabled = false;
+bool ResourceManager::isDeviceMuxConfigEnabled = false;
 int ResourceManager::max_voice_vol = -1;     /* Variable to store max volume index for voice call */
+bool ResourceManager::isSignalHandlerEnabled = false;
 
 //TODO:Needs to define below APIs so that functionality won't break
 #ifdef FEATURE_IPQ_OPENWRT
@@ -650,6 +658,15 @@ err:
         free(snd_card_name);
 }
 
+void ResourceManager::sendCrashSignal(int signal)
+{
+    pid_t pid = getpid();
+    uid_t uid = getuid();
+    ALOGV("%s: signal %d, pid %u, uid %u", __func__, signal, pid, uid);
+    struct agm_dump_info dump_info = {signal, (uint32_t)pid, (uint32_t)uid};
+    agm_dump(&dump_info);
+}
+
 ResourceManager::ResourceManager()
 {
     int ret = 0;
@@ -689,6 +706,17 @@ ResourceManager::ResourceManager()
 
     if (isHifiFilterEnabled)
         audio_route_apply_and_update_path(audio_route, "hifi-filter-coefficients");
+
+    if (isSignalHandlerEnabled) {
+        mSigHandler = SignalHandler::getInstance();
+        if (mSigHandler) {
+            std::function<void(int)> crashSignalCb = sendCrashSignal;
+            SignalHandler::setClientCallback(crashSignalCb);
+            mSigHandler->registerSignalHandler(gSignalsOfInterest);
+        } else {
+            PAL_INFO(LOG_TAG, "Failed to create signal handler");
+        }
+    }
 
 #if defined(ADSP_SLEEP_MONITOR)
     sleepmon_fd_ = open(ADSPSLEEPMON_DEVICE_NAME, O_RDWR);
@@ -3147,6 +3175,8 @@ int ResourceManager::registerDevice(std::shared_ptr<Device> d, Stream *s)
                             status = 0;
                             PAL_VERBOSE(LOG_TAG, "Failed to enable EC Ref because of -ENODEV");
                         }
+                        // decrease ec ref count if ec ref set failure
+                        updateECDeviceMap(d, tx_devices[0], str, 0, false);
                     }
                 }
             }
@@ -3207,6 +3237,8 @@ int ResourceManager::registerDevice(std::shared_ptr<Device> d, Stream *s)
                             status = 0;
                             PAL_VERBOSE(LOG_TAG, "Failed to enable EC Ref because of -ENODEV");
                         }
+                        // decrease ec ref count if ec ref set failure
+                        updateECDeviceMap(d, tx_devices[0], str, 0, false);
                     }
                 }
             }
@@ -3495,8 +3527,8 @@ int ResourceManager::getHwAudioMixer(struct audio_mixer ** am)
 
 void ResourceManager::GetVoiceUIProperties(struct pal_st_properties *qstp)
 {
-    std::shared_ptr<SoundTriggerPlatformInfo> st_info =
-        SoundTriggerPlatformInfo::GetInstance();
+    std::shared_ptr<VoiceUIPlatformInfo> vui_info =
+        VoiceUIPlatformInfo::GetInstance();
 
     if (!qstp) {
         return;
@@ -3504,30 +3536,22 @@ void ResourceManager::GetVoiceUIProperties(struct pal_st_properties *qstp)
 
     memcpy(qstp, &qst_properties, sizeof(struct pal_st_properties));
 
-    if (st_info) {
-        qstp->version = st_info->GetVersion();
-        qstp->concurrent_capture = st_info->GetConcurrentCaptureEnable();
+    if (vui_info) {
+        qstp->version = vui_info->GetVersion();
+        qstp->concurrent_capture = vui_info->GetConcurrentCaptureEnable();
     }
 }
 
 bool ResourceManager::isNLPISwitchSupported(pal_stream_type_t type) {
     switch (type) {
-        case PAL_STREAM_VOICE_UI: {
+        case PAL_STREAM_VOICE_UI:
+        case PAL_STREAM_ACD:
+        case PAL_STREAM_SENSOR_PCM_DATA: {
             std::shared_ptr<SoundTriggerPlatformInfo> st_info =
                 SoundTriggerPlatformInfo::GetInstance();
 
             if (st_info)
                 return st_info->GetSupportNLPISwitch();
-
-            break;
-        }
-        case PAL_STREAM_ACD:
-        case PAL_STREAM_SENSOR_PCM_DATA: {
-            std::shared_ptr<ACDPlatformInfo> acd_info =
-                ACDPlatformInfo::GetInstance();
-
-            if (acd_info)
-                return acd_info->GetSupportNLPISwitch();
 
             break;
         }
@@ -3539,22 +3563,14 @@ bool ResourceManager::isNLPISwitchSupported(pal_stream_type_t type) {
 
 bool ResourceManager::IsLPISupported(pal_stream_type_t type) {
     switch (type) {
-        case PAL_STREAM_VOICE_UI: {
+        case PAL_STREAM_VOICE_UI:
+        case PAL_STREAM_ACD:
+        case PAL_STREAM_SENSOR_PCM_DATA: {
             std::shared_ptr<SoundTriggerPlatformInfo> st_info =
                 SoundTriggerPlatformInfo::GetInstance();
 
             if (st_info)
                 return st_info->GetLpiEnable();
-
-            break;
-        }
-        case PAL_STREAM_ACD:
-        case PAL_STREAM_SENSOR_PCM_DATA: {
-            std::shared_ptr<ACDPlatformInfo> acd_info =
-                ACDPlatformInfo::GetInstance();
-
-            if (acd_info)
-                return acd_info->GetLpiEnable();
 
             break;
         }
@@ -3655,22 +3671,14 @@ exit:
 
 bool ResourceManager::IsLowLatencyBargeinSupported(pal_stream_type_t type) {
     switch (type) {
-        case PAL_STREAM_VOICE_UI: {
+        case PAL_STREAM_VOICE_UI:
+        case PAL_STREAM_ACD:
+        case PAL_STREAM_SENSOR_PCM_DATA: {
             std::shared_ptr<SoundTriggerPlatformInfo> st_info =
                 SoundTriggerPlatformInfo::GetInstance();
 
             if (st_info)
                 return st_info->GetLowLatencyBargeinEnable();
-
-            break;
-        }
-        case PAL_STREAM_ACD:
-        case PAL_STREAM_SENSOR_PCM_DATA: {
-            std::shared_ptr<ACDPlatformInfo> acd_info =
-                ACDPlatformInfo::GetInstance();
-
-            if (acd_info)
-                return acd_info->GetLowLatencyBargeinEnable();
 
             break;
         }
@@ -3682,22 +3690,14 @@ bool ResourceManager::IsLowLatencyBargeinSupported(pal_stream_type_t type) {
 
 bool ResourceManager::IsAudioCaptureConcurrencySupported(pal_stream_type_t type) {
     switch (type) {
-        case PAL_STREAM_VOICE_UI: {
+        case PAL_STREAM_VOICE_UI:
+        case PAL_STREAM_ACD:
+        case PAL_STREAM_SENSOR_PCM_DATA: {
             std::shared_ptr<SoundTriggerPlatformInfo> st_info =
                 SoundTriggerPlatformInfo::GetInstance();
 
             if (st_info)
                 return st_info->GetConcurrentCaptureEnable();
-
-            break;
-        }
-        case PAL_STREAM_ACD:
-        case PAL_STREAM_SENSOR_PCM_DATA: {
-            std::shared_ptr<ACDPlatformInfo> acd_info =
-                ACDPlatformInfo::GetInstance();
-
-            if (acd_info)
-                return acd_info->GetConcurrentCaptureEnable();
 
             break;
         }
@@ -3709,22 +3709,14 @@ bool ResourceManager::IsAudioCaptureConcurrencySupported(pal_stream_type_t type)
 
 bool ResourceManager::IsVoiceCallConcurrencySupported(pal_stream_type_t type) {
     switch (type) {
-        case PAL_STREAM_VOICE_UI: {
+        case PAL_STREAM_VOICE_UI:
+        case PAL_STREAM_ACD:
+        case PAL_STREAM_SENSOR_PCM_DATA: {
             std::shared_ptr<SoundTriggerPlatformInfo> st_info =
                 SoundTriggerPlatformInfo::GetInstance();
 
             if (st_info)
                 return st_info->GetConcurrentVoiceCallEnable();
-
-            break;
-        }
-        case PAL_STREAM_ACD:
-        case PAL_STREAM_SENSOR_PCM_DATA: {
-            std::shared_ptr<ACDPlatformInfo> acd_info =
-                ACDPlatformInfo::GetInstance();
-
-            if (acd_info)
-                return acd_info->GetConcurrentVoiceCallEnable();
 
             break;
         }
@@ -3736,22 +3728,14 @@ bool ResourceManager::IsVoiceCallConcurrencySupported(pal_stream_type_t type) {
 
 bool ResourceManager::IsVoipConcurrencySupported(pal_stream_type_t type) {
     switch (type) {
-        case PAL_STREAM_VOICE_UI: {
+        case PAL_STREAM_VOICE_UI:
+        case PAL_STREAM_ACD:
+        case PAL_STREAM_SENSOR_PCM_DATA: {
             std::shared_ptr<SoundTriggerPlatformInfo> st_info =
                 SoundTriggerPlatformInfo::GetInstance();
 
             if (st_info)
                 return st_info->GetConcurrentVoipCallEnable();
-
-            break;
-        }
-        case PAL_STREAM_ACD:
-        case PAL_STREAM_SENSOR_PCM_DATA: {
-            std::shared_ptr<ACDPlatformInfo> acd_info =
-                ACDPlatformInfo::GetInstance();
-
-            if (acd_info)
-                return acd_info->GetConcurrentVoipCallEnable();
 
             break;
         }
@@ -3762,12 +3746,12 @@ bool ResourceManager::IsVoipConcurrencySupported(pal_stream_type_t type) {
 }
 
 bool ResourceManager::IsTransitToNonLPIOnChargingSupported() {
-    std::shared_ptr<SoundTriggerPlatformInfo> st_info =
-        SoundTriggerPlatformInfo::GetInstance();
+    std::shared_ptr<VoiceUIPlatformInfo> vui_info =
+        VoiceUIPlatformInfo::GetInstance();
 
-    if (st_info) {
-        return st_info->GetTransitToNonLpiOnCharging();
-    }
+    if (vui_info)
+        return vui_info->GetTransitToNonLpiOnCharging();
+
     return false;
 }
 
@@ -3965,22 +3949,20 @@ int ResourceManager::SwitchSoundTriggerDevices(bool connect_state,
     pal_device_id_t dest_device;
     pal_device_id_t device_to_disconnect;
     pal_device_id_t device_to_connect;
-    bool is_sva_ds_supported = false, is_acd_ds_supported = false;
+    bool is_ds_supported = false;
     std::shared_ptr<CaptureProfile> cap_prof_priority = nullptr;
     std::shared_ptr<SoundTriggerPlatformInfo> st_info =
         SoundTriggerPlatformInfo::GetInstance();
-    std::shared_ptr<ACDPlatformInfo> acd_info = ACDPlatformInfo::GetInstance();
 
     PAL_DBG(LOG_TAG, "Enter");
 
     /*
-     * ACD and Sensor PCM Data(SPD) share the ACD platform info,
-     * so no need to define a different device switch flag for SPD.
+     * Voice UI, ACD and Sensor PCM Data(SPD)
+     * share the sound trigger platform info.
      */
-    is_sva_ds_supported = st_info->GetSupportDevSwitch();
-    is_acd_ds_supported = acd_info->GetSupportDevSwitch();
+    is_ds_supported = st_info->GetSupportDevSwitch();
 
-    if (!is_sva_ds_supported && !is_acd_ds_supported) {
+    if (!is_ds_supported) {
         PAL_INFO(LOG_TAG, "Device switch not supported, return");
         goto exit;
     }
@@ -3998,10 +3980,8 @@ int ResourceManager::SwitchSoundTriggerDevices(bool connect_state,
 
     SoundTriggerCaptureProfile = nullptr;
 
-    if (is_sva_ds_supported)
+    if (is_ds_supported) {
         cap_prof_priority = GetSVACaptureProfileByPriority(nullptr, cap_prof_priority);
-
-    if (is_acd_ds_supported) {
         cap_prof_priority = GetACDCaptureProfileByPriority(nullptr, cap_prof_priority);
         cap_prof_priority = GetSPDCaptureProfileByPriority(nullptr, cap_prof_priority);
     }
@@ -4027,19 +4007,18 @@ int ResourceManager::SwitchSoundTriggerDevices(bool connect_state,
      * HandleDetectionStreamAction */
     mResourceManagerMutex.unlock();
     mActiveStreamMutex.lock();
-    if (is_sva_ds_supported)
+    if (is_ds_supported) {
+        /* Disconnect device for all sound trigger streams */
         HandleDetectionStreamAction(PAL_STREAM_VOICE_UI, ST_HANDLE_DISCONNECT_DEVICE, (void *)&device_to_disconnect);
-
-    if (is_acd_ds_supported) {
         HandleDetectionStreamAction(PAL_STREAM_ACD, ST_HANDLE_DISCONNECT_DEVICE, (void *)&device_to_disconnect);
         HandleDetectionStreamAction(PAL_STREAM_SENSOR_PCM_DATA, ST_HANDLE_DISCONNECT_DEVICE,
                                     (void *)&device_to_disconnect);
     }
 
-    if (is_sva_ds_supported)
-        HandleDetectionStreamAction(PAL_STREAM_VOICE_UI, ST_HANDLE_CONNECT_DEVICE, (void *)&device_to_connect);
 
-    if (is_acd_ds_supported) {
+    if (is_ds_supported) {
+        /* Connect device for all sound trigger streams */
+        HandleDetectionStreamAction(PAL_STREAM_VOICE_UI, ST_HANDLE_CONNECT_DEVICE, (void *)&device_to_connect);
         HandleDetectionStreamAction(PAL_STREAM_ACD, ST_HANDLE_CONNECT_DEVICE, (void *)&device_to_connect);
         HandleDetectionStreamAction(PAL_STREAM_SENSOR_PCM_DATA, ST_HANDLE_CONNECT_DEVICE,
                                     (void *)&device_to_connect);
@@ -4780,7 +4759,7 @@ bool ResourceManager::checkECRef(std::shared_ptr<Device> rx_dev,
     return result;
 }
 
-int ResourceManager::updateECDeviceMap_1(std::shared_ptr<Device> rx_dev,
+int ResourceManager::updateECDeviceMap_l(std::shared_ptr<Device> rx_dev,
     std::shared_ptr<Device> tx_dev, Stream *tx_str, int count, bool is_txstop)
 {
     int status = 0;
@@ -4824,6 +4803,8 @@ int ResourceManager::updateECDeviceMap(std::shared_ptr<Device> rx_dev,
         for (map_iter = deviceInfo[i].ec_ref_count_map.begin();
             map_iter != deviceInfo[i].ec_ref_count_map.end(); map_iter++) {
             rx_dev_id = (*map_iter).first;
+            if (rx_dev && rx_dev->getSndDeviceId() != rx_dev_id)
+                continue;
             for (iter = deviceInfo[i].ec_ref_count_map[rx_dev_id].begin();
                 iter != deviceInfo[i].ec_ref_count_map[rx_dev_id].end(); iter++) {
                 if ((*iter).first == tx_str) {
@@ -4833,7 +4814,7 @@ int ResourceManager::updateECDeviceMap(std::shared_ptr<Device> rx_dev,
                     break;
                 }
             }
-            if (tx_stream_found)
+            if (tx_stream_found && rx_dev)
                 break;
         }
     } else {
@@ -6890,6 +6871,9 @@ int ResourceManager::setConfigParams(struct str_parms *parms)
 
     ret = setUpdDedicatedBeEnableParam(parms, value, len);
     ret = setDualMonoEnableParam(parms, value, len);
+    ret = setSignalHandlerEnableParam(parms, value, len);
+
+    ret = setMuxconfigEnableParam(parms, value, len);
 
     /* Not checking return value as this is optional */
     setLpiLoggingParams(parms, value, len);
@@ -6984,6 +6968,28 @@ int ResourceManager::setUpdDedicatedBeEnableParam(struct str_parms *parms,
 
 }
 
+int ResourceManager::setMuxconfigEnableParam(struct str_parms *parms,
+                                 char *value, int len)
+{
+    int ret = -EINVAL;
+
+    if (!value || !parms)
+        return ret;
+
+    ret = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_DEVICE_MUX,
+                                value, len);
+    PAL_VERBOSE(LOG_TAG," value %s", value);
+
+    if (ret >= 0) {
+        if (value && !strncmp(value, "true", sizeof("true")))
+            isDeviceMuxConfigEnabled = true;
+
+        str_parms_del(parms, AUDIO_PARAMETER_KEY_DEVICE_MUX);
+    }
+
+    return ret;
+
+}
 
 int ResourceManager::setDualMonoEnableParam(struct str_parms *parms,
                                  char *value, int len)
@@ -7005,6 +7011,29 @@ int ResourceManager::setDualMonoEnableParam(struct str_parms *parms,
     }
 
     PAL_INFO(LOG_TAG, "dual mono enabled is=%x", isDualMonoEnabled);
+
+    return ret;
+}
+
+int ResourceManager::setSignalHandlerEnableParam(struct str_parms *parms,
+                                 char *value, int len)
+{
+    int ret = -EINVAL;
+
+    if (!value || !parms)
+        return ret;
+
+    ret = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_SIGNAL_HANDLER,
+                                value, len);
+    PAL_INFO(LOG_TAG," value %s", value);
+    if (ret >= 0) {
+        if (value && !strncmp(value, "true", sizeof("true")))
+            isSignalHandlerEnabled = true;
+
+        str_parms_del(parms, AUDIO_PARAMETER_KEY_SIGNAL_HANDLER);
+    }
+
+    PAL_INFO(LOG_TAG, "Signal handler enabled is=%x", isSignalHandlerEnabled);
 
     return ret;
 }
@@ -10025,21 +10054,14 @@ void ResourceManager::setGaplessMode(const XML_Char **attr)
 }
 
 void ResourceManager::startTag(void *userdata, const XML_Char *tag_name,
-    const XML_Char **attr)
+                               const XML_Char **attr)
 {
     stream_supported_type type;
     struct xml_userdata *data = (struct xml_userdata *)userdata;
     static std::shared_ptr<SoundTriggerPlatformInfo> st_info = nullptr;
-    static std::shared_ptr<ACDPlatformInfo> acd_info = nullptr;
 
-    if (data->is_parsing_sound_trigger) {
-        if (st_info)
-           st_info->HandleStartTag((const char *)tag_name, (const char **)attr);
-        return;
-    }
-
-    if (acd_info && data->is_parsing_acd) {
-        acd_info->HandleStartTag((const char *)tag_name, (const char **)attr);
+    if (st_info && data->is_parsing_sound_trigger) {
+        st_info->HandleStartTag((const char *)tag_name, (const char **)attr);
         snd_reset_data_buf(data);
         return;
     }
@@ -10053,12 +10075,6 @@ void ResourceManager::startTag(void *userdata, const XML_Char *tag_name,
     if (!strcmp(tag_name, "sound_trigger_platform_info")) {
         data->is_parsing_sound_trigger = true;
         st_info = SoundTriggerPlatformInfo::GetInstance();
-        return;
-    }
-
-    if (!strcmp(tag_name, "acd_platform_info")) {
-        data->is_parsing_acd = true;
-        acd_info = ACDPlatformInfo::GetInstance();
         return;
     }
 
@@ -10168,7 +10184,6 @@ void ResourceManager::endTag(void *userdata, const XML_Char *tag_name)
     struct xml_userdata *data = (struct xml_userdata *)userdata;
     std::shared_ptr<SoundTriggerPlatformInfo> st_info =
         SoundTriggerPlatformInfo::GetInstance();
-    std::shared_ptr<ACDPlatformInfo> acd_info = ACDPlatformInfo::GetInstance();
 
     if (!strcmp(tag_name, "sound_trigger_platform_info")) {
         data->is_parsing_sound_trigger = false;
@@ -10177,16 +10192,6 @@ void ResourceManager::endTag(void *userdata, const XML_Char *tag_name)
 
     if (data->is_parsing_sound_trigger) {
         st_info->HandleEndTag(data, (const char *)tag_name);
-        return;
-    }
-
-    if (!strcmp(tag_name, "acd_platform_info")) {
-        data->is_parsing_acd = false;
-        return;
-    }
-
-    if (data->is_parsing_acd) {
-        acd_info->HandleEndTag(data, (const char *)tag_name);
         snd_reset_data_buf(data);
         return;
     }
@@ -10223,12 +10228,6 @@ void ResourceManager::endTag(void *userdata, const XML_Char *tag_name)
 void ResourceManager::snd_data_handler(void *userdata, const XML_Char *s, int len)
 {
    struct xml_userdata *data = (struct xml_userdata *)userdata;
-
-    if (data->is_parsing_sound_trigger) {
-        SoundTriggerPlatformInfo::GetInstance()->HandleCharData(
-            (const char *)s);
-        return;
-    }
 
    if (len + data->offs >= sizeof(data->data_buf) ) {
        data->offs += len;

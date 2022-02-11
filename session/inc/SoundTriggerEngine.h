@@ -42,6 +42,7 @@
 #include "PalRingBuffer.h"
 #include "Device.h"
 #include "SoundTriggerUtils.h"
+#include "VoiceUIPlatformInfo.h"
 
 using ChronoSteadyClock_t = std::chrono::time_point<std::chrono::steady_clock>;
 
@@ -91,14 +92,12 @@ struct detection_event_info
     uint32_t ftrt_data_length_in_us;
 };
 
-class SoundModelConfig;
-class SoundTriggerPlatformInfo;
-
-class SoundTriggerEngine {
+class SoundTriggerEngine
+{
 public:
     static std::shared_ptr<SoundTriggerEngine> Create(Stream *s,
         listen_model_indicator_enum type, st_module_type_t module_type,
-        std::shared_ptr<SoundModelConfig> sm_cfg);
+        std::shared_ptr<VUIStreamConfig> sm_cfg);
 
     virtual ~SoundTriggerEngine() {}
 
@@ -156,8 +155,8 @@ public:
 
 protected:
     listen_model_indicator_enum engine_type_;
-    std::shared_ptr<SoundTriggerPlatformInfo> st_info_;
-    std::shared_ptr<SoundModelConfig> sm_cfg_;
+    std::shared_ptr<VoiceUIPlatformInfo> vui_ptfm_info_;
+    std::shared_ptr<VUIStreamConfig> sm_cfg_;
     uint8_t *sm_data_;
     uint32_t sm_data_size_;
     bool capture_requested_;

@@ -1208,7 +1208,7 @@ int32_t UsecaseACD::GetSupportedContextIDs(std::vector<uint32_t>& context_ids)
 {
     int32_t rc = 0;
     std::shared_ptr<ACDPlatformInfo> info;
-    std::shared_ptr<StreamConfig> stream_cfg;
+    std::shared_ptr<ACDStreamConfig> stream_cfg;
     std::vector<std::shared_ptr<ACDSoundModelInfo>> models;
 
     PAL_VERBOSE(LOG_TAG, "Enter");

@@ -68,7 +68,21 @@ typedef enum {
     PM_QOS_VOTE_ENABLE  = 1
 } pmQosVote;
 
+typedef enum {
+   SLOT_MASK1  = 1,
+   SLOT_MASK3  = 3,
+   SLOT_MASK7  = 7,
+   SLOT_MASK15 = 15,
+}slot_mask_t;
+
 #define EVENT_ID_SOFT_PAUSE_PAUSE_COMPLETE 0x0800103F
+
+const std::map<std::uint32_t, slot_mask_t> slotMaskLUT {
+   {1, SLOT_MASK1},
+   {2, SLOT_MASK3},
+   {3, SLOT_MASK7},
+   {4, SLOT_MASK15},
+};
 
 class Stream;
 class ResourceManager;

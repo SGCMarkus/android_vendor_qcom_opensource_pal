@@ -182,7 +182,7 @@ int32_t SoundTriggerEngineCapi::StartKeywordDetection()
     buffer_end_ += UsToBytes(kw_end_tolerance_ + data_after_kw_end_);
     PAL_DBG(LOG_TAG, "buffer_start_: %u, buffer_end_: %u",
         buffer_start_, buffer_end_);
-    if (st_info_->GetEnableDebugDumps()) {
+    if (vui_ptfm_info_->GetEnableDebugDumps()) {
         ST_DBG_FILE_OPEN_WR(keyword_detection_fd, ST_DEBUG_DUMP_LOCATION,
             "keyword_detection", "bin", keyword_detection_cnt);
         PAL_DBG(LOG_TAG, "keyword detection data stored in: keyword_detection_%d.bin",
@@ -260,7 +260,7 @@ int32_t SoundTriggerEngineCapi::StartKeywordDetection()
         stream_input->buf_ptr->actual_data_len = read_size;
         stream_input->buf_ptr->data_ptr = (int8_t *)process_input_buff;
 
-        if (st_info_->GetEnableDebugDumps()) {
+        if (vui_ptfm_info_->GetEnableDebugDumps()) {
             ST_DBG_FILE_WRITE(keyword_detection_fd,
                 process_input_buff, read_size);
         }
@@ -344,7 +344,7 @@ exit:
         bytes_processed_, (long long)process_duration,
         (long long)total_capi_process_duration,
         (long long)total_capi_get_param_duration);
-    if (st_info_->GetEnableDebugDumps()) {
+    if (vui_ptfm_info_->GetEnableDebugDumps()) {
         ST_DBG_FILE_CLOSE(keyword_detection_fd);
     }
 
@@ -413,7 +413,7 @@ int32_t SoundTriggerEngineCapi::StartUserVerification()
     buffer_end_ += UsToBytes(kw_end_tolerance_);
     buffer_size_ = buffer_end_ - buffer_start_;
 
-    if (st_info_->GetEnableDebugDumps()) {
+    if (vui_ptfm_info_->GetEnableDebugDumps()) {
         ST_DBG_FILE_OPEN_WR(user_verification_fd, ST_DEBUG_DUMP_LOCATION,
             "user_verification", "bin", user_verification_cnt);
         PAL_DBG(LOG_TAG, "User Verification data stored in: user_verification_%d.bin",
@@ -532,7 +532,7 @@ int32_t SoundTriggerEngineCapi::StartUserVerification()
         stream_input->buf_ptr->actual_data_len = read_size;
         stream_input->buf_ptr->data_ptr = (int8_t *)process_input_buff;
 
-        if (st_info_->GetEnableDebugDumps()) {
+        if (vui_ptfm_info_->GetEnableDebugDumps()) {
             ST_DBG_FILE_WRITE(user_verification_fd,
                 process_input_buff, read_size);
         }
@@ -596,7 +596,7 @@ exit:
         bytes_processed_, (long long)process_duration,
         (long long)total_capi_process_duration,
         (long long)total_capi_get_param_duration);
-    if (st_info_->GetEnableDebugDumps()) {
+    if (vui_ptfm_info_->GetEnableDebugDumps()) {
         ST_DBG_FILE_CLOSE(user_verification_fd);
     }
 
@@ -634,7 +634,7 @@ exit:
 SoundTriggerEngineCapi::SoundTriggerEngineCapi(
     Stream *s,
     listen_model_indicator_enum type,
-    std::shared_ptr<SoundModelConfig> sm_cfg)
+    std::shared_ptr<VUIStreamConfig> sm_cfg)
 {
     int32_t status = 0;
 
@@ -664,10 +664,10 @@ SoundTriggerEngineCapi::SoundTriggerEngineCapi(
     memset(&in_model_buffer_param_, 0, sizeof(in_model_buffer_param_));
     memset(&scratch_param_, 0, sizeof(scratch_param_));
 
-    st_info_ = SoundTriggerPlatformInfo::GetInstance();
-    if (!st_info_) {
-        PAL_ERR(LOG_TAG, "No sound trigger platform info present");
-        throw std::runtime_error("No sound trigger platform info present");
+    vui_ptfm_info_ = VoiceUIPlatformInfo::GetInstance();
+    if (!vui_ptfm_info_) {
+        PAL_ERR(LOG_TAG, "No voice UI platform info present");
+        throw std::runtime_error("No voice UI platform info present");
     }
 
     kw_start_tolerance_ = sm_cfg_->GetKwStartTolerance();
@@ -675,7 +675,7 @@ SoundTriggerEngineCapi::SoundTriggerEngineCapi(
     data_before_kw_start_ = sm_cfg_->GetDataBeforeKwStart();
     data_after_kw_end_ = sm_cfg_->GetDataAfterKwEnd();
 
-    ss_cfg_ = sm_cfg_->GetSecondStageConfig(engine_type_);
+    ss_cfg_ = sm_cfg_->GetVUISecondStageConfig(engine_type_);
     if (!ss_cfg_) {
         PAL_ERR(LOG_TAG, "Failed to get second stage config");
         throw std::runtime_error("Failed to get second stage config");
