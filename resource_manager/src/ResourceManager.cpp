@@ -659,10 +659,8 @@ err:
         free(snd_card_name);
 }
 
-void ResourceManager::sendCrashSignal(int signal)
+void ResourceManager::sendCrashSignal(int signal, pid_t pid, uid_t uid)
 {
-    pid_t pid = getpid();
-    uid_t uid = getuid();
     ALOGV("%s: signal %d, pid %u, uid %u", __func__, signal, pid, uid);
     struct agm_dump_info dump_info = {signal, (uint32_t)pid, (uint32_t)uid};
     agm_dump(&dump_info);
@@ -711,7 +709,7 @@ ResourceManager::ResourceManager()
     if (isSignalHandlerEnabled) {
         mSigHandler = SignalHandler::getInstance();
         if (mSigHandler) {
-            std::function<void(int)> crashSignalCb = sendCrashSignal;
+            std::function<void(int, pid_t, uid_t)> crashSignalCb = sendCrashSignal;
             SignalHandler::setClientCallback(crashSignalCb);
             mSigHandler->registerSignalHandler(gSignalsOfInterest);
         } else {

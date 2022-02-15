@@ -917,7 +917,7 @@ public:
                              const struct pal_stream_attributes *sAttr,
                              std::vector<Stream*> &streamsToSwitch,
                              struct pal_device *streamDevAttr);
-    static void sendCrashSignal(int signal);
+    static void sendCrashSignal(int signal, pid_t pid, uid_t uid);
     void checkAndSetDutyCycleParam();
 };
 
