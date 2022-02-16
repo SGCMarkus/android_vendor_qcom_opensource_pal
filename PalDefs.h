@@ -1139,6 +1139,7 @@ typedef struct pal_param_bta2dp {
     bool     is_lc3_mono_mode_on;
     bool     is_force_switch;
     uint32_t latency;
+    pal_device_id_t   dev_id;
 } pal_param_bta2dp_t;
 
 typedef struct pal_param_upd_event_detection {
