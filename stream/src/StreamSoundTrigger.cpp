@@ -145,9 +145,6 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
     mNoOfModifiers = 0;
     mModifiers = (struct modifier_kv *) (nullptr);
 
-    charging_state_ = rm->GetChargingState();
-    PAL_DBG(LOG_TAG, "Charging State %d", charging_state_);
-
     // get voice UI platform info
     vui_ptfm_info_ = VoiceUIPlatformInfo::GetInstance();
     if (!vui_ptfm_info_) {
@@ -225,13 +222,7 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
         &disable_concurrency_count);
 
     // check if lpi should be used
-    if (rm->IsLPISupported(PAL_STREAM_VOICE_UI) &&
-        !(rm->isNLPISwitchSupported(PAL_STREAM_VOICE_UI) && enable_concurrency_count) &&
-        !(rm->IsTransitToNonLPIOnChargingSupported() && charging_state_)) {
-        use_lpi_ = true;
-    } else {
-        use_lpi_ = false;
-    }
+    use_lpi_ = rm->getLPIUsage();
 
     /*
      * When voice/voip/record is active and concurrency is not
@@ -602,8 +593,6 @@ int32_t StreamSoundTrigger::EnableLPI(bool is_enable) {
     std::lock_guard<std::mutex> lck(mStreamMutex);
     if (!rm->IsLPISupported(PAL_STREAM_VOICE_UI)) {
         PAL_DBG(LOG_TAG, "Ignore as LPI not supported");
-    } else if (rm->IsTransitToNonLPIOnChargingSupported() && charging_state_) {
-        PAL_DBG(LOG_TAG, "Ignore lpi update in car mode");
     } else {
         use_lpi_ = is_enable;
     }
@@ -687,49 +676,6 @@ int32_t StreamSoundTrigger::ConnectDevice(pal_device_id_t device_id) {
     mStreamMutex.unlock();
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
 
-    return status;
-}
-
-int32_t StreamSoundTrigger::HandleChargingStateUpdate(bool state, bool active) {
-    int32_t status = 0;
-    int32_t enable_concurrency_count = 0;
-    int32_t disable_concurrency_count = 0;
-
-    PAL_DBG(LOG_TAG, "Enter, state %d", state);
-    if (!active) {
-        mStreamMutex.lock();
-        common_cp_update_disable_ = true;
-    }
-    charging_state_ = state;
-    if (!rm->IsLPISupported(PAL_STREAM_VOICE_UI)) {
-        PAL_DBG(LOG_TAG, "Ignore as LPI not supported");
-    } else {
-        // check concurrency count from rm
-        rm->GetSoundTriggerConcurrencyCount_l(PAL_STREAM_VOICE_UI,
-            &enable_concurrency_count, &disable_concurrency_count);
-
-        // no need to update use_lpi_ if there's concurrency enabled
-        if (rm->isNLPISwitchSupported(PAL_STREAM_VOICE_UI) &&
-            enable_concurrency_count) {
-            PAL_DBG(LOG_TAG, "Ignore lpi update when concurrency enabled");
-        } else {
-            use_lpi_ = !state;
-        }
-    }
-
-    std::shared_ptr<StEventConfig> ev_cfg(
-        new StChargingStateEventConfig(state, active));
-    status = cur_state_->ProcessEvent(ev_cfg);
-    if (status) {
-        PAL_ERR(LOG_TAG, "Failed to update charging state");
-    }
-
-    if (active) {
-        common_cp_update_disable_ = false;
-        mStreamMutex.unlock();
-    }
-
-    PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
 }
 
@@ -3178,8 +3124,7 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
             delete pal_dev;
             break;
         }
-        case ST_EV_CONCURRENT_STREAM:
-        case ST_EV_CHARGING_STATE: {
+        case ST_EV_CONCURRENT_STREAM: {
             // Avoid handling concurrency before sound model loaded
             if (!st_stream_.sm_config_)
                 break;
@@ -3189,10 +3134,6 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
             if (ev_cfg->id_ == ST_EV_CONCURRENT_STREAM) {
                 StConcurrentStreamEventConfigData *data =
                     (StConcurrentStreamEventConfigData *)ev_cfg->data_.get();
-                active = data->is_active_;
-            } else if (ev_cfg->id_ == ST_EV_CHARGING_STATE) {
-                StChargingStateEventConfigData *data =
-                    (StChargingStateEventConfigData *)ev_cfg->data_.get();
                 active = data->is_active_;
             }
             new_cap_prof = st_stream_.GetCurrentCaptureProfile();
@@ -3607,18 +3548,13 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
             delete pal_dev;
             break;
         }
-        case ST_EV_CONCURRENT_STREAM:
-        case ST_EV_CHARGING_STATE: {
+        case ST_EV_CONCURRENT_STREAM: {
             std::shared_ptr<CaptureProfile> new_cap_prof = nullptr;
             bool active = false;
 
             if (ev_cfg->id_ == ST_EV_CONCURRENT_STREAM) {
                 StConcurrentStreamEventConfigData *data =
                     (StConcurrentStreamEventConfigData *)ev_cfg->data_.get();
-                active = data->is_active_;
-            } else if (ev_cfg->id_ == ST_EV_CHARGING_STATE) {
-                StChargingStateEventConfigData *data =
-                    (StChargingStateEventConfigData *)ev_cfg->data_.get();
                 active = data->is_active_;
             }
             new_cap_prof = st_stream_.GetCurrentCaptureProfile();
@@ -3925,18 +3861,13 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
             delete pal_dev;
             break;
         }
-        case ST_EV_CONCURRENT_STREAM:
-        case ST_EV_CHARGING_STATE: {
+        case ST_EV_CONCURRENT_STREAM: {
             std::shared_ptr<CaptureProfile> new_cap_prof = nullptr;
             bool active = false;
 
             if (ev_cfg->id_ == ST_EV_CONCURRENT_STREAM) {
                 StConcurrentStreamEventConfigData *data =
                     (StConcurrentStreamEventConfigData *)ev_cfg->data_.get();
-                active = data->is_active_;
-            } else if (ev_cfg->id_ == ST_EV_CHARGING_STATE) {
-                StChargingStateEventConfigData *data =
-                    (StChargingStateEventConfigData *)ev_cfg->data_.get();
                 active = data->is_active_;
             }
             new_cap_prof = st_stream_.GetCurrentCaptureProfile();
@@ -4119,7 +4050,6 @@ int32_t StreamSoundTrigger::StDetected::ProcessEvent(
             break;
         }
         case ST_EV_CONCURRENT_STREAM:
-        case ST_EV_CHARGING_STATE:
         case ST_EV_DEVICE_DISCONNECTED:
         case ST_EV_DEVICE_CONNECTED: {
             st_stream_.CancelDelayedStop();
@@ -4430,7 +4360,6 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
             }
             break;
         }
-        case ST_EV_CHARGING_STATE:
         case ST_EV_CONCURRENT_STREAM:
         case ST_EV_DEVICE_DISCONNECTED:
         case ST_EV_DEVICE_CONNECTED: {
