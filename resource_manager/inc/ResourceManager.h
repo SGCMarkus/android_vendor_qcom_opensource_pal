@@ -266,6 +266,7 @@ struct usecase_custom_config_info
     int samplerate;
     uint32_t priority;
     uint32_t bit_width;
+    bool ec_enable;
 };
 
 struct usecase_info {
@@ -277,7 +278,7 @@ struct usecase_info {
     std::vector<usecase_custom_config_info> config;
     uint32_t priority;
     uint32_t bit_width;
-
+    bool ec_enable;
 };
 
 struct pal_device_info {
@@ -422,6 +423,7 @@ struct deviceIn {
     bool fractionalSRSupported;
     uint32_t bit_width;
     pal_audio_fmt_t bitFormatSupported;
+    bool ec_enable;
 };
 
 class ResourceManager
@@ -459,6 +461,10 @@ private:
     static bool isBitWidthSupported(uint32_t bitWidth);
     uint32_t getNTPathForStreamAttr(const pal_stream_attributes attr);
     ssize_t getAvailableNTStreamInstance(const pal_stream_attributes attr);
+    int getECEnableSetting(std::shared_ptr<Device> tx_dev, pal_stream_type_t type, bool *ec_enable);
+    int checkandEnableECForTXStream_l(std::shared_ptr<Device> tx_dev, Stream *tx_stream, bool ec_enable);
+    int checkandEnableECForRXStream_l(std::shared_ptr<Device> rx_dev, Stream *rx_stream, bool ec_enable);
+    int checkandEnableEC_l(std::shared_ptr<Device> d, Stream *s, bool enable);
 protected:
     std::list <Stream*> mActiveStreams;
     std::list <StreamPCM*> active_streams_ll;
