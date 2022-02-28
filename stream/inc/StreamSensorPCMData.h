@@ -30,13 +30,10 @@
 #ifndef StreamSensorPCMData_H_
 #define StreamSensorPCMData_H_
 
-#include "StreamCommon.h"
-#include "ACDPlatformInfo.h"
-#include "ResourceManager.h"
-#include "SoundTriggerUtils.h"
-#include "SoundTriggerXmlParser.h"
 #include "Device.h"
 #include "Session.h"
+#include "StreamCommon.h"
+#include "ACDPlatformInfo.h"
 
 class StreamSensorPCMData : public StreamCommon
 {
@@ -62,6 +59,7 @@ public:
     int32_t ConnectDevice(pal_device_id_t device_id) override;
     pal_device_id_t GetAvailCaptureDevice();
     std::shared_ptr<Device> GetPalDevice(pal_device_id_t dev_id, bool use_rm_profile);
+
 private:
     void GetUUID(class SoundTriggerUUID *uuid, const struct st_uuid *vendor_uuid);
     int32_t SetupStreamConfig(const struct st_uuid *vendor_uuid);
@@ -69,7 +67,7 @@ private:
     int32_t ConnectDevice_l(pal_device_id_t device_id);
     int32_t setECRef(std::shared_ptr<Device> dev, bool is_enable);
     int32_t setECRef_l(std::shared_ptr<Device> dev, bool is_enable);
-    std::shared_ptr<StreamConfig> sm_cfg_;
+    std::shared_ptr<ACDStreamConfig> sm_cfg_;
     std::shared_ptr<ACDPlatformInfo> acd_info_;
     std::shared_ptr<CaptureProfile> cap_prof_;
     uint32_t pcm_data_stream_effect;

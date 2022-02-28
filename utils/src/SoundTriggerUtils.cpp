@@ -32,7 +32,7 @@
 #include <memory>
 #include <algorithm>
 #include "PalCommon.h"
-#include "SoundTriggerPlatformInfo.h"
+#include "VoiceUIPlatformInfo.h"
 #include "SoundTriggerUtils.h"
 
 #define LOG_TAG "PAL: SoundTriggerUtils"
@@ -147,17 +147,17 @@ SoundModelLib::SoundModelLib() :
 {
     int32_t status = 0;
     std::string sml_lib;
-    std::shared_ptr<SoundTriggerPlatformInfo> st_info = nullptr;
+    std::shared_ptr<VoiceUIPlatformInfo> vui_info = nullptr;
 
     sml_lib_handle_ = NULL;
-    st_info = SoundTriggerPlatformInfo::GetInstance();
-    if (!st_info) {
+    vui_info = VoiceUIPlatformInfo::GetInstance();
+    if (!vui_info) {
         status = -EINVAL;
         PAL_ERR(LOG_TAG, "failed to get sound trigger info instance");
         goto exit;
     }
 
-    sml_lib = st_info->GetSoundModelLib();
+    sml_lib = vui_info->GetSoundModelLib();
     if (sml_lib.empty()) {
         status = -EINVAL;
         PAL_ERR(LOG_TAG, "failed to get sound model lib name");

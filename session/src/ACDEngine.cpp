@@ -44,7 +44,7 @@
 #define FILENAME_LEN 128
 std::shared_ptr<ACDEngine> ACDEngine::eng_;
 
-ACDEngine::ACDEngine(Stream *s, std::shared_ptr<StreamConfig> sm_cfg) :
+ACDEngine::ACDEngine(Stream *s, std::shared_ptr<ACDStreamConfig> sm_cfg) :
     ContextDetectionEngine(s, sm_cfg)
 {
     int i;
@@ -67,7 +67,7 @@ ACDEngine::~ACDEngine()
 
 std::shared_ptr<ContextDetectionEngine> ACDEngine::GetInstance(
      Stream *s,
-     std::shared_ptr<StreamConfig> sm_cfg)
+     std::shared_ptr<ACDStreamConfig> sm_cfg)
 {
      if (!eng_)
          eng_ = std::make_shared<ACDEngine>(s, sm_cfg);

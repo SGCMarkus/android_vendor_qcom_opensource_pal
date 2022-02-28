@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -153,7 +154,8 @@ Stream* Stream::create(struct pal_stream_attributes *sAttr, struct pal_device *d
         if (palDevsAttr[count].id == PAL_DEVICE_OUT_USB_DEVICE ||
             palDevsAttr[count].id == PAL_DEVICE_OUT_USB_HEADSET ||
             palDevsAttr[count].id == PAL_DEVICE_IN_USB_DEVICE ||
-            palDevsAttr[count].id == PAL_DEVICE_IN_USB_HEADSET) {
+            palDevsAttr[count].id == PAL_DEVICE_IN_USB_HEADSET ||
+            rm->isBtDevice(palDevsAttr[count].id)) {
             palDevsAttr[count].address = dAttr[i].address;
         }
         PAL_INFO(LOG_TAG, "count: %d, i: %d, length of dAttr custom_config: %d", count, i, strlen(dAttr[i].custom_config.custom_key));
@@ -520,6 +522,17 @@ int32_t Stream::getAssociatedPalDevices(std::vector <struct pal_device> &palDevi
     }
 
     return status;
+}
+
+int32_t Stream::getSoundCardId()
+{
+    if (mPalDevice.size()) {
+        PAL_DBG(LOG_TAG, "sound card id = 0x%x",
+                    mPalDevice[0].address.card_id);
+        return mPalDevice[0].address.card_id;
+    }
+
+    return -EINVAL;
 }
 
 int32_t Stream::getAssociatedSession(Session **s)
@@ -1139,10 +1152,8 @@ exit:
        if (USB::isUsbConnected(dattr->address)) {
            PAL_ERR(LOG_TAG, "USB still connected, connect failed");
        } else {
-           status = connectToDefaultDevice(streamHandle, rm->getDeviceDirection(dev->getSndDeviceId()));
-           if (status) {
-               PAL_ERR(LOG_TAG, "failed to connect to default device");
-           }
+           status = -ENOSYS;
+           PAL_ERR(LOG_TAG, "failed to connect to USB device");
        }
 
     }
@@ -1453,6 +1464,8 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
         for (int j = 0; j < mDevices.size(); j++) {
             uint32_t mDeviceId = mDevices[j]->getSndDeviceId();
             if (rm->matchDevDir(newDeviceId, mDeviceId) && newDeviceId != mDeviceId) {
+                if (mDeviceId == PAL_DEVICE_OUT_PROXY || newDeviceId == PAL_DEVICE_OUT_PROXY)
+                    continue;
                 rm->getSharedBEActiveStreamDevs(sharedBEStreamDev, mDevices[j]->getSndDeviceId());
                 if (type == PAL_STREAM_VOICE_CALL &&
                     newDeviceId != PAL_DEVICE_OUT_HEARING_AID) {
@@ -1600,46 +1613,3 @@ void Stream::handleStreamException(struct pal_stream_attributes *attributes,
     }
 }
 
-int Stream::connectToDefaultDevice(Stream* streamHandle, uint32_t dir){
-    int status = 0;
-    struct pal_device dattr;
-    struct pal_stream_attributes sAttr;
-    struct pal_channel_info ch_info;
-
-    PAL_DBG(LOG_TAG,"Attempting to connect default device");
-
-    status = streamHandle->getStreamAttributes(&sAttr);
-    if (status != 0) {
-        PAL_ERR(LOG_TAG,"getStreamAttributes Failed \n");
-        return status;
-    }
-
-    /*set up default device configuration*/
-    dattr.config.sample_rate = 48000;
-    dattr.config.bit_width = 16;
-    dattr.config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S16_LE;
-    strlcpy(dattr.custom_config.custom_key, "",
-            sizeof(dattr.custom_config.custom_key));
-    if (dir == PAL_AUDIO_OUTPUT) {
-        if (sAttr.type == PAL_STREAM_VOICE_CALL) {
-            dattr.id = PAL_DEVICE_OUT_HANDSET;
-        } else {
-            dattr.id = PAL_DEVICE_OUT_SPEAKER;
-        }
-        dattr.config.ch_info.channels = 2;
-        dattr.config.ch_info.ch_map[0] = PAL_CHMAP_CHANNEL_FL;
-        dattr.config.ch_info.ch_map[1] = PAL_CHMAP_CHANNEL_FR;
-    } else {
-        if (sAttr.type == PAL_STREAM_VOICE_CALL) {
-            dattr.id = PAL_DEVICE_IN_HANDSET_MIC;
-        } else {
-            dattr.id = PAL_DEVICE_IN_SPEAKER_MIC;
-        }
-        dattr.config.ch_info.channels = 1;
-        dattr.config.ch_info.ch_map[0] = PAL_CHMAP_CHANNEL_FL;
-    }
-    rm->getDeviceConfig(&dattr, &sAttr);
-    status = connectStreamDevice_l(streamHandle, &dattr);
-
-    return status;
-}

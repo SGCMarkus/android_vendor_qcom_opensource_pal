@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -38,7 +39,6 @@
 #include "Stream.h"
 #include "StreamSoundTrigger.h"
 #include "ResourceManager.h"
-#include "kvh2xml.h"
 #include "SoundTriggerPlatformInfo.h"
 
 // TODO: find another way to print debug logs by default
@@ -225,7 +225,7 @@ int32_t SoundTriggerEngineGsl::StartBuffering(Stream *s) {
         bytes_to_drop = UsToBytes(drop_duration * 1000);
     }
 
-    if (st_info_->GetEnableDebugDumps()) {
+    if (vui_ptfm_info_->GetEnableDebugDumps()) {
         ST_DBG_FILE_OPEN_WR(dsp_output_fd, ST_DEBUG_DUMP_LOCATION,
             "dsp_output", "bin", dsp_output_cnt);
         PAL_DBG(LOG_TAG, "DSP output data stored in: dsp_output_%d.bin",
@@ -256,7 +256,7 @@ int32_t SoundTriggerEngineGsl::StartBuffering(Stream *s) {
                 sleep_ms = (input_buf_size * input_buf_num) *
                     BITS_PER_BYTE * MS_PER_SEC /
                     (sm_cfg_->GetSampleRate() * sm_cfg_->GetBitWidth() *
-                    sm_cfg_->GetOutChannels());
+                     sm_cfg_->GetOutChannels());
                 std::this_thread::sleep_for(std::chrono::milliseconds(sleep_ms));
             }
 
@@ -340,14 +340,14 @@ int32_t SoundTriggerEngineGsl::StartBuffering(Stream *s) {
                     ret = buffer_->write((void*)(buf.buffer + bytes_to_drop),
                         size - bytes_to_drop);
                     bytes_to_drop = 0;
-                    if (st_info_->GetEnableDebugDumps()) {
+                    if (vui_ptfm_info_->GetEnableDebugDumps()) {
                         ST_DBG_FILE_WRITE(dsp_output_fd,
                             buf.buffer + bytes_to_drop, size - bytes_to_drop);
                     }
                 }
             } else {
                 ret = buffer_->write(buf.buffer, size);
-                if (st_info_->GetEnableDebugDumps()) {
+                if (vui_ptfm_info_->GetEnableDebugDumps()) {
                     ST_DBG_FILE_WRITE(dsp_output_fd, buf.buffer, size);
                 }
             }
@@ -419,7 +419,7 @@ exit:
     if (buf.ts) {
         free(buf.ts);
     }
-    if (st_info_->GetEnableDebugDumps()) {
+    if (vui_ptfm_info_->GetEnableDebugDumps()) {
         ST_DBG_FILE_CLOSE(dsp_output_fd);
     }
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
@@ -809,7 +809,7 @@ SoundTriggerEngineGsl::SoundTriggerEngineGsl(
     Stream *s,
     listen_model_indicator_enum type,
     st_module_type_t module_type,
-    std::shared_ptr<SoundModelConfig> sm_cfg) {
+    std::shared_ptr<VUIStreamConfig> sm_cfg) {
 
     struct pal_stream_attributes sAttr;
     std::shared_ptr<ResourceManager> rm = nullptr;
@@ -824,14 +824,13 @@ SoundTriggerEngineGsl::SoundTriggerEngineGsl(
     reader_ = nullptr;
     buffer_ = nullptr;
     is_qcva_uuid_ = false;
-    is_qcmd_uuid_ = false;
     custom_data = nullptr;
     custom_data_size = 0;
     custom_detection_event = nullptr;
     custom_detection_event_size = 0;
     mmap_write_position_ = 0;
     kw_transfer_latency_ = 0;
-    std::shared_ptr<SoundTriggerModuleInfo> sm_module_info = nullptr;
+    std::shared_ptr<VUIFirstStageConfig> sm_module_info = nullptr;
     builder_ = new PayloadBuilder();
     eng_sm_info_ = new SoundModelInfo();
     dev_disconnect_count_ = 0;
@@ -850,18 +849,18 @@ SoundTriggerEngineGsl::SoundTriggerEngineGsl(
 
     PAL_DBG(LOG_TAG, "Enter");
 
-    st_info_ = SoundTriggerPlatformInfo::GetInstance();
-    if (!st_info_) {
-        PAL_ERR(LOG_TAG, "No sound trigger platform info present");
-        throw std::runtime_error("No sound trigger platform info present");
+    vui_ptfm_info_ = VoiceUIPlatformInfo::GetInstance();
+    if (!vui_ptfm_info_) {
+        PAL_ERR(LOG_TAG, "No voice UI platform info present");
+        throw std::runtime_error("No voice UI platform info present");
     }
 
-    if (sm_cfg) {
+    if (sm_cfg_) {
         sample_rate_ = sm_cfg_->GetSampleRate();
         bit_width_ = sm_cfg_->GetBitWidth();
         channels_ = sm_cfg_->GetOutChannels();
 
-        sm_module_info = sm_cfg_->GetSoundTriggerModuleInfo(module_type_);
+        sm_module_info = sm_cfg_->GetVUIFirstStageConfig(module_type_);
         if (!sm_module_info) {
             PAL_ERR(LOG_TAG, "Failed to get module info");
             throw std::runtime_error("Failed to get module info");
@@ -872,11 +871,10 @@ SoundTriggerEngineGsl::SoundTriggerEngineGsl(
             param_ids_[i] = sm_module_info->GetParamId((st_param_id_type_t)i);
         }
 
-        if (st_info_->GetMmapEnable()) {
-            mmap_buffer_size_ = (st_info_->GetMmapBufferDuration() /
-                MS_PER_SEC) * sm_cfg_->GetSampleRate() *
-                sm_cfg_->GetBitWidth() *
-                sm_cfg_->GetOutChannels() / BITS_PER_BYTE;
+        if (vui_ptfm_info_->GetMmapEnable()) {
+            mmap_buffer_size_ = (vui_ptfm_info_->GetMmapBufferDuration() / MS_PER_SEC) *
+                                 sm_cfg_->GetSampleRate() * sm_cfg_->GetBitWidth() *
+                                 sm_cfg_->GetOutChannels() / BITS_PER_BYTE;
             if (mmap_buffer_size_ == 0) {
                 PAL_ERR(LOG_TAG, "Mmap buffer duration not set");
                 throw std::runtime_error("Mmap buffer duration not set");
@@ -886,7 +884,6 @@ SoundTriggerEngineGsl::SoundTriggerEngineGsl(
         }
 
         is_qcva_uuid_ = sm_cfg->isQCVAUUID();
-        is_qcmd_uuid_ = sm_cfg->isQCMDUUID();
     } else {
         PAL_ERR(LOG_TAG, "No sound model config present");
         throw std::runtime_error("No sound model config present");
@@ -1069,7 +1066,7 @@ int32_t SoundTriggerEngineGsl::MergeSoundModels(uint32_t num_models,
         goto cleanup;
     }
 
-    if (st_info_->GetEnableDebugDumps()) {
+    if (vui_ptfm_info_->GetEnableDebugDumps()) {
         ST_DBG_DECLARE(FILE *sm_fd = NULL;
             static int sm_cnt = 0);
         ST_DBG_FILE_OPEN_WR(sm_fd, ST_DEBUG_DUMP_LOCATION,
@@ -1108,7 +1105,7 @@ int32_t SoundTriggerEngineGsl::AddSoundModel(Stream *s, uint8_t *data,
         return 0;
     }
 
-    if (!is_qcva_uuid_ && !is_qcmd_uuid_) {
+    if (!is_qcva_uuid_) {
         st->GetSoundModelInfo()->SetModelData(data, data_size);
         *eng_sm_info_ = *(st->GetSoundModelInfo());
         sm_merged_ = false;
@@ -1289,7 +1286,7 @@ int32_t SoundTriggerEngineGsl::DeleteFromMergedModel(char **keyphrases,
         merge_model.size = out_model->size;
     }
 
-    if (st_info_->GetEnableDebugDumps()) {
+    if (vui_ptfm_info_->GetEnableDebugDumps()) {
         ST_DBG_DECLARE(FILE *sm_fd = NULL; static int sm_cnt = 0);
         ST_DBG_FILE_OPEN_WR(sm_fd, ST_DEBUG_DUMP_LOCATION,
             "st_smlib_output_deleted_sm", "bin", sm_cnt);
@@ -1862,7 +1859,7 @@ exit:
 int32_t SoundTriggerEngineGsl::UpdateConfigs() {
     int32_t status = 0;
 
-    if (is_qcva_uuid_ || is_qcmd_uuid_) {
+    if (is_qcva_uuid_) {
         status = UpdateSessionPayload(WAKEUP_CONFIG);
         if (0 != status) {
             PAL_ERR(LOG_TAG, "Failed to set wake up config, status = %d",
@@ -1955,14 +1952,11 @@ int32_t SoundTriggerEngineGsl::ProcessStartRecognition(Stream *s) {
 
     // Update mmap write position after start
     if (mmap_buffer_size_) {
-        status = session_->GetMmapPosition(s, &mmap_pos);
-        if (!status) {
-            mmap_write_position_ = mmap_pos.position_frames;
-            PAL_DBG(LOG_TAG, "MMAP write position %u after start",
-                mmap_write_position_);
-        } else {
-            PAL_ERR(LOG_TAG, "Failed to get write position");
-        }
+        mmap_write_position_ = 0;
+        // reset wall clk in agm pcm plugin
+        status = session_->ResetMmapBuffer(s);
+        if (status)
+            PAL_ERR(LOG_TAG, "Failed to reset mmap buffer, status %d", status);
     }
     exit_buffering_ = false;
     UpdateState(ENG_ACTIVE);
@@ -2048,14 +2042,11 @@ int32_t SoundTriggerEngineGsl::RestartRecognition(Stream *s) {
 
     // Update mmap write position after restart
     if (mmap_buffer_size_) {
-        status = session_->GetMmapPosition(s, &mmap_pos);
-        if (!status) {
-            mmap_write_position_ = mmap_pos.position_frames;
-            PAL_DBG(LOG_TAG, "MMAP write position %u after restart",
-                mmap_write_position_);
-        } else {
-            PAL_ERR(LOG_TAG, "Failed to get write position");
-        }
+        mmap_write_position_ = 0;
+        // reset wall clk in agm pcm plugin
+        status = session_->ResetMmapBuffer(s);
+        if (status)
+            PAL_ERR(LOG_TAG, "Failed to reset mmap buffer, status %d", status);
     }
 
     if (status == -ENETRESET) {
@@ -2235,7 +2226,7 @@ int32_t SoundTriggerEngineGsl::UpdateConfLevels(
         goto exit;
     }
 
-    if (!is_qcva_uuid_ && !is_qcmd_uuid_) {
+    if (!is_qcva_uuid_) {
         custom_data_size = config->data_size;
         custom_data = (uint8_t *)calloc(1, custom_data_size);
         if (!custom_data) {
@@ -2484,7 +2475,7 @@ void SoundTriggerEngineGsl::HandleSessionEvent(uint32_t event_id __unused,
      * keyword index will be updated in parsing.
      */
     buffer_->reset();
-    if (is_qcva_uuid_ || is_qcmd_uuid_) {
+    if (is_qcva_uuid_) {
         if (!IS_MODULE_TYPE_PDK(module_type_))
             status = ParseDetectionPayload(data);
         else
@@ -2504,7 +2495,7 @@ void SoundTriggerEngineGsl::HandleSessionEvent(uint32_t event_id __unused,
         }
         ar_mem_cpy(custom_detection_event, size, data, size);
     }
-    if (st_info_->GetEnableDebugDumps()) {
+    if (vui_ptfm_info_->GetEnableDebugDumps()) {
         ST_DBG_DECLARE(FILE *det_event_fd = NULL;
             static int det_event_cnt = 0);
         ST_DBG_FILE_OPEN_WR(det_event_fd, ST_DEBUG_DUMP_LOCATION,
@@ -2884,7 +2875,7 @@ std::shared_ptr<SoundTriggerEngineGsl> SoundTriggerEngineGsl::GetInstance(
     Stream *s,
     listen_model_indicator_enum type,
     st_module_type_t module_type,
-    std::shared_ptr<SoundModelConfig> sm_cfg) {
+    std::shared_ptr<VUIStreamConfig> sm_cfg) {
 
     st_module_type_t key = module_type;
     if (IS_MODULE_TYPE_PDK(module_type)) {

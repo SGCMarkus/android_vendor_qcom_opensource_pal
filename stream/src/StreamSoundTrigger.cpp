@@ -114,11 +114,11 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
     charging_state_ = rm->GetChargingState();
     PAL_DBG(LOG_TAG, "Charging State %d", charging_state_);
 
-    // get sound trigger platform info
-    st_info_ = SoundTriggerPlatformInfo::GetInstance();
-    if (!st_info_) {
-        PAL_ERR(LOG_TAG, "Failed to get sound trigger platform info");
-        throw std::runtime_error("Failed to get sound trigger platform info");
+    // get voice UI platform info
+    vui_ptfm_info_ = VoiceUIPlatformInfo::GetInstance();
+    if (!vui_ptfm_info_) {
+        PAL_ERR(LOG_TAG, "Failed to get voice UI platform info");
+        throw std::runtime_error("Failed to get voice UI platform info");
     }
 
     if (!dattr) {
@@ -183,8 +183,8 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
 
     // Print the concurrency feature flags supported
     PAL_INFO(LOG_TAG, "capture conc enable %d,voice conc enable %d,voip conc enable %d",
-        st_info_->GetConcurrentCaptureEnable(), st_info_->GetConcurrentVoiceCallEnable(),
-        st_info_->GetConcurrentVoipCallEnable());
+        vui_ptfm_info_->GetConcurrentCaptureEnable(), vui_ptfm_info_->GetConcurrentVoiceCallEnable(),
+        vui_ptfm_info_->GetConcurrentVoipCallEnable());
 
     // check concurrency count from rm
     rm->GetSoundTriggerConcurrencyCount(PAL_STREAM_VOICE_UI, &enable_concurrency_count,
@@ -339,7 +339,7 @@ int32_t StreamSoundTrigger::read(struct pal_buffer* buf) {
     PAL_VERBOSE(LOG_TAG, "Enter");
 
     std::lock_guard<std::mutex> lck(mStreamMutex);
-    if (st_info_->GetEnableDebugDumps() && !lab_fd_) {
+    if (vui_ptfm_info_->GetEnableDebugDumps() && !lab_fd_) {
         ST_DBG_FILE_OPEN_WR(lab_fd_, ST_DEBUG_DUMP_LOCATION,
             "lab_reading", "bin", lab_cnt);
         PAL_DBG(LOG_TAG, "lab data stored in: lab_reading_%d.bin",
@@ -386,9 +386,9 @@ int32_t StreamSoundTrigger::getParameters(uint32_t param_id, void **payload) {
         if (status)
             PAL_ERR(LOG_TAG, "Failed to get stream attributes");
     } else if (param_id == PAL_PARAM_ID_WAKEUP_MODULE_VERSION) {
-        std::vector<std::shared_ptr<SoundModelConfig>> sm_cfg_list;
+        std::vector<std::shared_ptr<VUIStreamConfig>> sm_cfg_list;
 
-        st_info_->GetSmConfigForVersionQuery(sm_cfg_list);
+        vui_ptfm_info_->GetStreamConfigForVersionQuery(sm_cfg_list);
         if (sm_cfg_list.size() == 0) {
             PAL_ERR(LOG_TAG, "No sound model config supports version query");
             return -EINVAL;
@@ -434,8 +434,8 @@ int32_t StreamSoundTrigger::getParameters(uint32_t param_id, void **payload) {
          */
         mDevPPSelector = cap_prof_->GetName();
         PAL_DBG(LOG_TAG, "Devicepp Selector: %s", mDevPPSelector.c_str());
-        mStreamSelector = sm_cfg_->GetModuleName();
-        SetModelType(sm_cfg_->GetModuleType());
+        mStreamSelector = sm_cfg_->GetVUIModuleName();
+        SetModelType(sm_cfg_->GetVUIModuleType());
         PAL_DBG(LOG_TAG, "Module Type:%d, Name: %s", model_type_, mStreamSelector.c_str());
         mInstanceID = rm->getStreamInstanceID(this);
 
@@ -516,7 +516,7 @@ int32_t StreamSoundTrigger::setParameters(uint32_t param_id, void *payload) {
             } else {
                 PAL_INFO(LOG_TAG, "Stream not in buffering state, ignore");
             }
-            if (st_info_->GetEnableDebugDumps()) {
+            if (vui_ptfm_info_->GetEnableDebugDumps()) {
                 ST_DBG_FILE_CLOSE(lab_fd_);
                 lab_fd_ = nullptr;
             }
@@ -1181,7 +1181,7 @@ int32_t StreamSoundTrigger::LoadSoundModel(
         }
     }
     GetUUID(&uuid, sound_model);
-    this->sm_cfg_ = this->st_info_->GetSmConfig(uuid);
+    this->sm_cfg_ = this->vui_ptfm_info_->GetStreamConfig(uuid);
     if (!this->sm_cfg_) {
         PAL_ERR(LOG_TAG, "Failed to get sound model config");
         status = -EINVAL;
@@ -1216,7 +1216,7 @@ int32_t StreamSoundTrigger::LoadSoundModel(
                 if (big_sm->type == ST_SM_ID_SVA_F_STAGE_GMM) {
                     st_module_type_t module_type = (st_module_type_t)big_sm->versionMajor;
                     SetModelType(module_type);
-                    this->mStreamSelector = sm_cfg_->GetModuleName(module_type);
+                    this->mStreamSelector = sm_cfg_->GetVUIModuleName(module_type);
                     PAL_DBG(LOG_TAG, "Module type:%d, name: %s",
                         model_type_, mStreamSelector.c_str());
                     this->mInstanceID = this->rm->getStreamInstanceID(this);
@@ -1319,12 +1319,12 @@ int32_t StreamSoundTrigger::LoadSoundModel(
              * sound model config directly without passing model type
              * as only one module is mapped to one vendor UUID
              */
-            if ((!sm_cfg_->isQCVAUUID() && !sm_cfg_->isQCMDUUID())) {
-                SetModelType(sm_cfg_->GetModuleType());
-                this->mStreamSelector = sm_cfg_->GetModuleName();
+            if (!sm_cfg_->isQCVAUUID()) {
+                SetModelType(sm_cfg_->GetVUIModuleType());
+                this->mStreamSelector = sm_cfg_->GetVUIModuleName();
             } else {
                 SetModelType(ST_MODULE_TYPE_GMM);
-                this->mStreamSelector = sm_cfg_->GetModuleName(ST_MODULE_TYPE_GMM);
+                this->mStreamSelector = sm_cfg_->GetVUIModuleName(ST_MODULE_TYPE_GMM);
             }
 
             PAL_DBG(LOG_TAG, "Module type:%d name:%s",
@@ -1360,12 +1360,12 @@ int32_t StreamSoundTrigger::LoadSoundModel(
             (uint8_t *)common_sm, sizeof(*common_sm));
         ar_mem_cpy(sm_data + sizeof(*common_sm), common_sm->data_size,
             (uint8_t*)common_sm + common_sm->data_offset, common_sm->data_size);
-        if ((!sm_cfg_->isQCVAUUID() && !sm_cfg_->isQCMDUUID())) {
-            SetModelType(sm_cfg_->GetModuleType());
-            this->mStreamSelector = sm_cfg_->GetModuleName();
+        if (!sm_cfg_->isQCVAUUID()) {
+            SetModelType(sm_cfg_->GetVUIModuleType());
+            this->mStreamSelector = sm_cfg_->GetVUIModuleName();
         } else {
             SetModelType(ST_MODULE_TYPE_GMM);
-            this->mStreamSelector = sm_cfg_->GetModuleName(ST_MODULE_TYPE_GMM);
+            this->mStreamSelector = sm_cfg_->GetVUIModuleName(ST_MODULE_TYPE_GMM);
         }
         PAL_DBG(LOG_TAG, "Module type:%d, name:%s",
             model_type_, mStreamSelector.c_str());
@@ -1502,7 +1502,7 @@ int32_t StreamSoundTrigger::UpdateSoundModel(
         }
     }
     GetUUID(&uuid, sound_model);
-    this->sm_cfg_ = this->st_info_->GetSmConfig(uuid);
+    this->sm_cfg_ = this->vui_ptfm_info_->GetStreamConfig(uuid);
     if (!this->sm_cfg_) {
         PAL_ERR(LOG_TAG, "Failed to get sound model config");
         status = -EINVAL;
@@ -1559,7 +1559,7 @@ int32_t StreamSoundTrigger::SendRecognitionConfig(
     }
 
     // dump recognition config opaque data
-    if (config->data_size > 0 && st_info_->GetEnableDebugDumps()) {
+    if (config->data_size > 0 && vui_ptfm_info_->GetEnableDebugDumps()) {
         ST_DBG_DECLARE(FILE *rec_opaque_fd = NULL; static int rec_opaque_cnt = 0);
         ST_DBG_FILE_OPEN_WR(rec_opaque_fd, ST_DEBUG_DUMP_LOCATION,
             "rec_config_opaque", "bin", rec_opaque_cnt);
@@ -1662,7 +1662,7 @@ int32_t StreamSoundTrigger::SendRecognitionConfig(
         hist_buf_duration_ = sm_cfg_->GetKwDuration();
         pre_roll_duration_ = 0;
 
-        if (sm_cfg_->isQCVAUUID() || sm_cfg_->isQCMDUUID()) {
+        if (sm_cfg_->isQCVAUUID()) {
             status = FillConfLevels(config, &conf_levels, &num_conf_levels);
             if (status) {
                 PAL_ERR(LOG_TAG, "Failed to parse conf levels from rc config");
@@ -1693,8 +1693,8 @@ int32_t StreamSoundTrigger::SendRecognitionConfig(
         hist_buffer_duration, pre_roll_duration);
 
     // update input buffer size for mmap usecase
-    if (st_info_->GetMmapEnable()) {
-        inBufSize = st_info_->GetMmapFrameLength() *
+    if (vui_ptfm_info_->GetMmapEnable()) {
+        inBufSize = vui_ptfm_info_->GetMmapFrameLength() *
             sm_cfg_->GetSampleRate() * sm_cfg_->GetBitWidth() *
             sm_cfg_->GetOutChannels() / (MS_PER_SEC * BITS_PER_BYTE);
         if (!inBufSize) {
@@ -1735,7 +1735,7 @@ int32_t StreamSoundTrigger::SendRecognitionConfig(
     }
 
     // update custom config for 3rd party VA session
-    if (!sm_cfg_->isQCVAUUID() && !sm_cfg_->isQCMDUUID()) {
+    if (!sm_cfg_->isQCVAUUID()) {
         gsl_engine_->UpdateConfLevels(this, config, nullptr, 0);
     } else {
         if (num_conf_levels > 0) {
@@ -2275,7 +2275,7 @@ int32_t StreamSoundTrigger::GenerateCallbackEvent(
 
         // dump detection event opaque data
         if ((*event)->data_offset > 0 && (*event)->data_size > 0 &&
-            st_info_->GetEnableDebugDumps()) {
+            vui_ptfm_info_->GetEnableDebugDumps()) {
             opaque_data = (uint8_t *)phrase_event + phrase_event->common.data_offset;
             ST_DBG_DECLARE(FILE *det_opaque_fd = NULL; static int det_opaque_cnt = 0);
             ST_DBG_FILE_OPEN_WR(det_opaque_fd, ST_DEBUG_DUMP_LOCATION,
@@ -2845,7 +2845,7 @@ void StreamSoundTrigger::SetDetectedToEngines(bool detected) {
 }
 
 pal_device_id_t StreamSoundTrigger::GetAvailCaptureDevice(){
-    if (st_info_->GetSupportDevSwitch() &&
+    if (vui_ptfm_info_->GetSupportDevSwitch() &&
         rm->isDeviceAvailable(PAL_DEVICE_IN_WIRED_HEADSET))
         return PAL_DEVICE_IN_HEADSET_VA_MIC;
     else
@@ -2989,7 +2989,7 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
                         uuid.node[4],
                         uuid.node[5]);
 
-            st_stream_.sm_cfg_ = st_stream_.st_info_->GetSmConfig(uuid);
+            st_stream_.sm_cfg_ = st_stream_.vui_ptfm_info_->GetStreamConfig(uuid);
 
             if (!st_stream_.sm_cfg_) {
                 PAL_ERR(LOG_TAG, "Failed to get sound model platform info");
@@ -4165,7 +4165,7 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
                 break;
             }
             status = st_stream_.reader_->read(buf->buffer, buf->size);
-            if (st_stream_.st_info_->GetEnableDebugDumps()) {
+            if (st_stream_.vui_ptfm_info_->GetEnableDebugDumps()) {
                 ST_DBG_FILE_WRITE(st_stream_.lab_fd_, buf->buffer, buf->size);
             }
             break;
@@ -4329,7 +4329,7 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
                     st_stream_.reader_->reset();
                 }
 
-                if (st_stream_.st_info_->GetNotifySecondStageFailure()) {
+                if (st_stream_.vui_ptfm_info_->GetNotifySecondStageFailure()) {
                     st_stream_.rejection_notified_ = true;
                     st_stream_.notifyClient(false);
                     if (!st_stream_.rec_config_->capture_requested &&

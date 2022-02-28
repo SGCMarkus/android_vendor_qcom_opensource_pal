@@ -64,12 +64,12 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
     SoundTriggerEngineGsl(Stream *s,
                listen_model_indicator_enum type,
                st_module_type_t module_type,
-               std::shared_ptr<SoundModelConfig> sm_cfg);
+               std::shared_ptr<VUIStreamConfig> sm_cfg);
     ~SoundTriggerEngineGsl();
     static std::shared_ptr<SoundTriggerEngineGsl> GetInstance(Stream *s,
                           listen_model_indicator_enum type,
                           st_module_type_t module_type,
-                          std::shared_ptr<SoundModelConfig> sm_cfg);
+                          std::shared_ptr<VUIStreamConfig> sm_cfg);
     void DetachStream(Stream *s, bool erase_engine) override;
     int32_t LoadSoundModel(Stream *s, uint8_t *data,
                            uint32_t data_size) override;
@@ -180,7 +180,6 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
                                                      deregister_config_;
 
     bool is_qcva_uuid_;
-    bool is_qcmd_uuid_;
     uint32_t lpi_miid_;
     uint32_t nlpi_miid_;
     bool use_lpi_;

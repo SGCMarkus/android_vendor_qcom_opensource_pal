@@ -54,12 +54,13 @@ class Stream;
 class Session;
 class ACDPlatformInfo;
 
-class ContextDetectionEngine {
+class ContextDetectionEngine
+{
 public:
     static std::shared_ptr<ContextDetectionEngine> Create(Stream *s,
-        std::shared_ptr<StreamConfig> sm_cfg);
+        std::shared_ptr<ACDStreamConfig> sm_cfg);
 
-    ContextDetectionEngine(Stream *s, std::shared_ptr<StreamConfig> sm_cfg);
+    ContextDetectionEngine(Stream *s, std::shared_ptr<ACDStreamConfig> sm_cfg);
     virtual ~ContextDetectionEngine();
 
     virtual int32_t StartEngine(Stream *s) = 0;
@@ -85,12 +86,14 @@ public:
         std::shared_ptr<Device> dev,
         bool is_enable);
     int32_t getTagsWithModuleInfo(Stream *s, size_t *size, uint8_t *payload);
+
 private:
     virtual int32_t LoadSoundModel() = 0;
     virtual int32_t UnloadSoundModel() = 0;
+
 protected:
     std::shared_ptr<ACDPlatformInfo> acd_info_;
-    std::shared_ptr<StreamConfig> sm_cfg_;
+    std::shared_ptr<ACDStreamConfig> sm_cfg_;
     std::vector<Stream *> eng_streams_;
     Session *session_;
     Stream *stream_handle_;

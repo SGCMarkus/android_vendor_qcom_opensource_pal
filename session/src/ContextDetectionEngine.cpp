@@ -37,7 +37,7 @@
 
 std::shared_ptr<ContextDetectionEngine> ContextDetectionEngine::Create(
     Stream *s,
-    std::shared_ptr<StreamConfig> sm_cfg)
+    std::shared_ptr<ACDStreamConfig> sm_cfg)
 {
     std::shared_ptr<ContextDetectionEngine> engine(nullptr);
     std::string streamConfigName;
@@ -66,7 +66,7 @@ exit:
 
 ContextDetectionEngine::ContextDetectionEngine(
     Stream *s,
-    std::shared_ptr<StreamConfig> sm_cfg) {
+    std::shared_ptr<ACDStreamConfig> sm_cfg) {
 
     struct pal_stream_attributes sAttr;
     std::shared_ptr<ResourceManager> rm = nullptr;

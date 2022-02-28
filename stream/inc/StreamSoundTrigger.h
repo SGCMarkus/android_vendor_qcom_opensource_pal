@@ -35,10 +35,9 @@
 #include <map>
 
 #include "Stream.h"
-#include "SoundTriggerEngine.h"
 #include "PalRingBuffer.h"
-#include "SoundTriggerPlatformInfo.h"
-#include "SoundTriggerUtils.h"
+#include "SoundTriggerEngine.h"
+#include "VoiceUIPlatformInfo.h"
 
 enum {
     ENGINE_IDLE  = 0x0,
@@ -98,8 +97,9 @@ enum {
 class ResourceManager;
 class SoundModelInfo;
 
-class StreamSoundTrigger : public Stream {
- public:
+class StreamSoundTrigger : public Stream
+{
+public:
     StreamSoundTrigger(struct pal_stream_attributes *sattr,
                        struct pal_device *dattr,
                        uint32_t no_of_devices,
@@ -107,6 +107,7 @@ class StreamSoundTrigger : public Stream {
                        uint32_t no_of_modifiers __unused,
                        std::shared_ptr<ResourceManager> rm);
     ~StreamSoundTrigger();
+
     int32_t open() { return 0; }
 
     int32_t close() override;
@@ -183,7 +184,7 @@ class StreamSoundTrigger : public Stream {
     bool IsStreamInBuffering() {
        return capture_requested_ && (GetCurrentStateId() == ST_STATE_BUFFERING);
     }
- private:
+private:
     class EngineCfg {
      public:
         EngineCfg(int32_t id, std::shared_ptr<SoundTriggerEngine> engine,
@@ -564,10 +565,9 @@ class StreamSoundTrigger : public Stream {
     void AddState(StState* state);
     int32_t GetPreviousStateId();
     int32_t ProcessInternalEvent(std::shared_ptr<StEventConfig> ev_cfg);
-    void GetUUID(class SoundTriggerUUID *uuid, struct pal_st_sound_model
-                                                          *sound_model);
-    std::shared_ptr<SoundTriggerPlatformInfo> st_info_;
-    std::shared_ptr<SoundModelConfig> sm_cfg_;
+    void GetUUID(class SoundTriggerUUID *uuid, struct pal_st_sound_model *sound_model);
+    std::shared_ptr<VoiceUIPlatformInfo> vui_ptfm_info_;
+    std::shared_ptr<VUIStreamConfig> sm_cfg_;
     SoundModelInfo* sm_info_;
     std::vector<std::shared_ptr<EngineCfg>> engines_;
     std::shared_ptr<SoundTriggerEngine> gsl_engine_;
