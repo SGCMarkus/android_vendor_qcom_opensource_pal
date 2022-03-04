@@ -8677,6 +8677,56 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
             }
         }
         break;
+        case PAL_PARAM_ID_MSPP_LINEAR_GAIN:
+        {
+            struct pal_device dattr;
+            Stream *stream = NULL;
+            std::vector<Stream*> activestreams;
+            struct pal_stream_attributes sAttr;
+            Session *session = NULL;
+
+            pal_param_mspp_linear_gain_t *linear_gain = (pal_param_mspp_linear_gain_t *) param_payload;
+            if (payload_size != sizeof(pal_param_mspp_linear_gain_t)) {
+                PAL_ERR(LOG_TAG, "incorrect payload size : expected (%zu), received(%zu)",
+                      sizeof(pal_param_mspp_linear_gain_t), payload_size);
+                status = -EINVAL;
+                goto exit;
+            }
+            PAL_DBG(LOG_TAG, "set mspp linear gain %ld (0x%x)", linear_gain->gain, linear_gain->gain);
+            rm->linear_gain.gain =  linear_gain->gain;
+            for (int i = 0; i < active_devices.size(); i++) {
+                int deviceId = active_devices[i].first->getSndDeviceId();
+                status = active_devices[i].first->getDeviceAttributes(&dattr);
+                if (0 != status) {
+                   PAL_ERR(LOG_TAG,"getDeviceAttributes Failed");
+                   goto exit;
+                }
+                if (PAL_DEVICE_OUT_SPEAKER == deviceId && !strcmp(dattr.custom_config.custom_key, "mspp")) {
+                    status = getActiveStream_l(activestreams, active_devices[i].first);
+                    if ((0 != status) || (activestreams.size() == 0)) {
+                       PAL_INFO(LOG_TAG, "no other active streams found");
+                       status = 0;
+                       goto exit;
+                    }
+
+                    stream = static_cast<Stream *>(activestreams[0]);
+                    stream->getStreamAttributes(&sAttr);
+                    if ((sAttr.direction == PAL_AUDIO_OUTPUT) &&
+                        ((sAttr.type == PAL_STREAM_LOW_LATENCY) ||
+                        (sAttr.type == PAL_STREAM_DEEP_BUFFER) ||
+                        (sAttr.type == PAL_STREAM_COMPRESSED) ||
+                        (sAttr.type == PAL_STREAM_PCM_OFFLOAD))) {
+                        stream->getAssociatedSession(&session);
+                        status = session->setParameters(stream, TAG_MODULE_MSPP, param_id, param_payload);
+                        if (0 != status) {
+                            PAL_ERR(LOG_TAG, "session setConfig failed with status %d", status);
+                            goto exit;
+                        }
+                    }
+                }
+            }
+        }
+        break;
         default:
             PAL_ERR(LOG_TAG, "Unknown ParamID:%d", param_id);
             break;

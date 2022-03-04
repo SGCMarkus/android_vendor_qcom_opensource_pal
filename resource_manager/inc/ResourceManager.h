@@ -625,6 +625,8 @@ public:
     static bool isUpdDutyCycleEnabled;
     /* Variable to store max volume index for voice call */
     static int max_voice_vol;
+    /*variable to store MSPP linear gain*/
+    pal_param_mspp_linear_gain_t linear_gain;
     uint64_t cookie;
     int initSndMonitor();
     int initContextManager();

@@ -1233,6 +1233,41 @@ int SessionAlsaCompress::start(Stream * s)
                     }
                     status = 0;
                 }
+
+                if (PAL_DEVICE_OUT_SPEAKER == dAttr.id && !strcmp(dAttr.custom_config.custom_key, "mspp")) {
+
+                    uint8_t* payload = NULL;
+                    size_t payloadSize = 0;
+                    uint32_t miid;
+                    int32_t volStatus;
+                    volStatus = SessionAlsaUtils::getModuleInstanceId(mixer, compressDevIds.at(0),
+                                                                    rxAifBackEnds[0].second.data(), TAG_MODULE_MSPP, &miid);
+                    if (volStatus != 0) {
+                        PAL_ERR(LOG_TAG,"get MSPP ModuleInstanceId failed");
+                        break;
+                    }
+
+                    builder->payloadMSPPConfig(&payload, &payloadSize, miid, rm->linear_gain.gain);
+                    if (payloadSize && payload) {
+                        volStatus = updateCustomPayload(payload, payloadSize);
+                        free(payload);
+                        if (0 != volStatus) {
+                            PAL_ERR(LOG_TAG,"Preetam updateCustomPayload Failed\n");
+                            break;
+                        }
+                    }
+                    volStatus = SessionAlsaUtils::setMixerParameter(mixer, compressDevIds.at(0),
+                                                                 customPayload, customPayloadSize);
+                    if (customPayload) {
+                        free(customPayload);
+                        customPayload = NULL;
+                        customPayloadSize = 0;
+                    }
+                    if (volStatus != 0) {
+                        PAL_ERR(LOG_TAG,"Preetam setMixerParameter failed for MSPP module");
+                        break;
+                    }
+                }
             }
             break;
         default:
@@ -1686,8 +1721,30 @@ int SessionAlsaCompress::setParameters(Stream *s __unused, int tagId, uint32_t p
                 PAL_INFO(LOG_TAG, "mixer set volume config status=%d\n", status);
                 freeCustomPayload(&alsaParamData, &alsaPayloadSize);
             }
-            break;
         }
+        break;
+        case PAL_PARAM_ID_MSPP_LINEAR_GAIN:
+        {
+            pal_param_mspp_linear_gain_t *linear_gain = (pal_param_mspp_linear_gain_t *)payload;
+            status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
+                               rxAifBackEnds[0].second.data(), tagId, &miid);
+
+            PAL_DBG(LOG_TAG, "set MSPP linear gain");
+            if (0 != status) {
+                PAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", tagId, status);
+                return status;
+            }
+
+            builder->payloadMSPPConfig(&alsaParamData, &alsaPayloadSize, miid, linear_gain->gain);
+            if (alsaPayloadSize) {
+                status = SessionAlsaUtils::setMixerParameter(mixer, device,
+                                               alsaParamData, alsaPayloadSize);
+                PAL_INFO(LOG_TAG, "mixer set MSPP config status=%d\n", status);
+                free(alsaParamData);
+            }
+            return 0;
+        }
+        break;
         default:
             PAL_INFO(LOG_TAG, "Unsupported param id %u", param_id);
         break;

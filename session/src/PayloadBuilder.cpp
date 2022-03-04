@@ -40,6 +40,7 @@
 #include "sp_vi.h"
 #include "sp_rx.h"
 #include "fluence_ffv_common_calibration.h"
+#include "mspp_module_calibration_api.h"
 
 #if defined(FEATURE_IPQ_OPENWRT) || defined(LINUX_ENABLED)
 #define USECASE_XML_FILE "/etc/usecaseKvManager.xml"
@@ -160,6 +161,8 @@ struct param_id_usb_audio_intf_cfg_t
    uint32_t usb_token;
    uint32_t svc_interval;
 };
+/* Structure type def for above payload. */
+typedef struct mspp_volume_ctrl_gain_t mspp_volume_ctrl_gain_t;
 
 std::vector<allKVs> PayloadBuilder::all_streams;
 std::vector<allKVs> PayloadBuilder::all_streampps;
@@ -3282,5 +3285,44 @@ void PayloadBuilder::payloadSPConfig(uint8_t** payload, size_t* size, uint32_t m
     }
 
     *size = payloadSize + padBytes;
+    *payload = payloadInfo;
+}
+
+void PayloadBuilder::payloadMSPPConfig(uint8_t** payload, size_t* size,
+        uint32_t miid, uint32_t gain)
+{
+    struct apm_module_param_data_t* header = NULL;
+    uint8_t* payloadInfo = NULL;
+    uint32_t param_id = 0;
+    size_t payloadSize = 0, customPayloadSize = 0;
+    mspp_volume_ctrl_gain_t *mspp_payload;
+
+    param_id = PARAM_ID_MSPP_VOLUME;
+    customPayloadSize = sizeof(mspp_volume_ctrl_gain_t);
+
+    payloadSize = PAL_ALIGN_8BYTE(sizeof(struct apm_module_param_data_t)
+                                        + customPayloadSize);
+    payloadInfo = (uint8_t *)calloc(1, (size_t)payloadSize);
+    if (!payloadInfo) {
+        PAL_ERR(LOG_TAG, "failed to allocate memory.");
+        return;
+    }
+
+    header = (struct apm_module_param_data_t*)payloadInfo;
+    header->module_instance_id = miid;
+    header->param_id = param_id;
+    header->error_code = 0x0;
+    header->param_size = customPayloadSize;
+
+    mspp_payload =
+        (mspp_volume_ctrl_gain_t *)(payloadInfo +
+         sizeof(struct apm_module_param_data_t));
+    mspp_payload->vol_lin_gain = gain;
+    ar_mem_cpy(payloadInfo + sizeof(struct apm_module_param_data_t),
+                     customPayloadSize,
+                     mspp_payload,
+                     customPayloadSize);
+
+    *size = payloadSize;
     *payload = payloadInfo;
 }

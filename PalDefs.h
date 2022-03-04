@@ -906,6 +906,7 @@ typedef enum {
     PAL_PARAM_ID_UHQA_FLAG = 56,
     PAL_PARAM_ID_STREAM_ATTRIBUTES = 57,
     PAL_PARAM_ID_SET_UPD_DUTY_CYCLE = 58,
+    PAL_PARAM_ID_MSPP_LINEAR_GAIN = 59,
 } pal_param_id_type_t;
 
 /** HDMI/DP */
@@ -970,6 +971,14 @@ typedef struct pal_param_gain_lvl_map {
 typedef struct pal_param_gain_lvl_cal {
     int level;
 } pal_param_gain_lvl_cal_t;
+
+/* Payload For ID: PAL_PARAM_ID_MSPP_LINEAR_GAIN
+ * Description   : set linear gain for MSPP
+*/
+typedef struct pal_param_mspp_linear_gain {
+    int32_t gain;
+} pal_param_mspp_linear_gain_t;
+
 
 /* Payload For ID: PAL_PARAM_ID_DEVICE_CAPABILITY
  * Description   : get Device Capability

@@ -227,6 +227,8 @@ public:
             uint32_t miid, uint32_t enable);
     int payloadPopSuppressorConfig(uint8_t** payload, size_t* size,
                                    uint32_t miid, bool enable);
+    void payloadMSPPConfig(uint8_t** payload, size_t* size,
+                          uint32_t miid, uint32_t gain);
     int populateStreamKV(Stream* s, std::vector <std::pair<int,int>> &keyVector);
     int populateStreamKV(Stream* s, std::vector <std::pair<int,int>> &keyVectorRx,
         std::vector <std::pair<int,int>> &keyVectorTx ,struct vsid_info vsidinfo);

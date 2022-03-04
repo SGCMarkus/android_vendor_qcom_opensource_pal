@@ -1122,6 +1122,42 @@ set_mixer:
                     status = 0;
                 }
             }
+            // Set MSPP volume during initlization.
+            if ((PAL_DEVICE_OUT_SPEAKER == dAttr.id &&
+                !strcmp(dAttr.custom_config.custom_key, "mspp"))&&
+                ((sAttr.type == PAL_STREAM_LOW_LATENCY) ||
+                (sAttr.type == PAL_STREAM_PCM_OFFLOAD) ||
+                (sAttr.type == PAL_STREAM_DEEP_BUFFER))) {
+
+                status = SessionAlsaUtils::getModuleInstanceId(mixer, pcmDevIds.at(0),
+                                                                rxAifBackEnds[0].second.data(), TAG_MODULE_MSPP, &miid);
+                if (status != 0) {
+                    PAL_ERR(LOG_TAG,"get MSPP ModuleInstanceId failed");
+                    goto pcm_start;
+                }
+                PAL_INFO(LOG_TAG, "miid : %x id = %d\n", miid, pcmDevIds.at(0));
+
+                builder->payloadMSPPConfig(&payload, &payloadSize, miid, rm->linear_gain.gain);
+                if (payloadSize && payload) {
+                    status = updateCustomPayload(payload, payloadSize);
+                    free(payload);
+                    if (0 != status) {
+                        PAL_ERR(LOG_TAG,"updateCustomPayload Failed\n");
+                        goto pcm_start;
+                    }
+                }
+                status = SessionAlsaUtils::setMixerParameter(mixer, pcmDevIds.at(0),
+                                                             customPayload, customPayloadSize);
+                if (customPayload) {
+                    free(customPayload);
+                    customPayload = NULL;
+                    customPayloadSize = 0;
+                }
+                if (status != 0) {
+                    PAL_ERR(LOG_TAG,"setMixerParameter failed for MSPP module");
+                    goto pcm_start;
+                }
+            }
 
 pcm_start:
             memset(&lpm_info, 0, sizeof(struct disable_lpm_info));
@@ -1147,7 +1183,7 @@ pcm_start:
                 }
             }
 
-            if (!status && isPauseRegistrationDone) {
+           if (!status && isPauseRegistrationDone) {
                 // Stream supports Soft Pause and registration with RM is
                 // successful. So register for Soft pause callback from adsp.
                 payload_size = sizeof(struct agm_event_reg_cfg);
@@ -2154,7 +2190,28 @@ int SessionAlsaPcm::setParameters(Stream *streamHandle, int tagId, uint32_t para
                 freeCustomPayload(&paramData, &paramSize);
             }
             return 0;
+        }
+        case PAL_PARAM_ID_MSPP_LINEAR_GAIN:
+        {
+            pal_param_mspp_linear_gain_t *linear_gain = (pal_param_mspp_linear_gain_t *)payload;
+            device = pcmDevIds.at(0)
+            ;
+            status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
+                               rxAifBackEnds[0].second.data(), tagId, &miid);
+            PAL_INFO(LOG_TAG, "Set mspp linear gain");
+            if (0 != status) {
+                PAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", tagId, status);
+                return status;
+            }
 
+            builder->payloadMSPPConfig(&paramData, &paramSize, miid, linear_gain->gain);
+            if (paramSize) {
+                status = SessionAlsaUtils::setMixerParameter(mixer, device,
+                                               paramData, paramSize);
+                PAL_INFO(LOG_TAG, "mixer set MSPP config status=%d\n", status);
+                free(paramData);
+            }
+            return 0;
         }
         case PAL_PARAM_ID_SET_UPD_DUTY_CYCLE:
         {
