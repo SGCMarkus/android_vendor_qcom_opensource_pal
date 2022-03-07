@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -2420,6 +2421,8 @@ int32_t StreamSoundTrigger::ParseOpaqueConfLevels(
                 for (auto& eng: engines_) {
                     if (sm_levels->sm_id & eng->GetEngineId() ||
                         ((eng->GetEngineId() & ST_SM_ID_SVA_S_STAGE_RNN) &&
+                        (sm_levels->sm_id & ST_SM_ID_SVA_S_STAGE_PDK)) ||
+                        ((eng->GetEngineId() & ST_SM_ID_SVA_S_STAGE_UDK) &&
                         (sm_levels->sm_id & ST_SM_ID_SVA_S_STAGE_PDK))) {
                         eng->GetEngine()->UpdateConfLevels(this, rec_config_,
                             (uint8_t *)&confidence_level, 1);
@@ -2466,6 +2469,8 @@ int32_t StreamSoundTrigger::ParseOpaqueConfLevels(
                         sm_levels_v2->sm_id , eng->GetEngineId());
                     if (sm_levels_v2->sm_id & eng->GetEngineId() ||
                         ((eng->GetEngineId() & ST_SM_ID_SVA_S_STAGE_RNN) &&
+                        (sm_levels_v2->sm_id & ST_SM_ID_SVA_S_STAGE_PDK)) ||
+                        ((eng->GetEngineId() & ST_SM_ID_SVA_S_STAGE_UDK) &&
                         (sm_levels_v2->sm_id & ST_SM_ID_SVA_S_STAGE_PDK))) {
                         eng->GetEngine()->UpdateConfLevels(this, rec_config_,
                             (uint8_t *)&confidence_level_v2, 1);

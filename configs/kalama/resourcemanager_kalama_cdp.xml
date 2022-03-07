@@ -1136,6 +1136,14 @@
                         <param bit_width="16" />
                         <param channel_count="1" />
                     </arm_ss_module_params>
+                    <arm_ss_module_params>
+                        <param sm_detection_type= "KEYWORD_DETECTION" />
+                        <param sm_id="0x40" />
+                        <param module_lib="libcapiv2udk7vendor.so" />
+                        <param sample_rate="16000" />
+                        <param bit_width="16" />
+                        <param channel_count="1" />
+                    </arm_ss_module_params>
                 </sound_model_info>
             </stream_config>
             <!-- Hotword Voice UI-->
