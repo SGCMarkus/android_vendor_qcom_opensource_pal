@@ -8205,6 +8205,13 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                 goto exit;
             }
 
+            /*
+             * Create audio patch request is not expected for HFP client call.
+             * Do not move active streams to sco device.
+             */
+            if (param_bt_sco->is_bt_hfp)
+                goto exit;
+
             /* When BT_SCO = ON received, make sure route all the active streams to
              * SCO devices in order to avoid any potential delay with create audio
              * patch request for SCO devices.
