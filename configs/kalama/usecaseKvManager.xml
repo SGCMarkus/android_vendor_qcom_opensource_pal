@@ -1074,6 +1074,13 @@
                 <!-- DEVICEPP_TX - DEVICEPP_TX_RAW_NLPI -->
                 <graph_kv key="0xAD000000" value="0xAD00000E"/>
             </keys_and_values>
+            <keys_and_values StreamType="PAL_STREAM_ACD"
+                DevicePPType="SINGLE_MIC_16KHZ_16BIT_LPI">
+                <!-- DEVICETX - HANDSETMIC_VA -->
+                <graph_kv key="0xA3000000" value="0xA3000006"/>
+                <!-- DEVICEPP_TX - DEVICEPP_TX_AAD -->
+                <graph_kv key="0xAD000000" value="0xAD000019"/>
+            </keys_and_values>
         </devicepp>
         <!-- IN Headset VA MIC  DevicePPs -->
         <devicepp id="PAL_DEVICE_IN_HEADSET_VA_MIC">
@@ -1111,6 +1118,13 @@
                 <graph_kv key="0xA3000000" value="0xA3000007"/>
                 <!-- DEVICEPP_TX - DEVICEPP_TX_RAW_NLPI -->
                 <graph_kv key="0xAD000000" value="0xAD00000E"/>
+            </keys_and_values>
+            <keys_and_values StreamType="PAL_STREAM_ACD"
+                DevicePPType="SINGLE_MIC_16KHZ_16BIT_HEADSET_LPI">
+                <!-- DEVICETX - HEADSETMIC_VA -->
+                <graph_kv key="0xA3000000" value="0xA3000007"/>
+                <!-- DEVICEPP_TX - DEVICEPP_TX_AAD -->
+                <graph_kv key="0xAD000000" value="0xAD000019"/>
             </keys_and_values>
         </devicepp>
        <!-- IN BT A2DP DevicePPs -->
