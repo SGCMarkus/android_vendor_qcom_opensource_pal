@@ -273,8 +273,9 @@ void VUIStreamConfig::HandleStartTag(const char* tag, const char** attribs)
         return;
     }
 
-    if (!strcmp(tag, "operating_modes") || !strcmp(tag, "sound_model_info")) {
-        PAL_INFO(LOG_TAG, "tag:%s appeared, nothing to do", tag);
+    if (!strcmp(tag, "operating_modes") || !strcmp(tag, "sound_model_info")
+                                        || !strcmp(tag, "name")) {
+        PAL_DBG(LOG_TAG, "tag:%s appeared, nothing to do", tag);
         return;
     }
 
@@ -422,7 +423,7 @@ void VoiceUIPlatformInfo::HandleStartTag(const char* tag, const char** attribs)
     }
 
     if (!strcmp(tag, "config")) {
-        PAL_INFO(LOG_TAG, "tag:%s appeared, nothing to do", tag);
+        PAL_DBG(LOG_TAG, "tag:%s appeared, nothing to do", tag);
         return;
     }
 
