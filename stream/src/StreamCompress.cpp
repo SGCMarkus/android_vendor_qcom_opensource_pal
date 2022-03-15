@@ -524,7 +524,7 @@ int32_t StreamCompress::write(struct pal_buffer *buf)
             }
         }
         if ((currentState != STREAM_STARTED) &&
-            (currentState != STREAM_PAUSED)) {
+            !(currentState == STREAM_PAUSED && isPaused)) {
             currentState = STREAM_STARTED;
             // register device only after graph is actually started
             mStreamMutex.unlock();
@@ -793,19 +793,7 @@ int32_t StreamCompress::resume_l()
        goto exit;
     }
 
-    if (isFlushed) {
-        mStreamMutex.unlock();
-        rm->lockActiveStream();
-        mStreamMutex.lock();
-        for (int i = 0; i < mDevices.size(); i++) {
-            rm->registerDevice(mDevices[i], this);
-        }
-        rm->unlockActiveStream();
-        isFlushed = false;
-    }
-
     isPaused = false;
-    currentState = STREAM_STARTED;
     PAL_VERBOSE(LOG_TAG,"session resume successful, state %d", currentState);
 
 exit:
@@ -851,7 +839,6 @@ int32_t StreamCompress::flush()
         rm->deregisterDevice(mDevices[i], this);
     }
     rm->unlockActiveStream();
-    isFlushed = true;
     return session->flush();
 }
 
