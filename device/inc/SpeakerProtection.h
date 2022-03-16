@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2020, 2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -33,6 +34,7 @@
 #include "Speaker.h"
 #include "sp_vi.h"
 #include "sp_rx.h"
+#include "cps_data_router.h"
 #include <tinyalsa/asoundlib.h>
 #include <mutex>
 #include <condition_variable>
@@ -67,6 +69,14 @@ enum {
     SPKR_LEFT,     /* Left Speaker */
 };
 
+/* enum that indicates speaker condition. */
+enum {
+    SPKR_OK = 0,
+    SPKR_DC = 1,
+    SPKR_OPEN = 2,
+    SPKR_CLOSE = 3,
+};
+
 struct agmMetaData {
     uint8_t *buf;
     uint32_t size;
@@ -93,14 +103,17 @@ protected :
     static struct mixer *hwMixer;
     static struct pcm *rxPcm;
     static struct pcm *txPcm;
+    static struct pcm *cpsPcm;
     static int numberOfChannels;
     static bool mDspCallbackRcvd;
     static param_id_sp_th_vi_calib_res_cfg_t *callback_data;
     struct pal_device mDeviceAttr;
     std::vector<int> pcmDevIdTx;
+    std::vector<int> pcmDevIdCPS;
     static int calibrationCallbackStatus;
     static int numberOfRequest;
     static struct pal_device_info vi_device;
+    static struct pal_device_info cps_device;
 
 private :
 
