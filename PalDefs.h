@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -1156,10 +1157,12 @@ typedef struct pal_param_haptics_intensity {
 } pal_param_haptics_intensity_t;
 
 /**< PAL device */
+#define DEVICE_NAME_MAX_SIZE 128
 struct pal_device {
     pal_device_id_t id;                     /**<  device id */
     struct pal_media_config config;         /**<  media config of the device */
     struct pal_usb_device_address address;
+    char sndDevName[DEVICE_NAME_MAX_SIZE];
     pal_device_custom_config_t custom_config;        /**<  Optional */
 };
 

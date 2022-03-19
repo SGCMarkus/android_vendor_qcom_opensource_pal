@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -2617,7 +2618,7 @@ int PayloadBuilder::populateDeviceKV(Stream* s, int32_t beDevId,
         dAttr.id = (pal_device_id_t)beDevId;
         dev = Device::getInstance(&dAttr, rm);
         if (dev) {
-            status = dev->getDeviceAttributes(&dAttr);
+            status = dev->getDeviceAttributes(&dAttr, s);
             selectors = retrieveSelectors(beDevId, all_devices);
             if (selectors.empty() != true)
                 filled_selector_pairs = getSelectorValues(selectors, s, &dAttr);
@@ -2737,7 +2738,6 @@ int PayloadBuilder::populateDevicePPKV(Stream* s, int32_t rxBeDevId,
     std::vector <std::pair<selector_type_t, std::string>> filled_selector_pairs;
 
     PAL_DBG(LOG_TAG, "Enter");
-
     /* Populate Rx Device PP KV */
     if (rxBeDevId > 0) {
         PAL_INFO(LOG_TAG, "Rx device id:%d", rxBeDevId);
@@ -2745,7 +2745,7 @@ int PayloadBuilder::populateDevicePPKV(Stream* s, int32_t rxBeDevId,
         dAttr.id = (pal_device_id_t)rxBeDevId;
         dev = Device::getInstance(&dAttr, rm);
         if (dev) {
-            status = dev->getDeviceAttributes(&dAttr);
+            status = dev->getDeviceAttributes(&dAttr, s);
             selectors = retrieveSelectors(dAttr.id, all_devicepps);
             if (selectors.empty() != true)
                 filled_selector_pairs = getSelectorValues(selectors, s, &dAttr);
@@ -2764,7 +2764,7 @@ int PayloadBuilder::populateDevicePPKV(Stream* s, int32_t rxBeDevId,
         dAttr.id = (pal_device_id_t)txBeDevId;
         dev = Device::getInstance(&dAttr, rm);
         if (dev) {
-            status = dev->getDeviceAttributes(&dAttr);
+            status = dev->getDeviceAttributes(&dAttr, s);
             selectors = retrieveSelectors(dAttr.id, all_devicepps);
             if (selectors.empty() != true)
                 filled_selector_pairs = getSelectorValues(selectors, s, &dAttr);

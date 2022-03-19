@@ -85,7 +85,6 @@ StreamCompress::StreamCompress(const struct pal_stream_attributes *sattr, struct
     inBufCount = COMPRESS_OFFLOAD_NUM_FRAGMENTS;
     outBufCount = COMPRESS_OFFLOAD_NUM_FRAGMENTS;
     mDevices.clear();
-    mPalDevice.clear();
     PAL_VERBOSE(LOG_TAG,"enter");
 
     //TBD handle modifiers later
@@ -134,6 +133,8 @@ StreamCompress::StreamCompress(const struct pal_stream_attributes *sattr, struct
             mStreamMutex.unlock();
             throw std::runtime_error("failed to create device object");
         }
+        dev->insertStreamDeviceAttr(&dattr[i], this);
+        mPalDevices.push_back(dev);
         mStreamMutex.unlock();
         isDeviceConfigUpdated = rm->updateDeviceConfig(&dev, &dattr[i], sattr);
         mStreamMutex.lock();
@@ -142,7 +143,6 @@ StreamCompress::StreamCompress(const struct pal_stream_attributes *sattr, struct
             PAL_VERBOSE(LOG_TAG, "Device config updated");
 
         mDevices.push_back(dev);
-        mPalDevice.push_back(dattr[i]);
         dev = nullptr;
     }
     mStreamMutex.unlock();
@@ -248,6 +248,11 @@ StreamCompress::~StreamCompress()
 {
     rm->resetStreamInstanceID(this);
     rm->deregisterStream(this);
+
+    /* remove the device-stream attribute entry for the stopped stream */
+    for (int32_t i=0; i < mPalDevices.size(); i++)
+        mPalDevices[i]->removeStreamDeviceAttr(this);
+
     if (mStreamAttr) {
         free(mStreamAttr);
         mStreamAttr = (struct pal_stream_attributes *)NULL;
@@ -263,7 +268,7 @@ StreamCompress::~StreamCompress()
         rm->restoreDevice(mDevices[i]);
 
     mDevices.clear();
-    mPalDevice.clear();
+    mPalDevices.clear();
     if (session) {
         delete session;
         session = nullptr;

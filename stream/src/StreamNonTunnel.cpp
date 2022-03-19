@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -74,7 +75,6 @@ StreamNonTunnel::StreamNonTunnel(const struct pal_stream_attributes *sattr, stru
     inMaxMetadataSz = 0;
     outMaxMetadataSz = 0;
     mDevices.clear();
-    mPalDevice.clear();
     currentState = STREAM_IDLE;
     ssrInNTMode = false;
     //Modify cached values only at time of SSR down.

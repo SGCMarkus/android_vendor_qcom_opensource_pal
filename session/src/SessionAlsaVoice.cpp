@@ -1826,7 +1826,7 @@ int SessionAlsaVoice::setExtECRef(Stream *s, std::shared_ptr<Device> rx_dev, boo
 
     rxDevInfo.isExternalECRefEnabledFlag = 0;
     if (rx_dev) {
-        status = rx_dev->getDeviceAttributes(&rxDevAttr);
+        status = rx_dev->getDeviceAttributes(&rxDevAttr, s);
         if (status != 0) {
             PAL_ERR(LOG_TAG," get device attributes failed");
             goto exit;
