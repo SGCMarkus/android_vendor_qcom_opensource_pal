@@ -449,6 +449,7 @@ private:
     int handleScreenStatusChange(pal_param_screen_state_t screen_state);
     int handleDeviceRotationChange(pal_param_device_rotation_t rotation_type);
     int handleDeviceConnectionChange(pal_param_device_connection_t connection_state);
+    int SetOrientationCal(pal_param_device_rotation_t rotation_type);
     int32_t streamDevDisconnect(std::vector <std::tuple<Stream *, uint32_t>> streamDevDisconnectList);
     int32_t streamDevConnect(std::vector <std::tuple<Stream *, struct pal_device *>> streamDevConnectList);
     int32_t streamDevDisconnect_l(std::vector <std::tuple<Stream *, uint32_t>> streamDevDisconnectList);
@@ -611,6 +612,9 @@ public:
     static int spQuickCalTime;
     /* Variable to store the mode request for Speaker protection */
     pal_spkr_prot_payload mSpkrProtModeValue;
+
+    /* Variable to store the device orientation for Speaker*/
+    int mOrientation = 0;
     pal_global_callback globalCb = NULL;
     uint32_t num_proxy_channels = 0;
     /* Flag to store the state of VI record */

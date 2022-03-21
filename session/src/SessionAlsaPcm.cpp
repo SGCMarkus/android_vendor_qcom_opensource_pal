@@ -1264,6 +1264,21 @@ pcm_start:
         }
     }
 
+    //Setting the device orientation during stream open for MSPP and HDR Record
+    if ((PAL_DEVICE_OUT_SPEAKER == dAttr.id || PAL_DEVICE_IN_HANDSET_MIC == dAttr.id)
+        && !strcmp(dAttr.custom_config.custom_key, "mspp")) {
+        if ((sAttr.direction == PAL_AUDIO_OUTPUT ||
+             sAttr.direction == PAL_AUDIO_INPUT) &&
+            ((sAttr.type == PAL_STREAM_LOW_LATENCY) ||
+            (sAttr.type == PAL_STREAM_DEEP_BUFFER)  ||
+            (sAttr.type == PAL_STREAM_PCM_OFFLOAD))) {
+            PAL_DBG(LOG_TAG,"set device orientation %d", rm->mOrientation);
+            s->setOrientation(rm->mOrientation);
+            if (setConfig(s, MODULE, ORIENTATION_TAG) != 0) {
+                PAL_ERR(LOG_TAG,"Setting device orientation failed");
+            }
+        }
+    }
     mState = SESSION_STARTED;
 
 exit:

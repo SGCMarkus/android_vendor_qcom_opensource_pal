@@ -1263,7 +1263,14 @@ int SessionAlsaCompress::start(Stream * s)
             PAL_ERR(LOG_TAG,"Setting volume failed");
         }
     }
-
+    //Setting the device orientation during stream open
+    if (PAL_DEVICE_OUT_SPEAKER == dAttr.id && !strcmp(dAttr.custom_config.custom_key, "mspp")) {
+        PAL_DBG(LOG_TAG,"set device orientation %d", rm->mOrientation);
+        s->setOrientation(rm->mOrientation);
+        if (setConfig(s, MODULE, ORIENTATION_TAG) != 0) {
+            PAL_ERR(LOG_TAG,"Setting device orientation failed");
+        }
+    }
 exit:
     if (status != 0)
         rm->voteSleepMonitor(s, false);

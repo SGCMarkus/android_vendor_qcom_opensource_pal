@@ -7989,15 +7989,17 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
         {
             pal_param_device_rotation_t* param_device_rot =
                                    (pal_param_device_rotation_t*) param_payload;
+
             PAL_INFO(LOG_TAG, "Device Rotation :%d", param_device_rot->rotation_type);
             if (payload_size == sizeof(pal_param_device_rotation_t)) {
                 status = handleDeviceRotationChange(*param_device_rot);
+                status = SetOrientationCal(*param_device_rot);
             } else {
-                PAL_ERR(LOG_TAG,"Incorrect size : expected (%zu), received(%zu)",
-                        sizeof(pal_param_device_rotation_t), payload_size);
+                PAL_ERR(LOG_TAG, "incorrect payload size : expected (%zu), received(%zu)",
+                      sizeof(pal_param_device_rotation_t), payload_size);
                 status = -EINVAL;
+                goto exit;
             }
-
         }
         break;
         case PAL_PARAM_ID_SP_MODE:
@@ -9029,6 +9031,60 @@ void ResourceManager::onVUIStreamDeregistered()
         use_lpi_ = true;
         handleConcurrentStreamSwitch(st_streams, !use_lpi_, false);
     }
+}
+
+int ResourceManager::SetOrientationCal(pal_param_device_rotation_t
+                                                         rotation_type) {
+    std::vector<Stream*>::iterator sIter;
+    struct pal_stream_attributes sAttr;
+    Stream *stream = NULL;
+    struct pal_device dattr;
+    Session *session = NULL;
+    std::vector<Stream*> activestreams;
+    int status = 0;
+    PAL_INFO(LOG_TAG, "Device Rotation Changed %d", rotation_type.rotation_type);
+    rm->mOrientation = rotation_type.rotation_type == PAL_SPEAKER_ROTATION_LR ? ORIENTATION_0 : ORIENTATION_270;
+
+    /**Get the active device list and check if speaker is present.
+     */
+    for (int i = 0; i < active_devices.size(); i++) {
+        int deviceId = active_devices[i].first->getSndDeviceId();
+        status = active_devices[i].first->getDeviceAttributes(&dattr);
+        if(0 != status) {
+           PAL_ERR(LOG_TAG,"getDeviceAttributes Failed");
+           goto error;
+        }
+        if ((PAL_DEVICE_OUT_SPEAKER == deviceId || PAL_DEVICE_IN_HANDSET_MIC == deviceId)
+            && !strcmp(dattr.custom_config.custom_key, "mspp")) {
+            status = getActiveStream_l(activestreams, active_devices[i].first);
+            if ((0 != status) || (activestreams.size() == 0)) {
+               PAL_ERR(LOG_TAG, "no other active streams found");
+               status = -EINVAL;
+               goto error;
+            }
+
+            stream = static_cast<Stream *>(activestreams[0]);
+            stream->getStreamAttributes(&sAttr);
+            if ((sAttr.direction == PAL_AUDIO_OUTPUT ||
+                 sAttr.direction == PAL_AUDIO_INPUT ) &&
+                ((sAttr.type == PAL_STREAM_LOW_LATENCY) ||
+                (sAttr.type == PAL_STREAM_DEEP_BUFFER) ||
+                (sAttr.type == PAL_STREAM_COMPRESSED) ||
+                (sAttr.type == PAL_STREAM_PCM_OFFLOAD))) {
+                stream->setOrientation(rm->mOrientation);
+                stream->getAssociatedSession(&session);
+                PAL_INFO(LOG_TAG, "Apply device rotation");
+                status = session->setConfig(stream, MODULE, ORIENTATION_TAG);
+                if (0 != status) {
+                    PAL_ERR(LOG_TAG, "session setConfig failed with status %d", status);
+                    goto error;
+                }
+            }
+        }
+    }
+error :
+    PAL_INFO(LOG_TAG, "Exiting SetOrientationCal, status %d", status);
+    return status;
 }
 
 bool ResourceManager::getScreenState()

@@ -688,7 +688,8 @@ int Session::configureMFC(const std::shared_ptr<ResourceManager>& rm, struct pal
         }
 
         if ((PAL_DEVICE_OUT_SPEAKER == dAttr.id) &&
-            (2 == dAttr.config.ch_info.channels)) {
+            (2 == dAttr.config.ch_info.channels) &&
+            (strcmp(dAttr.custom_config.custom_key, "mspp"))) {
             // Stereo Speakers. Check for the rotation type
             if (PAL_SPEAKER_ROTATION_RL == rm->getCurrentRotationType()) {
                 // Rotation is of RL, so need to swap the channels

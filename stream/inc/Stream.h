@@ -111,6 +111,7 @@ typedef enum {
 #define CHARGE_CONCURRENCY_OFF_TAG 44
 #define DEVICEPP_MUTE 45
 #define DEVICEPP_UNMUTE 46
+#define ORIENTATION_TAG 47
 
 /* This sleep is added to give time to kernel and
  * spf to recover from SSR so that audio-hal will
@@ -144,6 +145,7 @@ protected:
     Session* session;
     struct pal_stream_attributes* mStreamAttr;
     int mGainLevel;
+    int mOrientation = 0;
     std::mutex mStreamMutex;
     static std::mutex mBaseStreamMutex; //TBD change this. as having a single static mutex for all instances of Stream is incorrect. Replace
     static std::shared_ptr<ResourceManager> rm;
@@ -229,6 +231,8 @@ public:
     int getGainLevel() { return mGainLevel; };
     void setDutyCycleEnable(bool enable) { mDutyCycleEnable = enable; };
     bool getDutyCycleEnable() { return mDutyCycleEnable; };
+    void setOrientation(int orientation) { mOrientation = orientation; };
+    int getOrientation() { return mOrientation; };
     /* static so that this method can be accessed wihtout object */
     static Stream* create(struct pal_stream_attributes *sattr, struct pal_device *dattr,
          uint32_t no_of_devices, struct modifier_kv *modifiers, uint32_t no_of_modifiers);

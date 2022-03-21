@@ -2966,6 +2966,11 @@ int PayloadBuilder::populateTagKeyVector(Stream *s, std::vector <std::pair<int,i
        tkv.push_back(std::make_pair(MUTE,OFF));
        *gsltag = TAG_DEVPP_MUTE;
        break;
+   case ORIENTATION_TAG:
+       PAL_INFO(LOG_TAG, "Create orientatation tkv");
+       tkv.push_back(std::make_pair(TAG_KEY_ORIENTATION, s->getOrientation()));
+       *gsltag = TAG_ORIENTATION;
+       break;
     default:
        PAL_ERR(LOG_TAG,"Tag not supported \n");
        break;
