@@ -2129,6 +2129,59 @@ int SessionAlsaPcm::setParameters(Stream *streamHandle, int tagId, uint32_t para
             return 0;
 
         }
+        case PAL_PARAM_ID_SET_UPD_DUTY_CYCLE:
+        {
+            std::vector <std::pair<int, int>> tkv;
+            const char *setParamTagControl = " setParamTag";
+            const char *streamPcm = "PCM";
+            struct mixer_ctl *ctl;
+            std::ostringstream tagCntrlNameRx;
+            std::ostringstream tagCntrlNameTx;
+            struct agm_tag_config* tagConfig = NULL;
+            int tkv_size = 0;
+
+            tkv.push_back(std::make_pair(TAG_KEY_DUTY_CYCLE, *(int*)payload));
+            tagConfig = (struct agm_tag_config*)malloc(sizeof(struct agm_tag_config) +
+                    (tkv.size() * sizeof(agm_key_value)));
+
+            if (!tagConfig) {
+                status = -EINVAL;
+                goto exit;
+            }
+
+            status = SessionAlsaUtils::getTagMetadata(TAG_DUTY_CYCLE, tkv, tagConfig);
+            if (0 != status) {
+                goto exit;
+            }
+
+            // set UPD RX tag data
+            tagCntrlNameRx<<streamPcm<<pcmDevRxIds.at(0)<<setParamTagControl;
+            ctl = mixer_get_ctl_by_name(mixer, tagCntrlNameRx.str().data());
+            if (!ctl) {
+                PAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", tagCntrlNameRx.str().data());
+                status = -EINVAL;
+                goto exit;
+            }
+            tkv_size = tkv.size()*sizeof(struct agm_key_value);
+            status = mixer_ctl_set_array(ctl, tagConfig, sizeof(struct agm_tag_config) + tkv_size);
+            if (status != 0) {
+                PAL_ERR(LOG_TAG, "failed to set the RX duty cycle calibration %d", status);
+            }
+
+            // set UPD TX tag data
+            tagCntrlNameTx<<streamPcm<<pcmDevTxIds.at(0)<<setParamTagControl;
+            ctl = mixer_get_ctl_by_name(mixer, tagCntrlNameTx.str().data());
+            if (!ctl) {
+                PAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", tagCntrlNameTx.str().data());
+                status = -EINVAL;
+                goto exit;
+            }
+            status = mixer_ctl_set_array(ctl, tagConfig, sizeof(struct agm_tag_config) + tkv_size);
+            if (status != 0) {
+                PAL_ERR(LOG_TAG, "failed to set the TX duty cycle calibration %d", status);
+            }
+            return 0;
+        }
         default:
             status = -EINVAL;
             PAL_ERR(LOG_TAG, "Unsupported param id %u status %d", param_id, status);

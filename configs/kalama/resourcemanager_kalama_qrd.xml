@@ -81,6 +81,7 @@
         <param key="upd_dedicated_be" value ="true" />
         <param key="signal_handler" value ="true" />
         <param key="device_mux_config" value ="true" />
+        <param key="upd_duty_cycle_enable" value="false" />
     </config_params>
     <config_volume>
         <use_volume_set_param>0</use_volume_set_param>
@@ -141,21 +142,33 @@
             <samplerate>48000</samplerate>
             <bit_width>16</bit_width>
             <snd_device_name>handset-mic</snd_device_name>
+            <ec_enable>0</ec_enable>
             <usecase>
                 <name>PAL_STREAM_LOW_LATENCY</name>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_DEEP_BUFFER</name>
+                <ec_enable>1</ec_enable>
             </usecase>
+        <!--Uncomment these lines instead of above lines if needing to enable EC per custom key
+            <usecase>
+                <name>PAL_STREAM_DEEP_BUFFER</name>
+                <custom-config key="vr-mic">
+                <ec_enable>1</ec_enable>
+                </custom-config>
+            </usecase>
+        -->
             <usecase>
                 <name>PAL_STREAM_VOIP_TX</name>
                 <priority>2</priority>
+                <ec_enable>1</ec_enable>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_VOICE_CALL</name>
                 <priority>1</priority>
                 <sidetone_mode>HW</sidetone_mode>
                 <bit_width>16</bit_width>
+                <ec_enable>1</ec_enable>
                 <custom-config key="dual-mic">
                     <channels>2</channels>
                     <snd_device_name>handset-dmic-endfire</snd_device_name>
@@ -199,22 +212,34 @@
             <samplerate>48000</samplerate>
             <bit_width>16</bit_width>
             <channels>1</channels>
+            <ec_enable>0</ec_enable>
             <snd_device_name>speaker-mic</snd_device_name>
             <usecase>
                 <name>PAL_STREAM_LOW_LATENCY</name>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_DEEP_BUFFER</name>
+                <ec_enable>1</ec_enable>
             </usecase>
+        <!--Uncomment these lines instead of above lines if needing to enable EC per custom key
+            <usecase>
+                <name>PAL_STREAM_DEEP_BUFFER</name>
+                <custom-config key="vr-mic">
+                <ec_enable>1</ec_enable>
+                </custom-config>
+            </usecase>
+        -->
             <usecase>
                 <name>PAL_STREAM_VOIP_TX</name>
                 <priority>2</priority>
+                <ec_enable>1</ec_enable>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_VOICE_CALL</name>
                 <priority>1</priority>
                 <sidetone_mode>OFF</sidetone_mode>
                 <bit_width>16</bit_width>
+                <ec_enable>1</ec_enable>
                 <custom-config key="dual-mic">
                     <channels>2</channels>
                     <snd_device_name>speaker-dmic-endfire</snd_device_name>
@@ -240,16 +265,27 @@
             <max_channels>1</max_channels>
             <channels>1</channels>
             <snd_device_name>headset-mic</snd_device_name>
+            <ec_enable>0</ec_enable>
             <usecase>
                 <name>PAL_STREAM_LOW_LATENCY</name>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_DEEP_BUFFER</name>
+                <ec_enable>1</ec_enable>
             </usecase>
+        <!--Uncomment these lines instead of above lines if needing to enable EC per custom key
+            <usecase>
+                <name>PAL_STREAM_DEEP_BUFFER</name>
+                <custom-config key="vr-mic">
+                <ec_enable>1</ec_enable>
+                </custom-config>
+            </usecase>
+        -->
             <usecase>
                 <name>PAL_STREAM_VOIP_TX</name>
                 <samplerate>48000</samplerate>
                 <bit_width>16</bit_width>
+                <ec_enable>1</ec_enable>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_VOICE_CALL</name>
@@ -257,6 +293,7 @@
                 <samplerate>48000</samplerate>
                 <bit_width>16</bit_width>
                 <priority>1</priority>
+                <ec_enable>1</ec_enable>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_ULTRA_LOW_LATENCY</name>
@@ -302,6 +339,7 @@
             <samplerate>48000</samplerate>
             <bit_width>16</bit_width>
             <snd_device_name>va-mic</snd_device_name>
+            <ec_enable>1</ec_enable>
             <ec_rx_device>
                 <id>PAL_DEVICE_OUT_SPEAKER</id>
                 <id>PAL_DEVICE_OUT_HANDSET</id>
@@ -316,6 +354,7 @@
             <snd_device_name>headset-va-mic</snd_device_name>
             <samplerate>48000</samplerate>
             <bit_width>16</bit_width>
+            <ec_enable>1</ec_enable>
             <ec_rx_device>
                 <id>PAL_DEVICE_OUT_WIRED_HEADSET</id>
                 <id>PAL_DEVICE_OUT_WIRED_HEADPHONE</id>
@@ -329,20 +368,32 @@
             <channels>1</channels>
             <samplerate>48000</samplerate>
             <bit_width>16</bit_width>
+            <ec_enable>0</ec_enable>
             <snd_device_name>usb-headset-mic</snd_device_name>
             <usecase>
                 <name>PAL_STREAM_VOIP_TX</name>
+                <ec_enable>1</ec_enable>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_LOW_LATENCY</name>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_DEEP_BUFFER</name>
+                <ec_enable>1</ec_enable>
             </usecase>
+        <!--Uncomment these lines instead of above lines if needing to enable EC per custom key
+            <usecase>
+                <name>PAL_STREAM_DEEP_BUFFER</name>
+                <custom-config key="vr-mic">
+                <ec_enable>1</ec_enable>
+                </custom-config>
+            </usecase>
+        -->
             <usecase>
                 <name>PAL_STREAM_VOICE_CALL</name>
                 <priority>1</priority>
                 <sidetone_mode>HW</sidetone_mode>
+                <ec_enable>1</ec_enable>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_ULTRA_LOW_LATENCY</name>

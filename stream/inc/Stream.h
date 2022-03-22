@@ -163,6 +163,7 @@ protected:
     static std::condition_variable pauseCV;
     static std::mutex pauseMutex;
     bool mutexLockedbyRm = false;
+    bool mDutyCycleEnable = false;
     int connectToDefaultDevice(Stream* streamHandle, uint32_t dir);
 public:
     virtual ~Stream() {};
@@ -227,6 +228,8 @@ public:
     int32_t getVolumeData(struct pal_volume_data *vData);
     void setGainLevel(int level) { mGainLevel = level; };
     int getGainLevel() { return mGainLevel; };
+    void setDutyCycleEnable(bool enable) { mDutyCycleEnable = enable; };
+    bool getDutyCycleEnable() { return mDutyCycleEnable; };
     /* static so that this method can be accessed wihtout object */
     static Stream* create(struct pal_stream_attributes *sattr, struct pal_device *dattr,
          uint32_t no_of_devices, struct modifier_kv *modifiers, uint32_t no_of_modifiers);

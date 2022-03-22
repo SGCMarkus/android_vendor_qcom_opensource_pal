@@ -477,6 +477,7 @@ release:
 int32_t StreamSoundTrigger::setParameters(uint32_t param_id, void *payload) {
     int32_t status = 0;
     pal_param_payload *param_payload = (pal_param_payload *)payload;
+    struct pal_st_recognition_config *new_rec_config = nullptr;
 
     if (param_id != PAL_PARAM_ID_STOP_BUFFERING && !param_payload) {
         PAL_ERR(LOG_TAG, "Invalid payload for param ID: %d", param_id);
@@ -494,28 +495,22 @@ int32_t StreamSoundTrigger::setParameters(uint32_t param_id, void *payload) {
             break;
         }
         case PAL_PARAM_ID_RECOGNITION_CONFIG: {
-            /*
-            * Currently spf needs graph stop and start for next detection.
-            * Handle this event similar to fresh start config.
-            */
-            std::shared_ptr<StEventConfig> ev_cfg(
-                new StRecognitionCfgEventConfig((void *)param_payload->payload));
-            status = cur_state_->ProcessEvent(ev_cfg);
+            new_rec_config =
+                (struct pal_st_recognition_config *)param_payload->payload;
+            if (!compareRecognitionConfig(rec_config_, new_rec_config)) {
+                std::shared_ptr<StEventConfig> ev_cfg(
+                    new StRecognitionCfgEventConfig((void *)new_rec_config));
+                status = cur_state_->ProcessEvent(ev_cfg);
+            } else {
+                PAL_DBG(LOG_TAG, "Same recognition config, no need to update");
+            }
             break;
         }
         case PAL_PARAM_ID_STOP_BUFFERING: {
-            /*
-            * Currently spf needs graph stop and start for next detection.
-            * Handle this event similar to STOP_RECOGNITION
-            * and when the stream state is in buffering.
-            */
-            if (GetCurrentStateId() == ST_STATE_BUFFERING) {
-                std::shared_ptr<StEventConfig> ev_cfg(
-                    new StStopRecognitionEventConfig(false));
-                status = cur_state_->ProcessEvent(ev_cfg);
-            } else {
-                PAL_INFO(LOG_TAG, "Stream not in buffering state, ignore");
-            }
+            std::shared_ptr<StEventConfig> ev_cfg(
+                new StStopBufferingEventConfig());
+            status = cur_state_->ProcessEvent(ev_cfg);
+
             if (vui_ptfm_info_->GetEnableDebugDumps()) {
                 ST_DBG_FILE_CLOSE(lab_fd_);
                 lab_fd_ = nullptr;
@@ -1821,6 +1816,9 @@ bool StreamSoundTrigger::compareRecognitionConfig(
    const struct pal_st_recognition_config *current_config,
    struct pal_st_recognition_config *new_config) {
     uint32_t i = 0, j = 0;
+
+    if (!current_config || !new_config)
+        return false;
 
     /*
      * Sometimes if the number of user confidence levels is 0, the
@@ -4168,6 +4166,16 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
             if (st_stream_.vui_ptfm_info_->GetEnableDebugDumps()) {
                 ST_DBG_FILE_WRITE(st_stream_.lab_fd_, buf->buffer, buf->size);
             }
+            break;
+        }
+        case ST_EV_STOP_BUFFERING: {
+            /*
+             * Buffering continues in GSL engine side until RestartRecognition
+             * called, to avoid ADSP stuck if client takes some time to send
+             * start after stop buffering.
+             */
+            if (st_stream_.reader_)
+                st_stream_.reader_->updateState(READER_DISABLED);
             break;
         }
         case ST_EV_START_RECOGNITION: {
