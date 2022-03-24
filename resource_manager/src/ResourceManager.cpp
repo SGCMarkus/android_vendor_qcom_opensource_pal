@@ -1481,9 +1481,7 @@ exit:
 /*
   Playback is going on and charger Removal occurs, Below
   steps avoid HW fault in FET.
-  1. Mute PA by muting particular stream (writing 0 buffers).
-  2. Force Device Switch from spkr->spkr to Unvote and Vote for Boost vdd.
-  3. Unmute PA.
+  1. Force Device Switch from spkr->spkr to Unvote and Vote for Boost vdd.
 */
 
 int ResourceManager::handlePBChargerRemoval(Stream *stream)
@@ -1500,12 +1498,6 @@ int ResourceManager::handlePBChargerRemoval(Stream *stream)
         goto exit;
     }
 
-    status = stream->mute(true);
-    if (0 != status) {
-        PAL_ERR(LOG_TAG, "Failed to set Mute with status %d", status);
-        goto exit;
-    }
-
     newDevAttr.id = PAL_DEVICE_OUT_SPEAKER;
     dev = Device::getInstance(&newDevAttr, rm);
 
@@ -1518,16 +1510,9 @@ int ResourceManager::handlePBChargerRemoval(Stream *stream)
         goto exit;
     }
 
-    mResourceManagerMutex.unlock();
     status = forceDeviceSwitch(dev, &newDevAttr);
     if (0 != status) {
         PAL_ERR(LOG_TAG, "Failed to do Force Device switch %d", status);
-        goto exit;
-    }
-
-    status = stream->mute(false);
-    if (0 != status) {
-        PAL_ERR(LOG_TAG, "Setting UnMute failed with status %d", status);
         goto exit;
     }
 
