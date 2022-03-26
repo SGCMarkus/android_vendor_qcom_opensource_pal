@@ -83,6 +83,7 @@ LOCAL_SRC_FILES := \
     device/src/ExtEC.cpp \
     device/src/HapticsDev.cpp \
     device/src/UltrasoundDevice.cpp \
+    device/src/ECRefDevice.cpp \
     session/src/Session.cpp \
     session/src/PayloadBuilder.cpp \
     session/src/SessionAlsaPcm.cpp \
