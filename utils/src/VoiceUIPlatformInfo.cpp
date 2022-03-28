@@ -178,9 +178,9 @@ void VUIFirstStageConfig::HandleStartTag(const char *tag, const char **attribs)
 VUIStreamConfig::VUIStreamConfig() :
     is_qcva_uuid_(false),
     merge_first_stage_sound_models_(false),
-    supported_first_stage_engine_count_(1),
     capture_keyword_(2000),
     client_capture_read_delay_(2000),
+    supported_first_stage_engine_count_(1),
     curr_child_(nullptr)
 {
 }
