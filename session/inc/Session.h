@@ -76,6 +76,11 @@ typedef enum {
 }slot_mask_t;
 
 #define EVENT_ID_SOFT_PAUSE_PAUSE_COMPLETE 0x0800103F
+const std::map<std::uint32_t, std::uint32_t> slotMaskBwLUT {
+   {16, 0},
+   {24, 0x40000000},
+   {32, 0x80000000},
+};
 
 const std::map<std::uint32_t, slot_mask_t> slotMaskLUT {
    {1, SLOT_MASK1},

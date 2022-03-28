@@ -552,12 +552,15 @@ int Session::setSlotMask(const std::shared_ptr<ResourceManager>& rm, struct pal_
     std::ostringstream feName;
     std::string backendname;
     int tkv_size = 0;
+    uint32_t slot_mask = 0;
 
-
-    if (rm->activeGroupDevConfig)
+    if (rm->activeGroupDevConfig) {
         tkv.push_back(std::make_pair(TAG_KEY_SLOT_MASK, rm->activeGroupDevConfig->grp_dev_hwep_cfg.slot_mask));
-    else if (rm->isDeviceMuxConfigEnabled)
-         tkv.push_back(std::make_pair(TAG_KEY_SLOT_MASK, slotMaskLUT.at(dAttr.config.ch_info.channels)));
+    } else if (rm->isDeviceMuxConfigEnabled) {
+         slot_mask = slotMaskLUT.at(dAttr.config.ch_info.channels) |
+                         slotMaskBwLUT.at(dAttr.config.bit_width);
+         tkv.push_back(std::make_pair(TAG_KEY_SLOT_MASK, slot_mask));
+    }
 
     tagConfig = (struct agm_tag_config*)malloc(sizeof(struct agm_tag_config) +
                     (tkv.size() * sizeof(agm_key_value)));
