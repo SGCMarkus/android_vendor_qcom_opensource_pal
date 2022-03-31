@@ -3177,7 +3177,7 @@ int ResourceManager::checkandEnableECForTXStream_l(std::shared_ptr<Device> tx_de
     status = tx_stream->setECRef_l(rx_dev, ec_on);
     mResourceManagerMutex.lock();
     if (status == -ENODEV) {
-        PAL_VERBOSE(LOG_TAG, "operation is not supported by device, error: %s.", status);
+        PAL_VERBOSE(LOG_TAG, "operation is not supported by device, error: %d.", status);
         status = 0;
     } else if (status && ec_on) {
         // reset ec map if set ec failed for tx device
@@ -3270,7 +3270,7 @@ int ResourceManager::checkandEnableECForRXStream_l(std::shared_ptr<Device> rx_de
             if (status != 0 && ec_on) {
                 if (status == -ENODEV) {
                     status = 0;
-                    PAL_VERBOSE(LOG_TAG, "operation is not supported by device, error: %s", status);
+                    PAL_VERBOSE(LOG_TAG, "operation is not supported by device, error: %d", status);
                 }
                 // decrease ec ref count if ec ref set failure
                 updateECDeviceMap(rx_dev, tx_devices[0], tx_stream, 0, false);
