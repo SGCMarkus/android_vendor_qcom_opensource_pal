@@ -6186,6 +6186,8 @@ void ResourceManager::getSharedBEActiveStreamDevs(std::vector <std::tuple<Stream
     std::string backEndName;
     std::shared_ptr<Device> dev;
     std::vector <Stream *> activeStreams;
+    std::vector <std::tuple<Stream *, uint32_t>>::iterator sIter;
+    bool dup = false;
 
     if (isValidDevId(dev_id) && (dev_id != PAL_DEVICE_NONE))
         backEndName = listAllBackEndIds[dev_id].second;
@@ -6196,9 +6198,20 @@ void ResourceManager::getSharedBEActiveStreamDevs(std::vector <std::tuple<Stream
                 getActiveStream_l(activeStreams, dev);
                 PAL_DBG(LOG_TAG, "got dev %d active streams on dev is %zu", i, activeStreams.size() );
                 for (int j=0; j < activeStreams.size(); j++) {
-                    activeStreamsDevices.push_back({activeStreams[j], i});
-                    PAL_DBG(LOG_TAG, "found shared BE stream %pK with dev %d", activeStreams[j], i );
+                    /*do not add if this is a dup*/
+                    for (sIter = activeStreamsDevices.begin(); sIter != activeStreamsDevices.end(); sIter++) {
+                        if ((std::get<0>(*sIter)) == activeStreams[j] &&
+                            (std::get<1>(*sIter)) == dev->getSndDeviceId()){
+                            dup = true;
+                        }
+                    }
+                    if (!dup) {
+                        activeStreamsDevices.push_back({activeStreams[j], dev->getSndDeviceId()});
+                        PAL_DBG(LOG_TAG, "found shared BE stream %pK with dev %d", activeStreams[j], dev->getSndDeviceId() );
+                    }
+                    dup = false;
                 }
+
             }
             activeStreams.clear();
         }
@@ -8204,6 +8217,13 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                 PAL_ERR(LOG_TAG, "set Parameter %d failed\n", param_id);
                 goto exit;
             }
+
+            /*
+             * Create audio patch request is not expected for HFP client call.
+             * Do not move active streams to sco device.
+             */
+            if (param_bt_sco->is_bt_hfp)
+                goto exit;
 
             /* When BT_SCO = ON received, make sure route all the active streams to
              * SCO devices in order to avoid any potential delay with create audio
