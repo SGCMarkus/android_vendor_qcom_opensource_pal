@@ -281,6 +281,7 @@ int32_t StreamCompress::stop()
         mStreamMutex.unlock();
         rm->lockActiveStream();
         mStreamMutex.lock();
+        currentState = STREAM_STOPPED;
         for (int i = 0; i < mDevices.size(); i++) {
             rm->deregisterDevice(mDevices[i], this);
         }
@@ -313,7 +314,6 @@ int32_t StreamCompress::stop()
             PAL_ERR(LOG_TAG, "invalid direction %d", mStreamAttr->direction);
             break;
         }
-        currentState = STREAM_STOPPED;
     } else if (currentState == STREAM_STOPPED || currentState == STREAM_IDLE) {
         PAL_INFO(LOG_TAG, "Stream is already stopped, state %d", currentState);
         goto exit;
@@ -769,6 +769,8 @@ exit:
 int32_t StreamCompress::pause()
 {
     int32_t status = 0;
+
+    std::lock_guard<std::mutex> lck(mStreamMutex);
     status = pause_l();
 
     return status;
@@ -804,6 +806,8 @@ exit:
 int32_t StreamCompress::resume()
 {
     int32_t status = 0;
+
+    std::lock_guard<std::mutex> lck(mStreamMutex);
     status = resume_l();
 
     return status;
