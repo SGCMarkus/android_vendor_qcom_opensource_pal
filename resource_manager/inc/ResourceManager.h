@@ -465,6 +465,9 @@ private:
     int checkandEnableECForTXStream_l(std::shared_ptr<Device> tx_dev, Stream *tx_stream, bool ec_enable);
     int checkandEnableECForRXStream_l(std::shared_ptr<Device> rx_dev, Stream *rx_stream, bool ec_enable);
     int checkandEnableEC_l(std::shared_ptr<Device> d, Stream *s, bool enable);
+    void onChargingStateChange();
+    void onVUIStreamRegistered();
+    void onVUIStreamDeregistered();
 protected:
     std::list <Stream*> mActiveStreams;
     std::list <StreamPCM*> active_streams_ll;
@@ -493,6 +496,7 @@ protected:
     bool charging_state_;
     bool is_charger_online_;
     bool is_concurrent_boost_state_;
+    bool use_lpi_;
     bool current_concurrent_state_;
     pal_speaker_rotation_type rotation_type_;
     bool isDeviceSwitch = false;
@@ -763,6 +767,7 @@ public:
     bool GetChargingState() const { return charging_state_; }
     bool getChargerOnlineState(void) const { return is_charger_online_; }
     bool getConcurrentBoostState(void) const { return is_concurrent_boost_state_; }
+    bool getLPIUsage() const { return use_lpi_; }
     bool CheckForForcedTransitToNonLPI();
     void GetVoiceUIProperties(struct pal_st_properties *qstp);
     int HandleDetectionStreamAction(pal_stream_type_t type, int32_t action, void *data);
