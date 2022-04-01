@@ -175,7 +175,6 @@ int ECRefDevice::start()
         goto error;
     }
 
-start:
     status = Device::start();
 
 error:
