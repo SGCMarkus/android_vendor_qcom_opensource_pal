@@ -2693,7 +2693,6 @@ int PayloadBuilder::populateDeviceKVTunnel(Stream* s, int32_t beDevId,
         retrieveKVs(filled_selector_pairs, beDevId, all_devices, keyVector);
     }
 
-exit:
     PAL_INFO(LOG_TAG, "Exit device id:%d, status %d", beDevId, status);
     return status;
 }
