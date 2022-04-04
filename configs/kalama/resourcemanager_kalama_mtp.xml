@@ -806,6 +806,15 @@
             <samplerate>96000</samplerate>
             <bit_width>16</bit_width>
         </out-device>
+        <out-device>
+            <id>PAL_DEVICE_OUT_ULTRASOUND_DEDICATED</id>
+            <back_end_name>CODEC_DMA-LPAIF_WSA-RX-1</back_end_name>
+            <max_channels>2</max_channels>
+            <channels>1</channels>
+            <snd_device_name>ultrasound-handset</snd_device_name>
+            <samplerate>96000</samplerate>
+            <bit_width>16</bit_width>
+        </out-device>
     </device_profile>
     <in_streams>
         <in_stream>

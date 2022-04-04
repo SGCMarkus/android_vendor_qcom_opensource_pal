@@ -172,6 +172,7 @@ std::shared_ptr<Device> Device::getInstance(struct pal_device *device,
         return FMDevice::getInstance(device, Rm);
     case PAL_DEVICE_IN_ULTRASOUND_MIC:
     case PAL_DEVICE_OUT_ULTRASOUND:
+    case PAL_DEVICE_OUT_ULTRASOUND_DEDICATED:
         PAL_VERBOSE(LOG_TAG, "Ultrasound device");
         return UltrasoundDevice::getInstance(device, Rm);
     case PAL_DEVICE_IN_EXT_EC_REF:
@@ -244,6 +245,7 @@ std::shared_ptr<Device> Device::getObject(pal_device_id_t dev_id)
         return FMDevice::getObject();
     case PAL_DEVICE_IN_ULTRASOUND_MIC:
     case PAL_DEVICE_OUT_ULTRASOUND:
+    case PAL_DEVICE_OUT_ULTRASOUND_DEDICATED:
         PAL_VERBOSE(LOG_TAG, "Ultrasound device %d", dev_id);
         return UltrasoundDevice::getObject(dev_id);
     case PAL_DEVICE_IN_EXT_EC_REF:

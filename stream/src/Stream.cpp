@@ -140,8 +140,10 @@ Stream* Stream::create(struct pal_stream_attributes *sAttr, struct pal_device *d
 
         if (sAttr->type == PAL_STREAM_ULTRASOUND) {
             if (i == 0) { // first assign output device
-                if (rm->IsDedicatedBEForUPDEnabled())
+                if (rm->isGroupConfigAvailable(GRP_UPD_RX))
                     dAttr[i].id = PAL_DEVICE_OUT_ULTRASOUND;
+                else if (rm->IsDedicatedBEForUPDEnabled())
+                    dAttr[i].id = PAL_DEVICE_OUT_ULTRASOUND_DEDICATED;
                 else
                     dAttr[i].id = PAL_DEVICE_OUT_HANDSET;
             } else { // then assign input device
