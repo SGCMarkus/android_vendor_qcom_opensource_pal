@@ -8681,7 +8681,7 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                 status = -EINVAL;
                 goto exit;
             }
-            PAL_DBG(LOG_TAG, "set mspp linear gain %ld (0x%x)", linear_gain->gain, linear_gain->gain);
+            PAL_DBG(LOG_TAG, "set mspp linear gain (0x%x)", linear_gain->gain);
             rm->linear_gain.gain =  linear_gain->gain;
             for (int i = 0; i < active_devices.size(); i++) {
                 int deviceId = active_devices[i].first->getSndDeviceId();
