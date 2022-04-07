@@ -1329,4 +1329,7 @@
         <path name="headset-mic" />
     </path>
 
+    <path name="echo-ref-record">
+    </path>
+
 </mixer>
