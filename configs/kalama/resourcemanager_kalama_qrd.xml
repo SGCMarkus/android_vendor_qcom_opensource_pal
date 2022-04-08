@@ -236,6 +236,22 @@
             <usecase>
                 <name>PAL_STREAM_DEEP_BUFFER</name>
                 <ec_enable>1</ec_enable>
+                <custom-config key="unprocessed-hdr-mic-landscape">
+                    <channels>4</channels>
+                    <snd_device_name>unprocessed-hdr-mic-landscape</snd_device_name>
+                </custom-config>
+                <custom-config key="unprocessed-hdr-mic-portrait">
+                    <channels>4</channels>
+                    <snd_device_name>unprocessed-hdr-mic-portrait</snd_device_name>
+                </custom-config>
+                <custom-config key="unprocessed-hdr-mic-inverted-landscape">
+                    <channels>4</channels>
+                    <snd_device_name>unprocessed-hdr-mic-inverted-landscape</snd_device_name>
+                </custom-config>
+                <custom-config key="unprocessed-hdr-mic-inverted-portrait">
+                    <channels>4</channels>
+                    <snd_device_name>unprocessed-hdr-mic-inverted-portrait</snd_device_name>
+                </custom-config>
             </usecase>
         <!--Uncomment these lines instead of above lines if needing to enable EC per custom key
             <usecase>
