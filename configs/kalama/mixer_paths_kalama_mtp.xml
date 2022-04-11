@@ -196,6 +196,11 @@
     <ctl name="ADC3 Volume" value="12" />
     <ctl name="ADC4 Volume" value="12" />
 
+    <ctl name="VA_DEC0 Volume" value="84" />
+    <ctl name="VA_DEC1 Volume" value="84" />
+    <ctl name="VA_DEC2 Volume" value="84" />
+    <ctl name="VA_DEC3 Volume" value="84" />
+
     <!-- Compander controls -->
     <ctl name="WSA_COMP1 Switch" value="0" />
     <ctl name="WSA_COMP2 Switch" value="0" />
