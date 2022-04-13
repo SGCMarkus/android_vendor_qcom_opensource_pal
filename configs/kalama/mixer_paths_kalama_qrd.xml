@@ -751,6 +751,7 @@
         <ctl name="ADC4 ChMap" value="SWRM_TX3_CH2" />
         <ctl name="ADC4 MUX" value="INP5" />
         <ctl name="ADC4_MIXER Switch" value="1" />
+        <ctl name="ADC4 Volume" value="10" />
         <ctl name="VA_AMIC5_MIXER Switch" value="1" />
     </path>
 
@@ -770,6 +771,8 @@
         <ctl name="ADC1 ChMap" value="SWRM_TX2_CH1" />
         <ctl name="ADC4_MIXER Switch" value="1" />
         <ctl name="ADC1_MIXER Switch" value="1" />
+        <ctl name="ADC1 Volume" value="10" />
+        <ctl name="ADC4 Volume" value="10" />
         <ctl name="VA_AMIC5_MIXER Switch" value="1" />
         <ctl name="VA_AMIC1_MIXER Switch" value="1" />
     </path>
@@ -799,6 +802,9 @@
         <ctl name="ADC4_MIXER Switch" value="1" />
         <ctl name="ADC1_MIXER Switch" value="1" />
         <ctl name="ADC2_MIXER Switch" value="1" />
+        <ctl name="ADC1 Volume" value="10" />
+        <ctl name="ADC2 Volume" value="10" />
+        <ctl name="ADC4 Volume" value="10" />
         <ctl name="VA_AMIC5_MIXER Switch" value="1" />
         <ctl name="VA_AMIC1_MIXER Switch" value="1" />
         <ctl name="VA_AMIC3_MIXER Switch" value="1" />
@@ -839,6 +845,10 @@
         <ctl name="ADC1_MIXER Switch" value="1" />
         <ctl name="ADC2_MIXER Switch" value="1" />
         <ctl name="ADC3_MIXER Switch" value="1" />
+        <ctl name="ADC1 Volume" value="10" />
+        <ctl name="ADC2 Volume" value="10" />
+        <ctl name="ADC3 Volume" value="10" />
+        <ctl name="ADC4 Volume" value="10" />
         <ctl name="VA_AMIC5_MIXER Switch" value="1" />
         <ctl name="VA_AMIC1_MIXER Switch" value="1" />
         <ctl name="VA_AMIC3_MIXER Switch" value="1" />
