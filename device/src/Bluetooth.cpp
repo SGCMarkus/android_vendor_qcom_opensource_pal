@@ -857,7 +857,9 @@ void Bluetooth::startAbr()
                 PAL_ERR(LOG_TAG, "failed to get BtSco singleton object.");
                 goto free_fe;
             }
-        } else if (fbDevice.id == PAL_DEVICE_IN_BLUETOOTH_A2DP) {
+        } else if ((fbDevice.id == PAL_DEVICE_IN_BLUETOOTH_A2DP) ||
+                   (fbDevice.id == PAL_DEVICE_OUT_BLUETOOTH_BLE) ||
+                   (fbDevice.id == PAL_DEVICE_IN_BLUETOOTH_BLE)) {
             fbDev = std::dynamic_pointer_cast<BtA2dp>(BtA2dp::getInstance(&fbDevice, rm));
             if (!fbDev) {
                 PAL_ERR(LOG_TAG, "failed to get BtA2dp singleton object.");
@@ -879,8 +881,9 @@ void Bluetooth::startAbr()
             goto start_pcm;
         }
 
-        if (fbDevice.id == PAL_DEVICE_IN_BLUETOOTH_A2DP) {
-            // set custom configuration for a2dp feedback(tx) path.
+        if ((fbDevice.id == PAL_DEVICE_IN_BLUETOOTH_A2DP) ||
+            (fbDevice.id == PAL_DEVICE_IN_BLUETOOTH_BLE)) {
+            // set custom configuration for a2dp/ble feedback(tx) path.
             /* configure COP v2 depacketizer */
             ret = SessionAlsaUtils::getModuleInstanceId(virtualMixerHandle,
                          fbpcmDevIds.at(0), backEndName.c_str(), COP_DEPACKETIZER_V2, &miid);
@@ -906,8 +909,9 @@ void Bluetooth::startAbr()
                 goto free_fe;
             }
         } else if ((fbDevice.id == PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET) ||
-                (fbDevice.id == PAL_DEVICE_OUT_BLUETOOTH_SCO)) {
-            // set custom configuration for sco bidirectional feedback path.
+                   (fbDevice.id == PAL_DEVICE_OUT_BLUETOOTH_SCO) ||
+                   (fbDevice.id == PAL_DEVICE_OUT_BLUETOOTH_BLE)) {
+            // set custom configuration for sco/ble bidirectional feedback path.
             /* LC3 Encoder & Decoder Module Configuration */
             codecTagId = (codecType == DEC ? BT_PLACEHOLDER_ENCODER : BT_PLACEHOLDER_DECODER);
             ret = SessionAlsaUtils::getModuleInstanceId(virtualMixerHandle,
@@ -921,6 +925,23 @@ void Bluetooth::startAbr()
             if (ret) {
                 PAL_ERR(LOG_TAG, "getPluginPayload failed");
                 goto free_fe;
+            }
+
+            /* In case of BLE stereo recording usecase, only decoder path configs are present
+             * so use the same config for RX feedback path too*/
+            if (!out_buf->sample_rate) {
+
+                codec->close_plugin(codec);
+                codec = NULL;
+                dlclose(pluginLibHandle);
+                pluginLibHandle = NULL;
+
+                ret = getPluginPayload(&pluginLibHandle, &codec, &out_buf, (codecType == DEC ? DEC : ENC));
+
+                if (ret) {
+                    PAL_ERR(LOG_TAG, "getPluginPayload failed");
+                    goto free_fe;
+                }
             }
 
             if (out_buf->num_blks != 1) {
@@ -982,7 +1003,8 @@ void Bluetooth::startAbr()
                     PAL_ERR(LOG_TAG, "Invalid COPv2 module param size");
                     goto free_fe;
                 }
-            } else { /* fbDevice.id == PAL_DEVICE_OUT_BLUETOOTH_SCO */
+            } else { /* fbDevice.id == PAL_DEVICE_OUT_BLUETOOTH_SCO ||
+                      * fbDevice.id == PAL_DEVICE_OUT_BLUETOOTH_BLE*/
                 /* COP v2 PACKETIZER Module Configuration */
                 ret = SessionAlsaUtils::getModuleInstanceId(virtualMixerHandle,
                              fbpcmDevIds.at(0), backEndName.c_str(), COP_PACKETIZER_V2, &miid);
@@ -1619,11 +1641,7 @@ int BtA2dp::start()
 
     status = Device::start_l();
 
-    if (!status && isAbrEnabled &&
-        !((codecFormat == CODEC_TYPE_LC3) &&
-          (codecConfig.sample_rate == SAMPLINGRATE_32K ||
-           codecConfig.sample_rate == SAMPLINGRATE_16K) &&
-           a2dpRole == SINK))
+    if (!status && isAbrEnabled)
         startAbr();
 
 exit:
@@ -1636,11 +1654,7 @@ int BtA2dp::stop()
     int status = 0;
     mDeviceMutex.lock();
 
-    if (isAbrEnabled &&
-        !((codecFormat == CODEC_TYPE_LC3) &&
-          (codecConfig.sample_rate == SAMPLINGRATE_32K ||
-           codecConfig.sample_rate == SAMPLINGRATE_16K) &&
-           a2dpRole == SINK))
+    if (isAbrEnabled)
         stopAbr();
 
     Device::stop_l();
