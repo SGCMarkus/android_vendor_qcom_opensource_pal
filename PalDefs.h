@@ -438,8 +438,9 @@ typedef enum {
     PAL_DEVICE_IN_ULTRASOUND_MIC = PAL_DEVICE_IN_MIN +19,
     PAL_DEVICE_IN_EXT_EC_REF = PAL_DEVICE_IN_MIN + 20,
     PAL_DEVICE_IN_ECHO_REF = PAL_DEVICE_IN_MIN + 21,
+    PAL_DEVICE_IN_HAPTICS_VI_FEEDBACK = PAL_DEVICE_IN_MIN + 22,
     // Add new IN devices here, increment MAX and MIN below when you do so
-    PAL_DEVICE_IN_MAX = PAL_DEVICE_IN_MIN + 22,
+    PAL_DEVICE_IN_MAX = PAL_DEVICE_IN_MIN + 23,
 } pal_device_id_t;
 
 typedef enum {
@@ -463,6 +464,11 @@ typedef enum {
     PAL_STREAM_PROXY_TX_WFD,
     PAL_STREAM_PROXY_TX_TELEPHONY_RX,
 } pal_stream_proxy_tx_type_t;
+
+typedef enum {
+    PAL_STREAM_HAPTICS_TOUCH = 1,
+    PAL_STREAM_HAPTICS_RINGTONE,
+} pal_stream_haptics_type_t;
 
 #ifdef __cplusplus
 static const std::map<std::string, pal_device_id_t> deviceIdLUT {
@@ -509,6 +515,7 @@ static const std::map<std::string, pal_device_id_t> deviceIdLUT {
     {std::string{ "PAL_DEVICE_IN_ULTRASOUND_MIC" },        PAL_DEVICE_IN_ULTRASOUND_MIC},
     {std::string{ "PAL_DEVICE_IN_EXT_EC_REF" },            PAL_DEVICE_IN_EXT_EC_REF},
     {std::string{ "PAL_DEVICE_IN_ECHO_REF" },              PAL_DEVICE_IN_ECHO_REF},
+    {std::string{ "PAL_DEVICE_IN_HAPTICS_VI_FEEDBACK" },   PAL_DEVICE_IN_HAPTICS_VI_FEEDBACK},
 };
 
 //reverse mapping
@@ -555,7 +562,8 @@ static const std::map<uint32_t, std::string> deviceNameLUT {
     {PAL_DEVICE_IN_TELEPHONY_RX,          std::string{"PAL_DEVICE_IN_TELEPHONY_RX"}},
     {PAL_DEVICE_IN_ULTRASOUND_MIC,        std::string{"PAL_DEVICE_IN_ULTRASOUND_MIC"}},
     {PAL_DEVICE_IN_EXT_EC_REF,            std::string{"PAL_DEVICE_IN_EXT_EC_REF"}},
-    {PAL_DEVICE_IN_ECHO_REF,              std::string{"PAL_DEVICE_IN_ECHO_REF"}}
+    {PAL_DEVICE_IN_ECHO_REF,              std::string{"PAL_DEVICE_IN_ECHO_REF"}},
+    {PAL_DEVICE_IN_HAPTICS_VI_FEEDBACK,   std::string{"PAL_DEVICE_IN_HAPTICS_VI_FEEDBACK"}}
 };
 
 const std::map<std::string, uint32_t> usecaseIdLUT {
@@ -631,6 +639,11 @@ const std::map<uint32_t, std::string> loopbackLUT {
     {PAL_STREAM_LOOPBACK_KARAOKE,    std::string{ "PAL_STREAM_LOOPBACK_KARAOKE" }},
 };
 
+const std::map<uint32_t, std::string> hapticsLUT {
+    {PAL_STREAM_HAPTICS_TOUCH,        std::string{ "PAL_STREAM_HAPTICS_TOUCH" } },
+    {PAL_STREAM_HAPTICS_RINGTONE,     std::string{ "PAL_STREAM_HAPTICS_RINGTONE" } },
+};
+
 #endif
 
 
@@ -657,6 +670,7 @@ struct pal_stream_info {
     int32_t loopback_type;              /** used only if stream_type is LOOPBACK. One of the */
                                         /** enums defined in enum pal_stream_loopback_type */
     int32_t tx_proxy_type;   /** enums defined in enum pal_stream_proxy_tx_types */
+    int32_t haptics_type;    /** enums defined in enum pal_sream_haptics_types */
     //pal_audio_attributes_t usage;       /** Not sure if we make use of this */
 };
 
