@@ -1100,7 +1100,7 @@ int32_t Stream::connectStreamDevice_l(Stream* streamHandle, struct pal_device *d
      */
     if (ResourceManager::isChargeConcurrencyEnabled && dev
         && dev->getSndDeviceId() == PAL_DEVICE_OUT_SPEAKER &&
-        !rm->getConcurrentBoostState() && !rm->getLimiterConfigureStatus())
+        !rm->getConcurrentBoostState() && !rm->getInputCurrentLimitorConfigStatus())
         status = rm->chargerListenerSetBoostState(true, PB_ON_CHARGER_INSERT);
 
     PAL_DBG(LOG_TAG, "device %d name %s, going to start",
@@ -1150,7 +1150,7 @@ int32_t Stream::connectStreamDevice_l(Stream* streamHandle, struct pal_device *d
      */
     if (ResourceManager::isChargeConcurrencyEnabled && dev &&
         (dev->getSndDeviceId() == PAL_DEVICE_OUT_SPEAKER) && rm->getConcurrentBoostState()
-        && !rm->getLimiterConfigureStatus() && rm->getChargerOnlineState())
+        && !rm->getInputCurrentLimitorConfigStatus() && rm->getChargerOnlineState())
         status = rm->setSessionParamConfig(PAL_PARAM_ID_CHARGER_STATE, streamHandle,
                                            CHARGE_CONCURRENCY_ON_TAG);
     goto exit;

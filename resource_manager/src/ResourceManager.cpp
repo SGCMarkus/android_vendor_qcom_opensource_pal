@@ -1418,6 +1418,7 @@ int32_t ResourceManager::voteSleepMonitor(Stream *str, bool vote)
   2. Force Device switch from spkr->spkr, to disable PA.
   3. Audio notifies charger driver about concurrency.
   4. StreamDevConnect to enable PA.
+  5. Config ICL for low gain for SPKR.
 */
 int ResourceManager::handlePBChargerInsertion(Stream *stream)
 {
@@ -1522,6 +1523,33 @@ exit:
     return status;
 }
 
+int ResourceManager::handleChargerEvent(Stream *stream, int tag)
+{
+    int status = 0;
+    PAL_DBG(LOG_TAG, "Enter: tag %s", tag == CHARGE_CONCURRENCY_ON_TAG ?
+    "CHARGE_CONCURRENCY_ON_TAG" : "CHARGE_CONCURRENCY_OFF_TAG");
+
+    if (!stream) {
+        PAL_ERR(LOG_TAG, "No Stream opened");
+        status = -EINVAL;
+        goto exit;
+    }
+
+    if (!is_concurrent_boost_state_ && tag == CHARGE_CONCURRENCY_ON_TAG)
+        status = handlePBChargerInsertion(stream);
+    else if (is_concurrent_boost_state_ && tag == CHARGE_CONCURRENCY_OFF_TAG)
+        status = handlePBChargerRemoval(stream);
+    else
+        PAL_DBG(LOG_TAG, "Concurrency state unchanged");
+
+    if (0 != status)
+        PAL_ERR(LOG_TAG, "Failed to notify PMIC: %d", status);
+
+exit:
+    PAL_DBG(LOG_TAG, "Exit status: %d", status);
+    return status;
+}
+
 int ResourceManager::setSessionParamConfig(uint32_t param_id, Stream *stream, int tag)
 {
     int status = 0;
@@ -1545,24 +1573,14 @@ int ResourceManager::setSessionParamConfig(uint32_t param_id, Stream *stream, in
     switch (param_id) {
         case PAL_PARAM_ID_CHARGER_STATE:
         {
-            if (is_concurrent_boost_state_) {
-                status = session->setConfig(stream, MODULE, tag);
-                if (0 != status) {
-                    PAL_ERR(LOG_TAG, "Failed to setConfig with status %d", status);
-                    goto exit;
-                }
-                is_limiter_configured_ = (tag == CHARGE_CONCURRENCY_ON_TAG) ? true : false ;
+            if (!is_concurrent_boost_state_) goto exit;
+
+            status = session->setConfig(stream, MODULE, tag);
+            if (0 != status) {
+                PAL_ERR(LOG_TAG, "Failed to setConfig with status %d", status);
+                goto exit;
             }
-
-            if (!is_concurrent_boost_state_ && tag == CHARGE_CONCURRENCY_ON_TAG)
-                status = handlePBChargerInsertion(stream);
-            else if (is_concurrent_boost_state_ && tag == CHARGE_CONCURRENCY_OFF_TAG)
-                status = handlePBChargerRemoval(stream);
-            else
-                PAL_DBG(LOG_TAG, "Concurrency state unchanged");
-
-            if (0 != status)
-                PAL_ERR(LOG_TAG, "Failed to notify PMIC: %d", status);
+            is_ICL_config_ = (tag == CHARGE_CONCURRENCY_ON_TAG) ? true : false ;
         }
         break;
         default:
@@ -1686,7 +1704,7 @@ int ResourceManager::chargerListenerSetBoostState(bool state, charger_boost_mode
             break;
             case CONCURRENCY_PB_STOPS:
                 if (!state && is_concurrent_boost_state_) {
-                     is_limiter_configured_ = false;
+                     is_ICL_config_ = false;
                      goto notify_charger;
                  }
             break;
@@ -1710,7 +1728,7 @@ exit:
 void ResourceManager::chargerListenerFeatureInit()
 {
     is_concurrent_boost_state_ = false;
-    is_limiter_configured_ = false;
+    is_ICL_config_ = false;
     ResourceManager::chargerListenerInit(onChargerListenerStatusChanged);
 }
 
@@ -8147,8 +8165,16 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                         }
                         stream = static_cast<Stream*>(activestreams[0]);
                         mResourceManagerMutex.unlock();
-                        status = setSessionParamConfig(param_id, stream, tag);
-                         mResourceManagerMutex.lock();
+                        /*
+                         When charger is offline, reconfig ICL at normal gain first then
+                         handle charger event, Otherwise for charger online case handle
+                         charger event and then set config as part of device switch.
+                        */
+                        if (tag == CHARGE_CONCURRENCY_OFF_TAG)
+                            status = setSessionParamConfig(param_id, stream, tag);
+                        if (0 == status)
+                            status = handleChargerEvent(stream, tag);
+                        mResourceManagerMutex.lock();
                         if (0 != status)
                             PAL_ERR(LOG_TAG, "SetSession Param config failed %d", status);
                         break;
