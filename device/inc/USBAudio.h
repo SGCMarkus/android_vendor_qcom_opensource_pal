@@ -37,7 +37,7 @@
 #include <tinyalsa/asoundlib.h>
 #include <vector>
 
-#define USB_BUFF_SIZE           2048
+#define USB_BUFF_SIZE           4096
 #define CHANNEL_NUMBER_STR      "Channels: "
 #define PLAYBACK_PROFILE_STR    "Playback:"
 #define CAPTURE_PROFILE_STR     "Capture:"
@@ -97,6 +97,7 @@ protected:
     struct pal_usb_device_address address_;
     int endian_;
     std::vector <std::shared_ptr<USBDeviceConfig>> usb_device_config_list_;
+    void usb_info_dump(char* read_buf, int type);
 public:
     USBCardConfig(struct pal_usb_device_address address);
     bool isConfigCached(struct pal_usb_device_address addr);
