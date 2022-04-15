@@ -661,16 +661,12 @@ int SessionAlsaUtils::rwACDBTunnel(Stream * streamHandle, std::shared_ptr<Resour
     uint32_t i;
     PayloadBuilder* builder = nullptr;
     struct vsid_info vsidDummy;
-    std::string acdbMixerName = "setACDBTunnel";
+    std::string acdbSetMixerName = "setACDBTunnel";
+    std::string acdbGetMixerName = "getACDBTunnel";
     uint8_t *payloadData = NULL;
     agm_acdb_param *effectACDBPayload = nullptr;
     pal_param_payload *paramPayload = nullptr;
     size_t payloadSize = 0;
-
-    if (!isParamWrite) {
-        PAL_ERR(LOG_TAG, "ACDB parameter read is not supported now.");
-        return -EINVAL;
-    }
 
     paramPayload = (pal_param_payload *)payload;
     if (!paramPayload)
@@ -767,8 +763,14 @@ int SessionAlsaUtils::rwACDBTunnel(Stream * streamHandle, std::shared_ptr<Resour
         goto freePaylodData;
     }
 
-    acdbMixerCtrl = SessionAlsaUtils::getStaticMixerControl(mixerHandle,
-        acdbMixerName);
+    if (isParamWrite) {
+        acdbMixerCtrl = SessionAlsaUtils::getStaticMixerControl(mixerHandle,
+                            acdbSetMixerName);
+    } else {
+        acdbMixerCtrl = SessionAlsaUtils::getStaticMixerControl(mixerHandle,
+                            acdbGetMixerName);
+    }
+
     if (!acdbMixerCtrl) {
         PAL_ERR(LOG_TAG, "invalid mixer control");
         status = -EINVAL;
@@ -776,9 +778,35 @@ int SessionAlsaUtils::rwACDBTunnel(Stream * streamHandle, std::shared_ptr<Resour
     }
 
     /* set mixer controls */
-    if (payloadSize) {
+    if (payloadSize)
         status = mixer_ctl_set_array(acdbMixerCtrl, payloadData,
                 payloadSize);
+
+    if (!isParamWrite && !status) {
+        // parameter read. payloadData is used as reading buffer now
+        status = mixer_ctl_get_array(acdbMixerCtrl, payloadData, payloadSize);
+
+        struct agm_acdb_tunnel_param *newPayloadACDBTunnelInfo =
+            (struct agm_acdb_tunnel_param *)payloadData;
+        PAL_INFO(LOG_TAG, "istkv=0x%x tag=0x%x gkv=0x%x kv = 0x%x blob_size=0x%x",
+                    newPayloadACDBTunnelInfo->isTKV,
+                    newPayloadACDBTunnelInfo->tag,
+                    newPayloadACDBTunnelInfo->num_gkvs,
+                    newPayloadACDBTunnelInfo->num_kvs,
+                    newPayloadACDBTunnelInfo->blob_size);
+
+        uint8_t *ptrBuffer = nullptr;
+        ptrBuffer = newPayloadACDBTunnelInfo->blob +
+            (newPayloadACDBTunnelInfo->num_gkvs + newPayloadACDBTunnelInfo->num_kvs) *
+            sizeof(pal_key_value_pair_t) + sizeof(struct apm_module_param_data_t);
+        payloadSize = effectACDBPayload->blob_size -
+            effectACDBPayload->num_kvs * sizeof(pal_key_value_pair_t) -
+            sizeof(pal_effect_custom_payload_t);
+        PAL_DBG(LOG_TAG, "payload size = 0x%x", payloadSize);
+        ar_mem_cpy((uint8_t *)(effectACDBPayload->blob +
+            sizeof(pal_effect_custom_payload_t) +
+            effectACDBPayload->num_kvs * sizeof(pal_key_value_pair_t)),
+            payloadSize, ptrBuffer, payloadSize);
     }
 
 freePaylodData:
