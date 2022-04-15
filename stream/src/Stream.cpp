@@ -1637,3 +1637,67 @@ void Stream::handleStreamException(struct pal_stream_attributes *attributes,
     }
 }
 
+/* GetPalDevice only applies to Sound Trigger streams */
+std::shared_ptr<Device> Stream::GetPalDevice(Stream *streamHandle, pal_device_id_t dev_id)
+{
+    std::shared_ptr<CaptureProfile> cap_prof = nullptr;
+    std::shared_ptr<Device> device = nullptr;
+    StreamSoundTrigger *st_st = nullptr;
+    StreamACD *st_acd = nullptr;
+    StreamSensorPCMData *st_sns_pcm_data = nullptr;
+    struct pal_device dev;
+
+    if (!streamHandle) {
+        PAL_ERR(LOG_TAG, "Stream is invalid");
+        goto exit;
+    }
+
+    if (!mStreamAttr) {
+        PAL_ERR(LOG_TAG, "stream attribute is null");
+        goto exit;
+    }
+
+    PAL_DBG(LOG_TAG, "Enter, Stream: %d, device_id: %d", mStreamAttr->type, dev_id);
+
+    /* Use the rm's common capture profile */
+    cap_prof = rm->GetSoundTriggerCaptureProfile();
+
+    /* Fall back to stream’s local capture profile if common capture profile is NULL */
+    if (!cap_prof) {
+        PAL_DBG(LOG_TAG, "Failed to get common capture profile for Stream %d", mStreamAttr->type);
+        if (mStreamAttr->type == PAL_STREAM_VOICE_UI) {
+            st_st = dynamic_cast<StreamSoundTrigger*>(streamHandle);
+            cap_prof = st_st->GetCurrentCaptureProfile();
+        } else if (mStreamAttr->type == PAL_STREAM_ACD) {
+            st_acd = dynamic_cast<StreamACD*>(streamHandle);
+            cap_prof = st_acd->GetCurrentCaptureProfile();
+        } else {
+            st_sns_pcm_data = dynamic_cast<StreamSensorPCMData*>(streamHandle);
+            cap_prof = st_sns_pcm_data->GetCurrentCaptureProfile();
+        }
+
+        if (!cap_prof) {
+            PAL_ERR(LOG_TAG, "Error:Failed to get local capture profile for Stream %d", mStreamAttr->type);
+            goto exit;
+        }
+    }
+
+    dev.id = dev_id;
+    dev.config.bit_width = cap_prof->GetBitWidth();
+    dev.config.ch_info.channels = cap_prof->GetChannels();
+    dev.config.sample_rate = cap_prof->GetSampleRate();
+    dev.config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S16_LE;
+
+    device = Device::getInstance(&dev, rm);
+    if (!device) {
+        PAL_ERR(LOG_TAG, "Failed to get device instance");
+        goto exit;
+    }
+
+    device->setDeviceAttributes(dev);
+    device->setSndName(cap_prof->GetSndName());
+
+exit:
+    PAL_DBG(LOG_TAG, "Exit");
+    return device;
+}

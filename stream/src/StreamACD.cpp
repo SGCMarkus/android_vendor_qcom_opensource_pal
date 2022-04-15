@@ -657,43 +657,6 @@ int32_t StreamACD::ConnectDevice(pal_device_id_t device_id) {
     return status;
 }
 
-std::shared_ptr<Device> StreamACD::GetPalDevice(pal_device_id_t dev_id, bool use_rm_profile)
-{
-    std::shared_ptr<CaptureProfile> cap_prof = nullptr;
-    std::shared_ptr<Device> device = nullptr;
-    struct pal_device dev;
-
-    dev.id = dev_id;
-
-    if (use_rm_profile) {
-        /* TODO : Select profile based on priority */
-        cap_prof = GetCurrentCaptureProfile();
-    } else {
-        cap_prof = GetCurrentCaptureProfile();
-    }
-    if (!cap_prof) {
-        PAL_ERR(LOG_TAG, "Error:Failed to get capture profile");
-        goto exit;
-    }
-
-    dev.config.bit_width = cap_prof->GetBitWidth();
-    dev.config.ch_info.channels = cap_prof->GetChannels();
-    dev.config.sample_rate = cap_prof->GetSampleRate();
-    dev.config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S16_LE;
-
-    device = Device::getInstance(&dev, rm);
-    if (!device) {
-        PAL_ERR(LOG_TAG, "Error:%d Failed to get device instance", -EINVAL);
-        goto exit;
-    }
-
-    device->setDeviceAttributes(dev);
-    device->setSndName(cap_prof->GetSndName());
-
-exit:
-    return device;
-}
-
 void StreamACD::AddState(ACDState* state)
 {
    acd_states_.insert(std::make_pair(state->GetStateId(), state));
@@ -813,7 +776,7 @@ int32_t StreamACD::SetupDetectionEngine()
     dev_id = GetAvailCaptureDevice();
     PAL_DBG(LOG_TAG, "Select available caputre device %d", dev_id);
 
-    dev = GetPalDevice(dev_id, false);
+    dev = GetPalDevice(this, dev_id);
     if (!dev) {
         status = -EINVAL;
         PAL_ERR(LOG_TAG, "Error:%d Device creation is failed", status);
@@ -1107,7 +1070,7 @@ int32_t StreamACD::ACDIdle::ProcessEvent(
                 (ACDDeviceConnectedEventConfigData *)ev_cfg->data_.get();
             pal_device_id_t dev_id = data->dev_id_;
 
-            dev = acd_stream_.GetPalDevice(dev_id, false);
+            dev = acd_stream_.GetPalDevice(&acd_stream_, dev_id);
             if (!dev) {
                 status = -EINVAL;
                 PAL_ERR(LOG_TAG, "Error:%d Device creation failed", status);
@@ -1296,7 +1259,7 @@ int32_t StreamACD::ACDLoaded::ProcessEvent(
                 (ACDDeviceConnectedEventConfigData *)ev_cfg->data_.get();
             pal_device_id_t dev_id = data->dev_id_;
 
-            dev = acd_stream_.GetPalDevice(dev_id, false);
+            dev = acd_stream_.GetPalDevice(&acd_stream_, dev_id);
             if (!dev) {
                 status = -EINVAL;
                 PAL_ERR(LOG_TAG, "Error:%d Dev creation failed", status);
@@ -1570,7 +1533,7 @@ int32_t StreamACD::ACDActive::ProcessEvent(
             pal_device_id_t dev_id = data->dev_id_;
             std::shared_ptr<Device> dev = nullptr;
 
-            dev = acd_stream_.GetPalDevice(dev_id, false);
+            dev = acd_stream_.GetPalDevice(&acd_stream_, dev_id);
             if (!dev) {
                 PAL_ERR(LOG_TAG, "Error:%d Device creation failed", -EINVAL);
                 status = -EINVAL;

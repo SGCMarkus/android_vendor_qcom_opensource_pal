@@ -166,7 +166,6 @@ protected:
     static std::mutex pauseMutex;
     bool mutexLockedbyRm = false;
     bool mDutyCycleEnable = false;
-    int connectToDefaultDevice(Stream* streamHandle, uint32_t dir);
 public:
     virtual ~Stream() {};
     struct pal_volume_data* mVolumeData = NULL;
@@ -276,6 +275,8 @@ public:
         mStreamMutex.unlock();
     };
     bool isMutexLockedbyRm() { return mutexLockedbyRm; }
+    /* GetPalDevice only applies to Sound Trigger streams */
+    std::shared_ptr<Device> GetPalDevice(Stream *streamHandle, pal_device_id_t dev_id);
 };
 
 class StreamNonTunnel : public Stream

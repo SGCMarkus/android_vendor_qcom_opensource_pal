@@ -155,9 +155,6 @@ public:
 
     std::shared_ptr<CaptureProfile> GetCurrentCaptureProfile();
     SoundModelInfo* GetSoundModelInfo() { return sm_info_; };
-    std::shared_ptr<Device> GetPalDevice(pal_device_id_t dev_id,
-                                         struct pal_device *dev,
-                                         bool use_rm_profile);
     int32_t DisconnectDevice(pal_device_id_t device_id) override;
     int32_t ConnectDevice(pal_device_id_t device_id) override;
     int32_t Resume() override;
