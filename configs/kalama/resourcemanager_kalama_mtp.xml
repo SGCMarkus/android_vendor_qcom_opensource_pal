@@ -383,7 +383,6 @@
             <max_channels>1</max_channels>
             <channels>1</channels>
             <samplerate>48000</samplerate>
-            <bit_width>16</bit_width>
             <ec_enable>0</ec_enable>
             <snd_device_name>usb-headset-mic</snd_device_name>
             <usecase>
