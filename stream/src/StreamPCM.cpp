@@ -63,7 +63,6 @@ StreamPCM::StreamPCM(const struct pal_stream_attributes *sattr, struct pal_devic
     inBufCount = NO_OF_BUF;
     outBufCount = NO_OF_BUF;
     mDevices.clear();
-    mPalDevice.clear();
     currentState = STREAM_IDLE;
     //Modify cached values only at time of SSR down.
     cachedState = STREAM_IDLE;
@@ -138,6 +137,8 @@ StreamPCM::StreamPCM(const struct pal_stream_attributes *sattr, struct pal_devic
             mStreamMutex.unlock();
             throw std::runtime_error("failed to create device object");
         }
+        dev->insertStreamDeviceAttr(&dattr[i], this);
+        mPalDevices.push_back(dev);
         mStreamMutex.unlock();
         isDeviceConfigUpdated = rm->updateDeviceConfig(&dev, &dattr[i], sattr);
         mStreamMutex.lock();
@@ -149,7 +150,6 @@ StreamPCM::StreamPCM(const struct pal_stream_attributes *sattr, struct pal_devic
         /* this will have issues if same device is being currently used by different stream */
        // dev->setDeviceAttributes((struct pal_device)dattr[i]);
         mDevices.push_back(dev);
-        mPalDevice.push_back(dattr[i]);
         dev = nullptr;
     }
 
@@ -211,7 +211,7 @@ int32_t  StreamPCM::open()
 
             if (checkDeviceCustomKeyForDualMono) {
                 struct pal_device deviceAttribute;
-                ret = mDevices[i]->getDeviceAttributes(&deviceAttribute);
+                ret = mDevices[i]->getDeviceAttributes(&deviceAttribute, this);
                 if (ret) {
                     PAL_ERR(LOG_TAG, "getDeviceAttributes failed with status %d", ret);
                 }
@@ -312,6 +312,9 @@ StreamPCM::~StreamPCM()
      * and active stream mutex from ResourceManager.
      */
     rm->deregisterStream(this);
+    /* remove the device-stream attribute entry for the stopped stream */
+    for (int32_t i=0; i < mPalDevices.size(); i++)
+        mPalDevices[i]->removeStreamDeviceAttr(this);
     if (mStreamAttr) {
         free(mStreamAttr);
         mStreamAttr = (struct pal_stream_attributes *)NULL;
@@ -327,7 +330,7 @@ StreamPCM::~StreamPCM()
         rm->restoreDevice(mDevices[i]);
 
     mDevices.clear();
-    mPalDevice.clear();
+    mPalDevices.clear();
     delete session;
     session = nullptr;
 }

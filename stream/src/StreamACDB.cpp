@@ -87,7 +87,6 @@ StreamACDB::StreamACDB(const struct pal_stream_attributes *sattr, struct pal_dev
     inBufCount = NO_OF_BUF;
     outBufCount = NO_OF_BUF;
     mDevices.clear();
-    mPalDevice.clear();
     currentState = STREAM_IDLE;
     //Modify cached values only at time of SSR down.
     cachedState = STREAM_IDLE;
@@ -155,7 +154,6 @@ StreamACDB::~StreamACDB()
     }
 
     mDevices.clear();
-    mPalDevice.clear();
     delete session;
     session = nullptr;
 }

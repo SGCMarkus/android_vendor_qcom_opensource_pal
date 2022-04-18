@@ -1,5 +1,6 @@
 /*
 * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+* Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -425,7 +426,7 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
                     emptyKV);
         else {
             for (i = 0; i < associatedDevices.size(); i++) {
-                associatedDevices[i]->getDeviceAttributes(&dAttr);
+                associatedDevices[i]->getDeviceAttributes(&dAttr, streamHandle);
                 if (be->first == dAttr.id) {
                     break;
                 }
@@ -1449,7 +1450,7 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
     status = rmHandle->getVirtualAudioMixer(&mixerHandle);
     // get keyvalue pair info
     for (i = 0; i < associatedDevices.size(); i++) {
-        associatedDevices[i]->getDeviceAttributes(&dAttr);
+        associatedDevices[i]->getDeviceAttributes(&dAttr, streamHandle);
         if (txBackEnds[0].first == dAttr.id) {
             isDeviceFound = true;
             break;

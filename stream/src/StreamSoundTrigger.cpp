@@ -128,7 +128,6 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
     sm_info_ = nullptr;
     sm_cfg_ = nullptr;
     mDevices.clear();
-    mPalDevice.clear();
 
     // Setting default volume to unity
     mVolumeData = (struct pal_volume_data *)malloc(sizeof(struct pal_volume_data)
@@ -156,10 +155,6 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
     if (!dattr) {
         PAL_ERR(LOG_TAG,"Error:invalid device arguments");
         throw std::runtime_error("invalid device arguments");
-    }
-
-    for (int i=0; i < no_of_devices; i++) {
-        mPalDevice.push_back(dattr[i]);
     }
 
     mStreamAttr = (struct pal_stream_attributes *)calloc(1,
