@@ -139,8 +139,10 @@ close_stream:
 exit:
      if (param_payload)
         free(param_payload);
-     if (stream_attributes)
+     if (stream_attributes) {
         free(stream_attributes);
+        stream_attributes = NULL;
+     }
      return status;
 }
 
