@@ -227,6 +227,7 @@ std::vector<std::pair<int32_t, std::string>> ResourceManager::deviceLinkName {
     {PAL_DEVICE_OUT_BLUETOOTH_SCO,        {std::string{ "" }}},
     {PAL_DEVICE_OUT_BLUETOOTH_A2DP,       {std::string{ "" }}},
     {PAL_DEVICE_OUT_BLUETOOTH_BLE,        {std::string{ "" }}},
+    {PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST,{std::string{ "" }}},
     {PAL_DEVICE_OUT_AUX_DIGITAL,          {std::string{ "" }}},
     {PAL_DEVICE_OUT_HDMI,                 {std::string{ "" }}},
     {PAL_DEVICE_OUT_USB_DEVICE,           {std::string{ "" }}},
@@ -277,6 +278,7 @@ std::vector<std::pair<int32_t, int32_t>> ResourceManager::devicePcmId {
     {PAL_DEVICE_OUT_BLUETOOTH_SCO,        0},
     {PAL_DEVICE_OUT_BLUETOOTH_A2DP,       0},
     {PAL_DEVICE_OUT_BLUETOOTH_BLE,        0},
+    {PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST, 0},
     {PAL_DEVICE_OUT_AUX_DIGITAL,          0},
     {PAL_DEVICE_OUT_HDMI,                 0},
     {PAL_DEVICE_OUT_USB_DEVICE,           0},
@@ -328,6 +330,7 @@ std::vector<std::pair<int32_t, std::string>> ResourceManager::sndDeviceNameLUT {
     {PAL_DEVICE_OUT_BLUETOOTH_SCO,        {std::string{ "" }}},
     {PAL_DEVICE_OUT_BLUETOOTH_A2DP,       {std::string{ "" }}},
     {PAL_DEVICE_OUT_BLUETOOTH_BLE,        {std::string{ "" }}},
+    {PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST, {std::string{ "" }}},
     {PAL_DEVICE_OUT_AUX_DIGITAL,          {std::string{ "" }}},
     {PAL_DEVICE_OUT_HDMI,                 {std::string{ "" }}},
     {PAL_DEVICE_OUT_USB_DEVICE,           {std::string{ "" }}},
@@ -579,6 +582,7 @@ std::vector<std::pair<int32_t, std::string>> ResourceManager::listAllBackEndIds 
     {PAL_DEVICE_OUT_BLUETOOTH_SCO,        {std::string{ "" }}},
     {PAL_DEVICE_OUT_BLUETOOTH_A2DP,       {std::string{ "" }}},
     {PAL_DEVICE_OUT_BLUETOOTH_BLE,        {std::string{ "" }}},
+    {PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST, {std::string{ "" }}},
     {PAL_DEVICE_OUT_AUX_DIGITAL,          {std::string{ "" }}},
     {PAL_DEVICE_OUT_HDMI,                 {std::string{ "" }}},
     {PAL_DEVICE_OUT_USB_DEVICE,           {std::string{ "" }}},
@@ -2141,6 +2145,7 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
         case PAL_DEVICE_IN_BLUETOOTH_A2DP:
         case PAL_DEVICE_OUT_BLUETOOTH_BLE:
         case PAL_DEVICE_IN_BLUETOOTH_BLE:
+        case PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST:
             /*overwride format for a2dp*/
             deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_COMPRESSED;
             break;
@@ -6604,7 +6609,9 @@ int32_t ResourceManager::streamDevSwitch(std::vector <std::tuple<Stream *, uint3
                 ((((*dIter)->id == PAL_DEVICE_OUT_BLUETOOTH_A2DP) &&
                 !isDeviceReady(PAL_DEVICE_OUT_BLUETOOTH_A2DP)) ||
                 (((*dIter)->id == PAL_DEVICE_OUT_BLUETOOTH_BLE) &&
-                !isDeviceReady(PAL_DEVICE_OUT_BLUETOOTH_BLE)))) {
+                !isDeviceReady(PAL_DEVICE_OUT_BLUETOOTH_BLE)) ||
+                (((*dIter)->id == PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST) &&
+                !isDeviceReady(PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST)))) {
             PAL_ERR(LOG_TAG, "a2dp/ble device is not ready for connection, skip device switch");
             status = -ENODEV;
             mActiveStreamMutex.unlock();
@@ -7799,6 +7806,8 @@ int ResourceManager::getParameter(uint32_t param_id, void **param_payload,
                 dattr.id = PAL_DEVICE_OUT_BLUETOOTH_A2DP;
             } else if (isDeviceAvailable(PAL_DEVICE_OUT_BLUETOOTH_BLE)) {
                 dattr.id = PAL_DEVICE_OUT_BLUETOOTH_BLE;
+            } else if (isDeviceAvailable(PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST)) {
+                dattr.id = PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST;
             }
             dev = Device::getInstance(&dattr , rm);
             if (dev) {
@@ -8084,7 +8093,8 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                 if (!status && (device_connection->id == PAL_DEVICE_OUT_BLUETOOTH_A2DP ||
                     device_connection->id == PAL_DEVICE_IN_BLUETOOTH_A2DP ||
                     device_connection->id == PAL_DEVICE_OUT_BLUETOOTH_BLE ||
-                    device_connection->id == PAL_DEVICE_IN_BLUETOOTH_BLE)) {
+                    device_connection->id == PAL_DEVICE_IN_BLUETOOTH_BLE ||
+                    device_connection->id == PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST)) {
                     dattr.id = device_connection->id;
                     dev = Device::getInstance(&dattr, rm);
                     if (dev)
@@ -8540,6 +8550,8 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                 dattr.id = PAL_DEVICE_OUT_BLUETOOTH_A2DP;
             } else if (isDeviceAvailable(PAL_DEVICE_OUT_BLUETOOTH_BLE)) {
                 dattr.id = PAL_DEVICE_OUT_BLUETOOTH_BLE;
+            } else if (isDeviceAvailable(PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST)) {
+                dattr.id = PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST;
             }
             dev = Device::getInstance(&dattr, rm);
             if (dev) {
@@ -9216,6 +9228,7 @@ int ResourceManager::handleDeviceConnectionChange(pal_param_device_connection_t 
 
         if (device_id == PAL_DEVICE_OUT_BLUETOOTH_A2DP ||
             device_id == PAL_DEVICE_IN_BLUETOOTH_A2DP ||
+            device_id == PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST ||
             device_id == PAL_DEVICE_OUT_BLUETOOTH_BLE ||
             device_id == PAL_DEVICE_IN_BLUETOOTH_BLE ||
             isBtScoDevice(device_id)) {
@@ -9533,6 +9546,7 @@ bool ResourceManager::isDeviceReady(pal_device_id_t id)
         case PAL_DEVICE_OUT_BLUETOOTH_A2DP:
         case PAL_DEVICE_IN_BLUETOOTH_A2DP:
         case PAL_DEVICE_OUT_BLUETOOTH_BLE:
+        case PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST:
         case PAL_DEVICE_IN_BLUETOOTH_BLE:
         {
             if (!isDeviceAvailable(id))
@@ -9572,6 +9586,7 @@ bool ResourceManager::isBtDevice(pal_device_id_t id)
         case PAL_DEVICE_OUT_BLUETOOTH_SCO:
         case PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET:
         case PAL_DEVICE_OUT_BLUETOOTH_BLE:
+        case PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST:
         case PAL_DEVICE_IN_BLUETOOTH_BLE:
             return true;
         default:
@@ -10909,7 +10924,9 @@ bool ResourceManager::doDevAttrDiffer(struct pal_device *inDevAttr,
     if (((inDevAttr->id == PAL_DEVICE_OUT_BLUETOOTH_A2DP) &&
         (curDevAttr->id == PAL_DEVICE_OUT_BLUETOOTH_A2DP)) ||
         ((inDevAttr->id == PAL_DEVICE_OUT_BLUETOOTH_BLE) &&
-        (curDevAttr->id == PAL_DEVICE_OUT_BLUETOOTH_BLE))) {
+        (curDevAttr->id == PAL_DEVICE_OUT_BLUETOOTH_BLE)) ||
+        ((inDevAttr->id == PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST) &&
+        (curDevAttr->id == PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST))) {
         pal_param_bta2dp_t *param_bt_a2dp = nullptr;
 
         if (isDeviceAvailable(inDevAttr->id)) {

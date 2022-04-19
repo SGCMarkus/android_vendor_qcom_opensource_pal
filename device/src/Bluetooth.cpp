@@ -710,7 +710,8 @@ void Bluetooth::startAbr()
             fbDevice.id = PAL_DEVICE_IN_BLUETOOTH_A2DP;
         } else if (deviceAttr.id == PAL_DEVICE_OUT_BLUETOOTH_SCO) {
             fbDevice.id = PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET;
-        } else if (deviceAttr.id == PAL_DEVICE_OUT_BLUETOOTH_BLE) {
+        } else if (deviceAttr.id == PAL_DEVICE_OUT_BLUETOOTH_BLE ||
+                   deviceAttr.id == PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST) {
             fbDevice.id = PAL_DEVICE_IN_BLUETOOTH_BLE;
         }
         dir = TX_HOSTLESS;
@@ -1258,6 +1259,7 @@ std::shared_ptr<Device> BtA2dp::objRx = nullptr;
 std::shared_ptr<Device> BtA2dp::objTx = nullptr;
 std::shared_ptr<Device> BtA2dp::objBleRx = nullptr;
 std::shared_ptr<Device> BtA2dp::objBleTx = nullptr;
+std::shared_ptr<Device> BtA2dp::objBleBroadcastRx = nullptr;
 void *BtA2dp::bt_lib_source_handle = nullptr;
 void *BtA2dp::bt_lib_sink_handle = nullptr;
 bt_audio_pre_init_t BtA2dp::bt_audio_pre_init = nullptr;
@@ -1329,11 +1331,17 @@ tSESSION_TYPE BtA2dp::get_session_type()
 {
     tSESSION_TYPE session_type = A2DP_HARDWARE_OFFLOAD_DATAPATH;
     if (a2dpRole == SOURCE) {
-        session_type = (deviceAttr.id == PAL_DEVICE_OUT_BLUETOOTH_BLE) ? LE_AUDIO_HARDWARE_OFFLOAD_ENCODING_DATAPATH : A2DP_HARDWARE_OFFLOAD_DATAPATH;
+        if (deviceAttr.id == PAL_DEVICE_OUT_BLUETOOTH_BLE) {
+            session_type = LE_AUDIO_HARDWARE_OFFLOAD_ENCODING_DATAPATH;
+        } else if (deviceAttr.id == PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST) {
+            session_type = LE_AUDIO_BROADCAST_HARDWARE_OFFLOAD_ENCODING_DATAPATH;
+        } else {
+            session_type = A2DP_HARDWARE_OFFLOAD_DATAPATH;
+        }
     }
     else {
         session_type = LE_AUDIO_HARDWARE_OFFLOAD_DECODING_DATAPATH;
-   }
+    }
 
     return session_type;
 }
@@ -2237,6 +2245,9 @@ std::shared_ptr<Device> BtA2dp::getObject(pal_device_id_t id)
     }
     else if (id == PAL_DEVICE_OUT_BLUETOOTH_BLE) {
         return objBleRx;
+    }
+    else if (id == PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST) {
+        return objBleBroadcastRx;
     } else {
         return objBleTx;
     }
@@ -2266,6 +2277,13 @@ BtA2dp::getInstance(struct pal_device *device, std::shared_ptr<ResourceManager> 
             objBleRx = sp;
         }
         return objBleRx;
+    } else if (device->id == PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST) {
+        if (!objBleBroadcastRx) {
+            PAL_INFO(LOG_TAG, "creating instance for  %d", device->id);
+            std::shared_ptr<Device> sp(new BtA2dp(device, Rm));
+            objBleBroadcastRx = sp;
+        }
+        return objBleBroadcastRx;
     } else {
         if (!objBleTx) {
             PAL_INFO(LOG_TAG, "creating instance for  %d", device->id);

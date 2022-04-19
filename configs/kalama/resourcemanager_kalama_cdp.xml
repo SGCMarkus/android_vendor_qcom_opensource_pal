@@ -364,6 +364,7 @@
                 <id>PAL_DEVICE_OUT_HANDSET</id>
                 <id>PAL_DEVICE_OUT_BLUETOOTH_A2DP</id>
                 <id>PAL_DEVICE_OUT_BLUETOOTH_BLE</id>
+                <id>PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST</id>
             </ec_rx_device>
         </in-device>
         <in-device>
@@ -380,6 +381,7 @@
                 <id>PAL_DEVICE_OUT_WIRED_HEADPHONE</id>
                 <id>PAL_DEVICE_OUT_BLUETOOTH_A2DP</id>
                 <id>PAL_DEVICE_OUT_BLUETOOTH_BLE</id>
+                <id>PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST</id>
             </ec_rx_device>
         </in-device>
         <in-device>
@@ -721,6 +723,15 @@
                 <name>PAL_STREAM_VOICE_CALL</name>
                 <priority>1</priority>
             </usecase>
+        </out-device>
+        <out-device>
+            <id>PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST</id>
+            <back_end_name>SLIM-DEV1-RX-7</back_end_name>
+            <max_channels>1</max_channels>
+            <channels>1</channels>
+            <snd_device_name>bt-ble</snd_device_name>
+            <samplerate>44100</samplerate>
+            <bit_width>16</bit_width>
         </out-device>
         <out-device>
             <id>PAL_DEVICE_OUT_BLUETOOTH_SCO</id>
