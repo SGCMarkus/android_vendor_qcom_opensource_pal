@@ -130,6 +130,13 @@ typedef enum {
 using InstanceListNode_t = std::vector<std::pair<int32_t, bool>> ;
 using nonTunnelInstMap_t = std::unordered_map<uint32_t, bool>;
 
+#ifdef SOC_PERIPHERAL_PROT
+extern "C" {
+#include "CPeripheralAccessControl.h"
+#include "peripheralStateUtils.h"
+}
+#endif
+
 typedef enum {
     TAG_ROOT,
     TAG_CARD,
@@ -631,6 +638,14 @@ public:
     static int max_voice_vol;
     /*variable to store MSPP linear gain*/
     pal_param_mspp_linear_gain_t linear_gain;
+#ifdef SOC_PERIPHERAL_PROT
+    static bool isTZSecureZone;
+    static void *tz_handle;
+    static int deregPeripheralCb(void *cntxt);
+    static int registertoPeripheral(uint32_t pUID);
+    static int32_t secureZoneEventCb(const uint32_t peripheral,
+                                           const uint8_t secureState);
+#endif
     uint64_t cookie;
     int initSndMonitor();
     int initContextManager();
