@@ -57,6 +57,7 @@ LOCAL_SRC_FILES := \
     stream/src/Stream.cpp \
     stream/src/StreamCompress.cpp \
     stream/src/StreamPCM.cpp \
+    stream/src/StreamACDB.cpp \
     stream/src/StreamInCall.cpp \
     stream/src/StreamNonTunnel.cpp \
     stream/src/StreamSoundTrigger.cpp \
@@ -83,6 +84,7 @@ LOCAL_SRC_FILES := \
     device/src/ExtEC.cpp \
     device/src/HapticsDev.cpp \
     device/src/UltrasoundDevice.cpp \
+    device/src/ECRefDevice.cpp \
     session/src/Session.cpp \
     session/src/PayloadBuilder.cpp \
     session/src/SessionAlsaPcm.cpp \

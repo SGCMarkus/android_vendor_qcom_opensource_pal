@@ -183,6 +183,14 @@
                 <!-- INSTANCE - INSTANCE_1 -->
                 <graph_kv key="0xAB000000" value="0x1"/>
             </keys_and_values>
+            <keys_and_values VUIModuleType="PDK" Instance="2">
+                <!-- STREAM_CONFIG - STREAM_CFG_VUI_PDK -->
+                <graph_kv key="0xBC000000" value="0xBC000006"/>
+                <!-- STREAMTX - VOICE_UI -->
+                <graph_kv key="0xB1000000" value="0xB1000003"/>
+                <!-- INSTANCE - INSTANCE_2 -->
+                <graph_kv key="0xAB000000" value="0x2"/>
+            </keys_and_values>
             <keys_and_values VUIModuleType="HOTWORD" Instance="1">
                 <!-- STREAM_CONFIG - STREAM_CFG_VUI_HW -->
                 <graph_kv key="0xBC000000" value="0xBC000002"/>
@@ -613,6 +621,13 @@
                 <graph_kv key="0xB4000000" value="0xB4000001"/>
                 <!-- BT_FORMAT - LC3 -->
                 <graph_kv key="0xB5000000" value="0xB5000005"/>
+            </keys_and_values>
+        </device>
+        <!-- Echo Ref Device -->
+        <device id="PAL_DEVICE_IN_ECHO_REF">
+            <keys_and_values>
+                <!-- DEVICETX - ECHO_REF_TX -->
+                <graph_kv key="0xA3000000" value="0xA300000D"/>
             </keys_and_values>
         </device>
     </devices>

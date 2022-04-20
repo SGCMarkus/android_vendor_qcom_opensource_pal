@@ -109,6 +109,20 @@ Session* Session::makeSession(const std::shared_ptr<ResourceManager>& rm, const 
     return s;
 }
 
+Session* Session::makeACDBSession(const std::shared_ptr<ResourceManager>& rm,
+                                    const struct pal_stream_attributes *sAttr)
+{
+    if (!rm || !sAttr) {
+        PAL_ERR(LOG_TAG,"Invalid parameters passed");
+        return nullptr;
+    }
+
+    Session* s = (Session*) nullptr;
+    s = new SessionAgm(rm);
+
+    return s;
+}
+
 void Session::getSamplerateChannelBitwidthTags(struct pal_media_config *config,
         uint32_t &mfc_sr_tag, uint32_t &ch_tag, uint32_t &bitwidth_tag)
 {
@@ -341,6 +355,33 @@ exit:
     return status;
 }
 
+int Session::rwACDBParamTunnel(void *payload, pal_device_id_t palDeviceId,
+                        pal_stream_type_t palStreamType, uint32_t sampleRate,
+                        uint32_t instanceId, bool isParamWrite, Stream * s)
+{
+    int status = -EINVAL;
+    struct pal_stream_attributes sAttr;
+
+    PAL_DBG(LOG_TAG, "Enter");
+    status = s->getStreamAttributes(&sAttr);
+    streamHandle = s;
+    if (0 != status) {
+        PAL_ERR(LOG_TAG,"getStreamAttributes Failed \n");
+        goto exit;
+    }
+
+    PAL_INFO(LOG_TAG, "PAL device id=0x%x", palDeviceId);
+    status = SessionAlsaUtils::rwACDBTunnel(s, rm, palDeviceId, payload, isParamWrite, instanceId);
+    if (status) {
+        PAL_ERR(LOG_TAG, "session alsa open failed with %d", status);
+    }
+
+exit:
+    PAL_DBG(LOG_TAG, "Exit status: %d", status);
+    return status;
+}
+
+
 int Session::updateCustomPayload(void *payload, size_t size)
 {
     if (!customPayloadSize || !customPayload) {
@@ -511,12 +552,15 @@ int Session::setSlotMask(const std::shared_ptr<ResourceManager>& rm, struct pal_
     std::ostringstream feName;
     std::string backendname;
     int tkv_size = 0;
+    uint32_t slot_mask = 0;
 
-
-    if (rm->activeGroupDevConfig)
+    if (rm->activeGroupDevConfig) {
         tkv.push_back(std::make_pair(TAG_KEY_SLOT_MASK, rm->activeGroupDevConfig->grp_dev_hwep_cfg.slot_mask));
-    else if (rm->isDeviceMuxConfigEnabled)
-         tkv.push_back(std::make_pair(TAG_KEY_SLOT_MASK, slotMaskLUT.at(dAttr.config.ch_info.channels)));
+    } else if (rm->isDeviceMuxConfigEnabled) {
+         slot_mask = slotMaskLUT.at(dAttr.config.ch_info.channels) |
+                         slotMaskBwLUT.at(dAttr.config.bit_width);
+         tkv.push_back(std::make_pair(TAG_KEY_SLOT_MASK, slot_mask));
+    }
 
     tagConfig = (struct agm_tag_config*)malloc(sizeof(struct agm_tag_config) +
                     (tkv.size() * sizeof(agm_key_value)));
@@ -688,7 +732,8 @@ int Session::configureMFC(const std::shared_ptr<ResourceManager>& rm, struct pal
         }
 
         if ((PAL_DEVICE_OUT_SPEAKER == dAttr.id) &&
-            (2 == dAttr.config.ch_info.channels)) {
+            (2 == dAttr.config.ch_info.channels) &&
+            (strcmp(dAttr.custom_config.custom_key, "mspp"))) {
             // Stereo Speakers. Check for the rotation type
             if (PAL_SPEAKER_ROTATION_RL == rm->getCurrentRotationType()) {
                 // Rotation is of RL, so need to swap the channels

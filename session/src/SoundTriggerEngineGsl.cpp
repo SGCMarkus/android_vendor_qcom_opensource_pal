@@ -49,8 +49,12 @@
 
 ST_DBG_DECLARE(static int dsp_output_cnt = 0);
 
-std::map<st_module_type_t,std::shared_ptr<SoundTriggerEngineGsl>>
+std::map<st_module_type_t,std::vector<std::shared_ptr<SoundTriggerEngineGsl>>>
                  SoundTriggerEngineGsl::eng_;
+std::map<Stream*, std::shared_ptr<SoundTriggerEngineGsl>>
+                 SoundTriggerEngineGsl::str_eng_map_;
+std::mutex SoundTriggerEngineGsl::eng_create_mutex_;
+int32_t SoundTriggerEngineGsl::engine_count_ = 0;
 
 void SoundTriggerEngineGsl::EventProcessingThread(
     SoundTriggerEngineGsl *gsl_engine) {
@@ -2057,6 +2061,7 @@ int32_t SoundTriggerEngineGsl::ReconfigureDetectionGraph(Stream *s) {
 
     PAL_DBG(LOG_TAG, "Enter");
 
+    exit_buffering_ = true;
     DetachStream(s, false);
     std::unique_lock<std::mutex> lck(mutex_);
 
@@ -2871,16 +2876,24 @@ std::shared_ptr<SoundTriggerEngineGsl> SoundTriggerEngineGsl::GetInstance(
     st_module_type_t module_type,
     std::shared_ptr<VUIStreamConfig> sm_cfg) {
 
+    std::shared_ptr<SoundTriggerEngineGsl> st_eng;
     st_module_type_t key = module_type;
     if (IS_MODULE_TYPE_PDK(module_type)) {
         key = ST_MODULE_TYPE_PDK;
     }
-
-    if (eng_.find(key) == eng_.end()) {
-        eng_[key] = std::make_shared<SoundTriggerEngineGsl>
+    eng_create_mutex_.lock();
+    if ((eng_.find(key) == eng_.end() || !sm_cfg->isSingleInstanceStage1()) &&
+         engine_count_ < sm_cfg->GetSupportedEngineCount()) {
+        st_eng = std::make_shared<SoundTriggerEngineGsl>
                                     (s, type, module_type, sm_cfg);
+        eng_[key].push_back(st_eng);
+        engine_count_++;
+    } else {
+        st_eng = eng_[key][eng_[key].size() - 1];
     }
-    return eng_[key];
+    str_eng_map_[s] = st_eng;
+    eng_create_mutex_.unlock();
+    return st_eng;
 }
 
 void SoundTriggerEngineGsl::DetachStream(Stream *s, bool erase_engine) {
@@ -2898,7 +2911,20 @@ void SoundTriggerEngineGsl::DetachStream(Stream *s, bool erase_engine) {
         if (IS_MODULE_TYPE_PDK(this->module_type_)) {
             key = ST_MODULE_TYPE_PDK;
         }
-        PAL_VERBOSE(LOG_TAG, "reset the engine instance to be freed");
-        eng_.erase(key);
+
+        eng_create_mutex_.lock();
+        auto to_erase = std::find(eng_[key].begin(), eng_[key].end(),
+                                  str_eng_map_[s]);
+        if (to_erase != eng_[key].end()) {
+            eng_[key].erase(to_erase);
+            if (key == ST_MODULE_TYPE_PDK)
+                engine_count_--;
+        }
+
+        if (!eng_[key].size()) {
+            eng_.erase(key);
+        }
+        str_eng_map_.erase(s);
+        eng_create_mutex_.unlock();
     }
 }

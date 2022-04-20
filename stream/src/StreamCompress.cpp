@@ -278,9 +278,13 @@ int32_t StreamCompress::stop()
     PAL_DBG(LOG_TAG,"Enter. state %d session handle - %p mStreamAttr->direction %d",
                 currentState, session, mStreamAttr->direction);
     if (currentState == STREAM_STARTED || currentState == STREAM_PAUSED) {
+        mStreamMutex.unlock();
+        rm->lockActiveStream();
+        mStreamMutex.lock();
         for (int i = 0; i < mDevices.size(); i++) {
             rm->deregisterDevice(mDevices[i], this);
         }
+        rm->unlockActiveStream();
         switch (mStreamAttr->direction) {
         case PAL_AUDIO_OUTPUT:
             PAL_VERBOSE(LOG_TAG,"In PAL_AUDIO_OUTPUT case, device count - %zu", mDevices.size());
@@ -520,13 +524,17 @@ int32_t StreamCompress::write(struct pal_buffer *buf)
             }
         }
         if ((currentState != STREAM_STARTED) &&
-            (currentState != STREAM_PAUSED)) {
+            !(currentState == STREAM_PAUSED && isPaused)) {
             currentState = STREAM_STARTED;
             // register device only after graph is actually started
+            mStreamMutex.unlock();
+            rm->lockActiveStream();
+            mStreamMutex.lock();
             for (int i = 0; i < mDevices.size(); i++) {
                 rm->registerDevice(mDevices[i], this);
             }
             rm->checkAndSetDutyCycleParam();
+            rm->unlockActiveStream();
         }
     } else {
         PAL_ERR(LOG_TAG, "Stream not opened yet, state %d", currentState);
@@ -785,15 +793,7 @@ int32_t StreamCompress::resume_l()
        goto exit;
     }
 
-    if (isFlushed) {
-        for (int i = 0; i < mDevices.size(); i++) {
-            rm->registerDevice(mDevices[i], this);
-        }
-        isFlushed = false;
-    }
-
     isPaused = false;
-    currentState = STREAM_STARTED;
     PAL_VERBOSE(LOG_TAG,"session resume successful, state %d", currentState);
 
 exit:
@@ -832,10 +832,13 @@ int32_t StreamCompress::flush()
         return 0;
     }
 
+    mStreamMutex.unlock();
+    rm->lockActiveStream();
+    mStreamMutex.lock();
     for (int i = 0; i < mDevices.size(); i++) {
         rm->deregisterDevice(mDevices[i], this);
     }
-    isFlushed = true;
+    rm->unlockActiveStream();
     return session->flush();
 }
 
@@ -937,7 +940,9 @@ int32_t StreamCompress::ssrDownHandler()
         }
     } else if (currentState == STREAM_STARTED || currentState == STREAM_PAUSED) {
         mStreamMutex.unlock();
+        rm->unlockActiveStream();
         status = stop();
+        rm->lockActiveStream();
         if (status)
             PAL_ERR(LOG_TAG, "stream stop failed. status %d",  status);
         status = close();

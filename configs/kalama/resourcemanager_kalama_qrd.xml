@@ -149,6 +149,22 @@
             <usecase>
                 <name>PAL_STREAM_DEEP_BUFFER</name>
                 <ec_enable>1</ec_enable>
+                <custom-config key="unprocessed-hdr-mic-landscape">
+                    <channels>4</channels>
+                    <snd_device_name>unprocessed-hdr-mic-landscape</snd_device_name>
+                </custom-config>
+                <custom-config key="unprocessed-hdr-mic-portrait">
+                    <channels>4</channels>
+                    <snd_device_name>unprocessed-hdr-mic-portrait</snd_device_name>
+                </custom-config>
+                <custom-config key="unprocessed-hdr-mic-inverted-landscape">
+                    <channels>4</channels>
+                    <snd_device_name>unprocessed-hdr-mic-inverted-landscape</snd_device_name>
+                </custom-config>
+                <custom-config key="unprocessed-hdr-mic-inverted-portrait">
+                    <channels>4</channels>
+                    <snd_device_name>unprocessed-hdr-mic-inverted-portrait</snd_device_name>
+                </custom-config>
             </usecase>
         <!--Uncomment these lines instead of above lines if needing to enable EC per custom key
             <usecase>
@@ -469,6 +485,18 @@
             <channels>2</channels>
             <samplerate>48000</samplerate>
             <bit_width>16</bit_width>
+        </in-device>
+        <in-device>
+            <id>PAL_DEVICE_IN_ECHO_REF</id>
+            <back_end_name>PCM_DUMMY-TX-0</back_end_name>
+            <snd_device_name>echo-ref-record</snd_device_name>
+            <max_channels>1</max_channels>
+            <channels>1</channels>
+            <bit_width>16</bit_width>
+            <samplerate>48000</samplerate>
+            <usecase>
+                <name>PAL_STREAM_RAW</name>
+            </usecase>
         </in-device>
         <out-device>
             <id>PAL_DEVICE_NONE</id>
@@ -1091,6 +1119,9 @@
                 <name>QC_VOICE_UI</name>
                 <param vendor_uuid="68ab2d40-e860-11e3-95ef-0002a5d5c51b" />
                 <param merge_first_stage_sound_models="false" />
+                <!--For now total 3 engines are supported, if more engine instances are needed,-->
+                <!-- do update acdb and usecaseKvManager.xml files by adding more instances    -->
+                <param pdk_first_stage_max_engine_count="1"/>
                 <!-- Profile specific data which the algorithm can support -->
                 <param capture_keyword="2000" />
                 <param client_capture_read_delay="2000" />
@@ -1145,6 +1176,14 @@
                         <param sm_detection_type= "KEYWORD_DETECTION" />
                         <param sm_id="0x8" />
                         <param module_lib="libcapiv2svarnnvendor.so" />
+                        <param sample_rate="16000" />
+                        <param bit_width="16" />
+                        <param channel_count="1" />
+                    </arm_ss_module_params>
+                    <arm_ss_module_params>
+                        <param sm_detection_type= "KEYWORD_DETECTION" />
+                        <param sm_id="0x40" />
+                        <param module_lib="libcapiv2udk7vendor.so" />
                         <param sample_rate="16000" />
                         <param bit_width="16" />
                         <param channel_count="1" />

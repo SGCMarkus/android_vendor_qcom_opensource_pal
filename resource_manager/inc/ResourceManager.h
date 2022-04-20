@@ -266,6 +266,7 @@ struct usecase_custom_config_info
     int samplerate;
     uint32_t priority;
     uint32_t bit_width;
+    bool ec_enable;
 };
 
 struct usecase_info {
@@ -277,7 +278,7 @@ struct usecase_info {
     std::vector<usecase_custom_config_info> config;
     uint32_t priority;
     uint32_t bit_width;
-
+    bool ec_enable;
 };
 
 struct pal_device_info {
@@ -422,6 +423,7 @@ struct deviceIn {
     bool fractionalSRSupported;
     uint32_t bit_width;
     pal_audio_fmt_t bitFormatSupported;
+    bool ec_enable;
 };
 
 class ResourceManager
@@ -447,6 +449,7 @@ private:
     int handleScreenStatusChange(pal_param_screen_state_t screen_state);
     int handleDeviceRotationChange(pal_param_device_rotation_t rotation_type);
     int handleDeviceConnectionChange(pal_param_device_connection_t connection_state);
+    int SetOrientationCal(pal_param_device_rotation_t rotation_type);
     int32_t streamDevDisconnect(std::vector <std::tuple<Stream *, uint32_t>> streamDevDisconnectList);
     int32_t streamDevConnect(std::vector <std::tuple<Stream *, struct pal_device *>> streamDevConnectList);
     int32_t streamDevDisconnect_l(std::vector <std::tuple<Stream *, uint32_t>> streamDevDisconnectList);
@@ -459,6 +462,13 @@ private:
     static bool isBitWidthSupported(uint32_t bitWidth);
     uint32_t getNTPathForStreamAttr(const pal_stream_attributes attr);
     ssize_t getAvailableNTStreamInstance(const pal_stream_attributes attr);
+    int getECEnableSetting(std::shared_ptr<Device> tx_dev, pal_stream_type_t type, bool *ec_enable);
+    int checkandEnableECForTXStream_l(std::shared_ptr<Device> tx_dev, Stream *tx_stream, bool ec_enable);
+    int checkandEnableECForRXStream_l(std::shared_ptr<Device> rx_dev, Stream *rx_stream, bool ec_enable);
+    int checkandEnableEC_l(std::shared_ptr<Device> d, Stream *s, bool enable);
+    void onChargingStateChange();
+    void onVUIStreamRegistered();
+    void onVUIStreamDeregistered();
 protected:
     std::list <Stream*> mActiveStreams;
     std::list <StreamPCM*> active_streams_ll;
@@ -487,7 +497,9 @@ protected:
     bool charging_state_;
     bool is_charger_online_;
     bool is_concurrent_boost_state_;
+    bool use_lpi_;
     bool current_concurrent_state_;
+    bool is_limiter_configured_;
     pal_speaker_rotation_type rotation_type_;
     bool isDeviceSwitch = false;
     static std::mutex mResourceManagerMutex;
@@ -601,6 +613,9 @@ public:
     static int spQuickCalTime;
     /* Variable to store the mode request for Speaker protection */
     pal_spkr_prot_payload mSpkrProtModeValue;
+
+    /* Variable to store the device orientation for Speaker*/
+    int mOrientation = 0;
     pal_global_callback globalCb = NULL;
     uint32_t num_proxy_channels = 0;
     /* Flag to store the state of VI record */
@@ -611,6 +626,8 @@ public:
     static bool isUpdDutyCycleEnabled;
     /* Variable to store max volume index for voice call */
     static int max_voice_vol;
+    /*variable to store MSPP linear gain*/
+    pal_param_mspp_linear_gain_t linear_gain;
     uint64_t cookie;
     int initSndMonitor();
     int initContextManager();
@@ -757,6 +774,8 @@ public:
     bool GetChargingState() const { return charging_state_; }
     bool getChargerOnlineState(void) const { return is_charger_online_; }
     bool getConcurrentBoostState(void) const { return is_concurrent_boost_state_; }
+    bool getLPIUsage() const { return use_lpi_; }
+    bool getLimiterConfigureStatus(void) const { return is_limiter_configured_; }
     bool CheckForForcedTransitToNonLPI();
     void GetVoiceUIProperties(struct pal_st_properties *qstp);
     int HandleDetectionStreamAction(pal_stream_type_t type, int32_t action, void *data);
@@ -856,6 +875,7 @@ public:
     int32_t a2dpCaptureResume();
     bool isPluginDevice(pal_device_id_t id);
     bool isDpDevice(pal_device_id_t id);
+    bool isPluginPlaybackDevice(pal_device_id_t id);
 
     /* Separate device reference counts are maintained in PAL device and GSL device SGs.
      * lock graph is to sychronize these reference counts during device and session operations

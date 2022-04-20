@@ -1093,6 +1093,16 @@ int32_t Stream::connectStreamDevice_l(Stream* streamHandle, struct pal_device *d
         }
     }
 
+    /* For UC2: USB insertion on playback, after disabling PA, notify PMIC
+     * assuming that current Concurrent Boost status is false and Limiter
+     * is not configured for speaker.Audio will continue to playback irrespective
+     * of success/failure after notifying PMIC about enabling concurrency
+     */
+    if (ResourceManager::isChargeConcurrencyEnabled && dev
+        && dev->getSndDeviceId() == PAL_DEVICE_OUT_SPEAKER &&
+        !rm->getConcurrentBoostState() && !rm->getLimiterConfigureStatus())
+        status = rm->chargerListenerSetBoostState(true, PB_ON_CHARGER_INSERT);
+
     PAL_DBG(LOG_TAG, "device %d name %s, going to start",
         dev->getSndDeviceId(), dev->getPALDeviceName().c_str());
 
@@ -1133,6 +1143,16 @@ int32_t Stream::connectStreamDevice_l(Stream* streamHandle, struct pal_device *d
         rm->registerDevice(dev, this);
 
     rm->checkAndSetDutyCycleParam();
+
+    /* For UC2: USB insertion on playback, After USB online notification,
+     * As enabling PA is done assuming that current Concurrent Boost state
+     * is True and Audio will config Limiter for speaker.
+     */
+    if (ResourceManager::isChargeConcurrencyEnabled && dev &&
+        (dev->getSndDeviceId() == PAL_DEVICE_OUT_SPEAKER) && rm->getConcurrentBoostState()
+        && !rm->getLimiterConfigureStatus() && rm->getChargerOnlineState())
+        status = rm->setSessionParamConfig(PAL_PARAM_ID_CHARGER_STATE, streamHandle,
+                                           CHARGE_CONCURRENCY_ON_TAG);
     goto exit;
 
 dev_stop:
@@ -1476,7 +1496,8 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
                 } else if (rm->isOutputDevId(mDevices[j]->getSndDeviceId())) {
                     for (const auto &elem : sharedBEStreamDev) {
                         std::get<0>(elem)->getStreamAttributes(&strAttr);
-                        if (strAttr.type == PAL_STREAM_VOICE_CALL) {
+                        if (strAttr.type == PAL_STREAM_VOICE_CALL &&
+                            newDeviceId != PAL_DEVICE_OUT_HEARING_AID) {
                             voice_call_switch = true;
                             break;
                         }

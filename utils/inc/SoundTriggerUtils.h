@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -85,9 +86,10 @@ typedef enum {
     ST_SM_ID_SVA_S_STAGE_PDK  = 0x0002,
     ST_SM_ID_SVA_S_STAGE_USER = 0x0004,
     ST_SM_ID_SVA_S_STAGE_RNN  = 0x0008,
-    ST_SM_ID_SVA_S_STAGE_KWD  = 0x000A, // S_STAGE_PDK | S_STAGE_RNN
     SML_ID_SVA_S_STAGE_UBM    = 0x0010,
     SML_ID_SVA_F_STAGE_INTERNAL = 0x0020,
+    ST_SM_ID_SVA_S_STAGE_UDK  = 0x0040,
+    ST_SM_ID_SVA_S_STAGE_KWD  = 0x004A, // S_STAGE_PDK | S_STAGE_RNN | S_STAGE_UDK
     ST_SM_ID_SVA_END          = 0x00F0,
     ST_SM_ID_CUSTOM_START     = 0x0100,
     ST_SM_ID_CUSTOM_END       = 0xF000,

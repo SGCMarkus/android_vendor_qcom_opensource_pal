@@ -896,6 +896,10 @@
         <ctl name="VA_AMIC2_MIXER Switch" value="1" />
     </path>
 
+    <path name="lpi-pcm-logging">
+        <ctl name="LPI PCM Logging Enable" value="1" />
+    </path>
+
     <!-- Dual MIC devices -->
     <path name="handset-dmic-endfire">
         <ctl name="TX_AIF1_CAP Mixer DEC2" value="1" />
@@ -1323,6 +1327,9 @@
 
     <path name="unprocessed-headset-mic">
         <path name="headset-mic" />
+    </path>
+
+    <path name="echo-ref-record">
     </path>
 
 </mixer>

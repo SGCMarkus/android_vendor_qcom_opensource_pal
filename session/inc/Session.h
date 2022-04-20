@@ -76,6 +76,11 @@ typedef enum {
 }slot_mask_t;
 
 #define EVENT_ID_SOFT_PAUSE_PAUSE_COMPLETE 0x0800103F
+const std::map<std::uint32_t, std::uint32_t> slotMaskBwLUT {
+   {16, 0},
+   {24, 0x40000000},
+   {32, 0x80000000},
+};
 
 const std::map<std::uint32_t, slot_mask_t> slotMaskLUT {
    {1, SLOT_MASK1},
@@ -114,6 +119,7 @@ public:
     bool isPauseRegistrationDone;
     virtual ~Session();
     static Session* makeSession(const std::shared_ptr<ResourceManager>& rm, const struct pal_stream_attributes *sAttr);
+    static Session* makeACDBSession(const std::shared_ptr<ResourceManager>& rm, const struct pal_stream_attributes *sAttr);
     int handleDeviceRotation(Stream *s, pal_speaker_rotation_type rotation_type,
         int device, struct mixer *mixer, PayloadBuilder* builder,
         std::vector<std::pair<int32_t, std::string>> rxAifBackEnds);
@@ -162,6 +168,9 @@ public:
     virtual uint32_t getMIID(const char *backendName __unused, uint32_t tagId __unused, uint32_t *miid __unused) { return -EINVAL; }
     int getEffectParameters(Stream *s, effect_pal_payload_t *effectPayload);
     int rwACDBParameters(void *payload, uint32_t sampleRate, bool isParamWrite);
+    int rwACDBParamTunnel(void *payload, pal_device_id_t palDeviceId,
+        pal_stream_type_t palStreamType, uint32_t sampleRate, uint32_t instanceId,
+        bool isParamWrite, Stream *s);
     int NotifyChargerConcurrency(std::shared_ptr<ResourceManager>rm, bool state);
     int EnableChargerConcurrency(std::shared_ptr<ResourceManager>rm, Stream *s);
     virtual struct mixer_ctl* getFEMixerCtl(const char *controlName __unused, int *device __unused) {return nullptr;}

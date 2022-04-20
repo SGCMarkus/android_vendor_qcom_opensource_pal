@@ -869,7 +869,7 @@ int SessionAlsaPcm::start(Stream * s)
                 (sAttr.type != PAL_STREAM_ACD) &&
                 (sAttr.type != PAL_STREAM_CONTEXT_PROXY) &&
                 (sAttr.type != PAL_STREAM_SENSOR_PCM_DATA) &&
-                (SessionAlsaUtils::isMmapUsecase(sAttr) == false)) {
+                (sAttr.type != PAL_STREAM_ULTRA_LOW_LATENCY)) {
                 /* Get MFC MIID and configure to match to stream config */
                 /* This has to be done after sending all mixer controls and before connect */
                 if (sAttr.type != PAL_STREAM_VOICE_CALL_RECORD)
@@ -937,8 +937,8 @@ int SessionAlsaPcm::start(Stream * s)
                                 goto set_mixer;
                             }
                             streamData.sampleRate = codecConfig.sample_rate;
-                            streamData.bitWidth   = codecConfig.bit_width;
-                            streamData.numChannel = codecConfig.ch_info.channels;
+                            streamData.bitWidth   = AUDIO_BIT_WIDTH_DEFAULT_16;
+                            streamData.numChannel = 0xFFFF;
                         } else {
                             streamData.sampleRate = dAttr.config.sample_rate;
                             streamData.bitWidth   = AUDIO_BIT_WIDTH_DEFAULT_16;
@@ -1028,6 +1028,11 @@ set_mixer:
                     pcmDevIds.at(0), customPayload, customPayloadSize);
                 freeCustomPayload();            }
             if (ResourceManager::isLpiLoggingEnabled()) {
+                struct audio_route *audioRoute;
+
+                status = rm->getAudioRoute(&audioRoute);
+                if (!status)
+                    audio_route_apply_and_update_path(audioRoute, "lpi-pcm-logging");
                 PAL_INFO(LOG_TAG, "LPI data logging Param ON");
                 /* No error check as TAG/TKV may not required for non LPI usecases */
                 setConfig(s, MODULE, LPI_LOGGING_ON);
@@ -1117,6 +1122,42 @@ set_mixer:
                     status = 0;
                 }
             }
+            // Set MSPP volume during initlization.
+            if ((PAL_DEVICE_OUT_SPEAKER == dAttr.id &&
+                !strcmp(dAttr.custom_config.custom_key, "mspp"))&&
+                ((sAttr.type == PAL_STREAM_LOW_LATENCY) ||
+                (sAttr.type == PAL_STREAM_PCM_OFFLOAD) ||
+                (sAttr.type == PAL_STREAM_DEEP_BUFFER))) {
+
+                status = SessionAlsaUtils::getModuleInstanceId(mixer, pcmDevIds.at(0),
+                                                                rxAifBackEnds[0].second.data(), TAG_MODULE_MSPP, &miid);
+                if (status != 0) {
+                    PAL_ERR(LOG_TAG,"get MSPP ModuleInstanceId failed");
+                    goto pcm_start;
+                }
+                PAL_INFO(LOG_TAG, "miid : %x id = %d\n", miid, pcmDevIds.at(0));
+
+                builder->payloadMSPPConfig(&payload, &payloadSize, miid, rm->linear_gain.gain);
+                if (payloadSize && payload) {
+                    status = updateCustomPayload(payload, payloadSize);
+                    free(payload);
+                    if (0 != status) {
+                        PAL_ERR(LOG_TAG,"updateCustomPayload Failed\n");
+                        goto pcm_start;
+                    }
+                }
+                status = SessionAlsaUtils::setMixerParameter(mixer, pcmDevIds.at(0),
+                                                             customPayload, customPayloadSize);
+                if (customPayload) {
+                    free(customPayload);
+                    customPayload = NULL;
+                    customPayloadSize = 0;
+                }
+                if (status != 0) {
+                    PAL_ERR(LOG_TAG,"setMixerParameter failed for MSPP module");
+                    goto pcm_start;
+                }
+            }
 
 pcm_start:
             memset(&lpm_info, 0, sizeof(struct disable_lpm_info));
@@ -1142,7 +1183,7 @@ pcm_start:
                 }
             }
 
-            if (!status && isPauseRegistrationDone) {
+           if (!status && isPauseRegistrationDone) {
                 // Stream supports Soft Pause and registration with RM is
                 // successful. So register for Soft pause callback from adsp.
                 payload_size = sizeof(struct agm_event_reg_cfg);
@@ -1259,6 +1300,21 @@ pcm_start:
         }
     }
 
+    //Setting the device orientation during stream open for MSPP and HDR Record
+    if ((PAL_DEVICE_OUT_SPEAKER == dAttr.id || PAL_DEVICE_IN_HANDSET_MIC == dAttr.id)
+        && !strcmp(dAttr.custom_config.custom_key, "mspp")) {
+        if ((sAttr.direction == PAL_AUDIO_OUTPUT ||
+             sAttr.direction == PAL_AUDIO_INPUT) &&
+            ((sAttr.type == PAL_STREAM_LOW_LATENCY) ||
+            (sAttr.type == PAL_STREAM_DEEP_BUFFER)  ||
+            (sAttr.type == PAL_STREAM_PCM_OFFLOAD))) {
+            PAL_DBG(LOG_TAG,"set device orientation %d", rm->mOrientation);
+            s->setOrientation(rm->mOrientation);
+            if (setConfig(s, MODULE, ORIENTATION_TAG) != 0) {
+                PAL_ERR(LOG_TAG,"Setting device orientation failed");
+            }
+        }
+    }
     mState = SESSION_STARTED;
 
 exit:
@@ -1291,6 +1347,13 @@ int SessionAlsaPcm::stop(Stream * s)
                     status = errno;
                     PAL_ERR(LOG_TAG, "pcm_stop failed %d", status);
                 }
+            }
+            if (ResourceManager::isLpiLoggingEnabled()) {
+                struct audio_route *audioRoute;
+
+                status = rm->getAudioRoute(&audioRoute);
+                if (!status)
+                    audio_route_reset_and_update_path(audioRoute, "lpi-pcm-logging");
             }
         break;
         case PAL_AUDIO_OUTPUT:
@@ -2127,7 +2190,28 @@ int SessionAlsaPcm::setParameters(Stream *streamHandle, int tagId, uint32_t para
                 freeCustomPayload(&paramData, &paramSize);
             }
             return 0;
+        }
+        case PAL_PARAM_ID_MSPP_LINEAR_GAIN:
+        {
+            pal_param_mspp_linear_gain_t *linear_gain = (pal_param_mspp_linear_gain_t *)payload;
+            device = pcmDevIds.at(0)
+            ;
+            status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
+                               rxAifBackEnds[0].second.data(), tagId, &miid);
+            PAL_INFO(LOG_TAG, "Set mspp linear gain");
+            if (0 != status) {
+                PAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", tagId, status);
+                return status;
+            }
 
+            builder->payloadMSPPConfig(&paramData, &paramSize, miid, linear_gain->gain);
+            if (paramSize) {
+                status = SessionAlsaUtils::setMixerParameter(mixer, device,
+                                               paramData, paramSize);
+                PAL_INFO(LOG_TAG, "mixer set MSPP config status=%d\n", status);
+                free(paramData);
+            }
+            return 0;
         }
         case PAL_PARAM_ID_SET_UPD_DUTY_CYCLE:
         {

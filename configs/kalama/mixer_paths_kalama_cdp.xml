@@ -782,6 +782,9 @@
     <path name="afe-proxy">
     </path>
 
+    <path name="echo-ref-record">
+    </path>
+
     <path name="display-port">
     </path>
 
@@ -963,6 +966,10 @@
          <ctl name="ADC2_BCS Disable" value="1" />
          <ctl name="ADC2_MIXER Switch" value="1" />
          <ctl name="VA_AMIC2_MIXER Switch" value="1" />
+    </path>
+
+    <path name="lpi-pcm-logging">
+        <ctl name="LPI PCM Logging Enable" value="1" />
     </path>
 
     <!-- Dual MIC devices -->

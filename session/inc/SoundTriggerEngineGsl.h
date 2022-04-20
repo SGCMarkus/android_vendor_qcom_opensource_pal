@@ -25,8 +25,40 @@
  * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
  * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Changes from Qualcomm Innovation Center are provided under the following license:
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted (subject to the limitations in the
+ * disclaimer below) provided that the following conditions are met:
+ *
+ *     * Redistributions of source code must retain the above copyright
+ *       notice, this list of conditions and the following disclaimer.
+ *
+ *     * Redistributions in binary form must reproduce the above
+ *       copyright notice, this list of conditions and the following
+ *       disclaimer in the documentation and/or other materials provided
+ *       with the distribution.
+ *
+ *     * Neither the name of Qualcomm Innovation Center, Inc. nor the names of its
+ *       contributors may be used to endorse or promote products derived
+ *       from this software without specific prior written permission.
+ *
+ * NO EXPRESS OR IMPLIED LICENSES TO ANY PARTY'S PATENT RIGHTS ARE
+ * GRANTED BY THIS LICENSE. THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT
+ * HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED
+ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+ * IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
+ * ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE
+ * GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
+ * IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+ * OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
+ * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-
 
 #ifndef SOUNDTRIGGERENGINEGSL_H
 #define SOUNDTRIGGERENGINEGSL_H
@@ -162,8 +194,9 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
     std::map<uint32_t, Stream*> mid_stream_map_;
     std::map<uint32_t, std::pair<uint32_t, uint32_t>> mid_buff_cfg_;
     st_module_type_t module_type_;
-    static std::map<st_module_type_t,std::shared_ptr<SoundTriggerEngineGsl>>
+    static std::map<st_module_type_t,std::vector<std::shared_ptr<SoundTriggerEngineGsl>>>
                                                                       eng_;
+    static std::map<Stream*, std::shared_ptr<SoundTriggerEngineGsl>> str_eng_map_;
     std::map<uint32_t, struct detection_engine_config_stage1_pdk> mid_wakeup_cfg_;
     std::vector<Stream *> eng_streams_;
     std::vector<uint32_t> updated_cfg_;
@@ -195,5 +228,7 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
     uint64_t kw_transfer_latency_;
     ChronoSteadyClock_t detection_time_;
     std::mutex state_mutex_;
+    static std::mutex eng_create_mutex_;
+    static int32_t engine_count_;
 };
 #endif  // SOUNDTRIGGERENGINEGSL_H
