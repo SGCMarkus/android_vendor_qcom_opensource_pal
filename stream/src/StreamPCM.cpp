@@ -525,6 +525,25 @@ int32_t StreamPCM::start()
                 status = mDevices[i]->start();
                 if (0 != status) {
                     PAL_ERR(LOG_TAG, "Tx device start is failed with status %d", status);
+
+                    /* In case of a voice call, if OUT dev started successfully
+                     * but IN dev failed to start then stop OUT dev before closing it
+                     */
+                    for (int32_t i = 0; i < mDevices.size(); i++) {
+                      int32_t dev_id = mDevices[i]->getSndDeviceId();
+
+                      if (dev_id <= PAL_DEVICE_OUT_MIN || dev_id >= PAL_DEVICE_OUT_MAX)
+                          continue;
+
+                      status = mDevices[i]->stop();
+                      if (0 != status) {
+                          PAL_ERR(LOG_TAG, "Rx device stop is failed with status %d",
+                                                              status);
+                          goto exit;
+                      }
+
+                    }
+                    PAL_VERBOSE(LOG_TAG, "RX devices stop successful");
                     goto exit;
                 }
             }

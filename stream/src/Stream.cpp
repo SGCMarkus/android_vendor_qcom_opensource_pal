@@ -1253,6 +1253,7 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
     bool has_out_device = false, has_in_device = false;
     std::vector <std::shared_ptr<Device>>::iterator dIter;
     struct pal_volume_data *volume = NULL;
+    pal_device_id_t curBtDevId;
 
     rm->lockActiveStream();
     mStreamMutex.lock();
@@ -1286,8 +1287,10 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
 
         if (curDevId == PAL_DEVICE_OUT_BLUETOOTH_A2DP ||
             curDevId == PAL_DEVICE_OUT_BLUETOOTH_BLE ||
-            curDevId == PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST)
+            curDevId == PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST) {
             isCurDeviceA2dp = true;
+            curBtDevId = curDevId;
+        }
 
         if (curDevId == PAL_DEVICE_OUT_PROXY)
             isCurrentDeviceProxyOut = true;
@@ -1360,11 +1363,8 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
          */
         // This assumes that PAL_DEVICE_NONE comes as single device
         if ((newDevices[i].id == PAL_DEVICE_NONE) &&
-            (((isCurDeviceA2dp == true) &&
-              ((!rm->isDeviceReady(PAL_DEVICE_OUT_BLUETOOTH_A2DP)) ||
-               (!rm->isDeviceReady(PAL_DEVICE_OUT_BLUETOOTH_BLE)) ||
-               (!rm->isDeviceReady(PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST)))) ||
-             ((isCurrentDeviceProxyOut) || (isCurrentDeviceDpOut)))) {
+            (((isCurDeviceA2dp == true) && (!rm->isDeviceReady(curBtDevId))) ||
+             (isCurrentDeviceProxyOut) || (isCurrentDeviceDpOut))) {
             newDevices[i].id = PAL_DEVICE_OUT_SPEAKER;
 
             if (rm->getDeviceConfig(&newDevices[i], mStreamAttr)) {
