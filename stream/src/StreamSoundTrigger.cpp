@@ -1607,6 +1607,11 @@ int32_t StreamSoundTrigger::SendRecognitionConfig(
         }
     }
 
+    // use default value if preroll is not set
+    if (pre_roll_duration_ == 0) {
+        pre_roll_duration_ = sm_cfg_->GetPreRollDuration();
+    }
+
     client_capture_read_delay = sm_cfg_->GetCaptureReadDelay();
     PAL_DBG(LOG_TAG, "history buf len = %d, preroll len = %d, read delay = %d",
         hist_buf_duration_, pre_roll_duration_, client_capture_read_delay);

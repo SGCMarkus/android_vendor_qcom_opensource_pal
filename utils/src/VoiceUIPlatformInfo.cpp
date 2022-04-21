@@ -180,6 +180,7 @@ VUIStreamConfig::VUIStreamConfig() :
     merge_first_stage_sound_models_(false),
     capture_keyword_(2000),
     client_capture_read_delay_(2000),
+    pre_roll_duration_(0),
     supported_first_stage_engine_count_(1),
     curr_child_(nullptr)
 {
@@ -299,6 +300,8 @@ void VUIStreamConfig::HandleStartTag(const char* tag, const char** attribs)
                 capture_keyword_ = std::stoi(attribs[++i]);
             } else if (!strcmp(attribs[i], "client_capture_read_delay")) {
                 client_capture_read_delay_ = std::stoi(attribs[++i]);
+            } else if (!strcmp(attribs[i], "pre_roll_duration")) {
+                pre_roll_duration_ = std::stoi(attribs[++i]);
             } else if (!strcmp(attribs[i], "kw_start_tolerance")) {
                 kw_start_tolerance_ = std::stoi(attribs[++i]);
             } else if (!strcmp(attribs[i], "kw_end_tolerance")) {
