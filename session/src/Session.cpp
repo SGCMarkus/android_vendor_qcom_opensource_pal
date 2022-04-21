@@ -200,6 +200,61 @@ void Session::getSamplerateChannelBitwidthTags(struct pal_media_config *config,
     }
 }
 
+uint32_t Session::getModuleInfo(const char *control, uint32_t tagId, uint32_t *miid, struct mixer_ctl **ctl, int *device)
+{
+    int status = 0;
+    int dev = 0;
+    struct mixer_ctl *mixer_ctl = NULL;
+
+    if (!rxAifBackEnds.empty()) { /** search in RX GKV */
+        mixer_ctl = getFEMixerCtl(control, &dev, PAL_AUDIO_OUTPUT);
+        if (!mixer_ctl) {
+            PAL_ERR(LOG_TAG, "Invalid mixer control\n");
+            status = -ENOENT;
+            goto exit;
+        }
+        status = SessionAlsaUtils::getModuleInstanceId(mixer, dev, rxAifBackEnds[0].second.data(), tagId, miid);
+        if (status) /** if not found, reset miid to 0 again */
+            *miid = 0;
+    }
+
+    if (!txAifBackEnds.empty() && !(*miid)) { /** search in TX GKV */
+        mixer_ctl = getFEMixerCtl(control, &dev, PAL_AUDIO_INPUT);
+        if (!mixer_ctl) {
+            PAL_ERR(LOG_TAG, "Invalid mixer control\n");
+            status = -ENOENT;
+            goto exit;
+        }
+        status = SessionAlsaUtils::getModuleInstanceId(mixer, dev, txAifBackEnds[0].second.data(), tagId, miid);
+        if (status)
+            *miid = 0;
+    }
+
+    if (*miid == 0) {
+        PAL_ERR(LOG_TAG, "failed to look for module with tagID 0x%x", tagId);
+        status = -EINVAL;
+        goto exit;
+    }
+
+    if (device)
+        *device = dev;
+
+    if (ctl)
+        *ctl = mixer_ctl;
+
+    PAL_DBG(LOG_TAG, "got miid = 0x%04x, device = %d", *miid, dev);
+exit:
+    if (status) {
+        if (device)
+            *device = 0;
+        if (ctl)
+            *ctl = NULL;
+        *miid = 0;
+        PAL_ERR(LOG_TAG, "Exit. status %d", status);
+    }
+    return status;
+}
+
 int Session::getEffectParameters(Stream *s __unused, effect_pal_payload_t *effectPayload)
 {
     int status = 0;
@@ -207,39 +262,18 @@ int Session::getEffectParameters(Stream *s __unused, effect_pal_payload_t *effec
 
     uint8_t *payloadData = NULL;
     size_t payloadSize = 0;
-    int device = 0;
     uint32_t miid = 0;
     const char *control = "getParam";
-    struct mixer_ctl *ctl;
+    struct mixer_ctl *ctl = NULL;
     pal_effect_custom_payload_t *effectCustomPayload = nullptr;
-    std::ostringstream CntrlName;
     PayloadBuilder builder;
 
     PAL_DBG(LOG_TAG, "Enter.");
-    ctl = getFEMixerCtl(control, &device);
-    if (!ctl) {
-        PAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", CntrlName.str().data());
-        status = -ENOENT;
-        goto exit;
-    }
 
-    if (!rxAifBackEnds.empty()) { /** search in RX GKV */
-        status = SessionAlsaUtils::getModuleInstanceId(mixer, device, rxAifBackEnds[0].second.data(),
-                effectPayload->tag, &miid);
-        if (status) /** if not found, reset miid to 0 again */
-            miid = 0;
-    }
-
-    if (!txAifBackEnds.empty()) { /** search in TX GKV */
-        status = SessionAlsaUtils::getModuleInstanceId(mixer, device, txAifBackEnds[0].second.data(),
-                effectPayload->tag, &miid);
-        if (status)
-            miid = 0;
-    }
-
-    if (miid == 0) {
-        PAL_ERR(LOG_TAG, "failed to look for module with tagID 0x%x",
-                    effectPayload->tag);
+    status = getModuleInfo(control, effectPayload->tag, &miid, &ctl, NULL);
+    if (status || !miid) {
+        PAL_ERR(LOG_TAG, "failed to look for module with tagID 0x%x, status = %d",
+                    effectPayload->tag, status);
         status = -EINVAL;
         goto exit;
     }
@@ -271,9 +305,171 @@ int Session::getEffectParameters(Stream *s __unused, effect_pal_payload_t *effec
                         ptr, effectPayload->payloadSize);
 
 exit:
+    ctl = NULL;
     if (payloadData)
         free(payloadData);
     PAL_ERR(LOG_TAG, "Exit. status %d", status);
+    return status;
+}
+
+int Session::setEffectParametersTKV(Stream *s __unused, effect_pal_payload_t *effectPayload)
+{
+    int status = 0;
+    int device = 0;
+    uint32_t tag;
+    uint32_t nTkvs;
+    uint32_t tagConfigSize;
+    struct mixer_ctl *ctl;
+    pal_key_vector_t *palKVPair;
+    struct agm_tag_config* tagConfig = NULL;
+    std::vector <std::pair<int, int>> tkv;
+    const char *control = "setParamTag";
+
+    PAL_DBG(LOG_TAG, "Enter.");
+
+    palKVPair = (pal_key_vector_t *)effectPayload->payload;
+    nTkvs =  palKVPair->num_tkvs;
+    tkv.clear();
+    for (int i = 0; i < nTkvs; i++) {
+        tkv.push_back(std::make_pair(palKVPair->kvp[i].key, palKVPair->kvp[i].value));
+    }
+    if (tkv.size() == 0) {
+        status = -EINVAL;
+        goto exit;
+    }
+
+    tagConfigSize = sizeof(struct agm_tag_config) + (tkv.size() * sizeof(agm_key_value));
+    tagConfig = (struct agm_tag_config *) malloc(tagConfigSize);
+    if(!tagConfig) {
+        status = -ENOMEM;
+        goto exit;
+    }
+
+    tag = effectPayload->tag;
+    status = SessionAlsaUtils::getTagMetadata(tag, tkv, tagConfig);
+    if (0 != status) {
+        goto exit;
+    }
+
+    /* Prepare mixer control */
+    ctl = getFEMixerCtl(control, &device, PAL_AUDIO_OUTPUT);
+    if (!ctl) {
+        PAL_ERR(LOG_TAG, "Invalid mixer control\n");
+        status = -ENOENT;
+        goto exit;
+    }
+
+    status = mixer_ctl_set_array(ctl, tagConfig, tagConfigSize);
+    if (status != 0) {
+        PAL_DBG(LOG_TAG, "Unable to set TKV in Rx path, trying in Tx\n");
+        /* Rx set failed, Try on Tx path we well */
+        ctl = getFEMixerCtl(control, &device, PAL_AUDIO_INPUT);
+        if (!ctl) {
+            PAL_ERR(LOG_TAG, "Invalid mixer control\n");
+            status = -ENOENT;
+            goto exit;
+        }
+
+        status = mixer_ctl_set_array(ctl, tagConfig, tagConfigSize);
+        if (status != 0) {
+            PAL_ERR(LOG_TAG, "failed to set the param %d", status);
+            goto exit;
+        }
+    }
+
+exit:
+    ctl = NULL;
+
+    if (tagConfig) {
+        free(tagConfig);
+        tagConfig = NULL;
+    }
+    PAL_INFO(LOG_TAG, "mixer set tkv status = %d\n", status);
+    return status;
+}
+
+int Session::setEffectParametersNonTKV(Stream *s __unused, effect_pal_payload_t *effectPayload)
+{
+    int status = 0;
+    int device = 0;
+    PayloadBuilder builder;
+
+    uint32_t miid = 0;
+    const char *control = "setParam";
+    size_t payloadSize = 0;
+    uint8_t *payloadData = NULL;
+    pal_effect_custom_payload_t *effectCustomPayload;
+
+    PAL_DBG(LOG_TAG, "Enter.");
+
+    /* This is set param call, find out miid first */
+    status = getModuleInfo(control, effectPayload->tag, &miid, NULL, &device);
+    if (status || !miid) {
+        PAL_ERR(LOG_TAG, "failed to look for module with tagID 0x%x, status = %d",
+                    effectPayload->tag, status);
+        status = -EINVAL;
+        goto exit;
+    }
+
+    /* Now we got the miid, build set param payload */
+    effectCustomPayload = (pal_effect_custom_payload_t *)effectPayload->payload;
+    status = builder.payloadCustomParam(&payloadData, &payloadSize,
+            effectCustomPayload->data,
+            effectPayload->payloadSize - sizeof(uint32_t),
+            miid, effectCustomPayload->paramId);
+    if (status != 0) {
+        PAL_ERR(LOG_TAG, "payloadCustomParam failed. status = %d",
+                status);
+        goto exit;
+    }
+    /* set param through set mixer param */
+    status = SessionAlsaUtils::setMixerParameter(mixer,
+            device,
+            payloadData,
+            payloadSize);
+    PAL_INFO(LOG_TAG, "mixer set param status = %d\n", status);
+
+exit:
+    if (payloadData) {
+        free(payloadData);
+        payloadData = NULL;
+    }
+    if (status) {
+        PAL_ERR(LOG_TAG, "setEffectParameters for param_id %d failed, status = %d",
+                effectCustomPayload->paramId, status);
+    }
+    return status;
+
+}
+
+int Session::setEffectParameters(Stream *s, effect_pal_payload_t *effectPayload)
+{
+    int status = 0;
+
+    PAL_DBG(LOG_TAG, "Enter.");
+
+    /* Identify whether this is tkv or set param call */
+    if (effectPayload->isTKV) {
+        /* This is tkv set call */
+        status = setEffectParametersTKV(s, effectPayload);
+        if (0 != status) {
+            PAL_ERR(LOG_TAG, "Get setEffectParameters with TKV payload failed"
+                                ", status = %d", status);
+            goto exit;
+        }
+    } else {
+        status = setEffectParametersNonTKV(s, effectPayload);
+        if (0 != status) {
+            PAL_ERR(LOG_TAG, "Get setEffectParameters with non TKV payload failed"
+                                ", status = %d", status);
+            goto exit;
+        }
+    }
+
+exit:
+    if (status)
+        PAL_ERR(LOG_TAG, "Exit. status %d", status);
+
     return status;
 }
 
@@ -283,15 +479,14 @@ int Session::rwACDBParameters(void *payload, uint32_t sampleRate,
     int status = 0;
     uint8_t *payloadData = NULL;
     size_t payloadSize = 0;
-    int device = 0;
     uint32_t miid = 0;
     char const *control = "setParamTagACDB";
-    struct mixer_ctl *ctl;
+    struct mixer_ctl *ctl = NULL;
     pal_effect_custom_payload_t *effectCustomPayload = nullptr;
-    std::ostringstream CntrlName;
     PayloadBuilder builder;
     pal_param_payload *paramPayload = nullptr;
     agm_acdb_param *effectACDBPayload = nullptr;
+
     paramPayload = (pal_param_payload *)payload;
     if (!paramPayload)
         return -EINVAL;
@@ -301,31 +496,11 @@ int Session::rwACDBParameters(void *payload, uint32_t sampleRate,
         return -EINVAL;
 
     PAL_DBG(LOG_TAG, "Enter.");
-    ctl = getFEMixerCtl(control, &device);
-    if (!ctl) {
-        PAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", CntrlName.str().data());
-        status = -ENOENT;
-        goto exit;
-    }
 
-    if (!rxAifBackEnds.empty()) { /** search in RX GKV */
-        status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
-                rxAifBackEnds[0].second.data(),
-                effectACDBPayload->tag, &miid);
-        if (status) /** if not found, reset miid to 0 again */
-            miid = 0;
-    }
-
-    if (!txAifBackEnds.empty()) { /** search in TX GKV */
-        status = SessionAlsaUtils::getModuleInstanceId(mixer, device, txAifBackEnds[0].second.data(),
-                effectACDBPayload->tag, &miid);
-        if (status)
-            miid = 0;
-    }
-
-    if (miid == 0) {
-        PAL_ERR(LOG_TAG, "failed to look for module with tagID 0x%x",
-                    effectACDBPayload->tag);
+    status = getModuleInfo(control, effectACDBPayload->tag, &miid, &ctl, NULL);
+    if (status || !miid) {
+        PAL_ERR(LOG_TAG, "failed to look for module with tagID 0x%x, status = %d",
+                    effectACDBPayload->tag, status);
         status = -EINVAL;
         goto exit;
     }
@@ -350,6 +525,7 @@ int Session::rwACDBParameters(void *payload, uint32_t sampleRate,
     }
 
 exit:
+    ctl = NULL;
     free(payloadData);
     PAL_ERR(LOG_TAG, "Exit. status %d", status);
     return status;

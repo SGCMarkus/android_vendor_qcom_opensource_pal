@@ -104,7 +104,7 @@ public:
         std::shared_ptr<Device> deviceToDisconnect) override;
     bool isActive();
     uint32_t getMIID(const char *backendName, uint32_t tagId, uint32_t *miid) override;
-    struct mixer_ctl* getFEMixerCtl(const char *controlName, int *device) override;
+    struct mixer_ctl* getFEMixerCtl(const char *controlName, int *device, pal_stream_direction_t dir) override;
     int createMmapBuffer(Stream *s, int32_t min_size_frames,
                                    struct pal_mmap_buffer *info) override;
     int GetMmapPosition(Stream *s, struct pal_mmap_position *position) override;

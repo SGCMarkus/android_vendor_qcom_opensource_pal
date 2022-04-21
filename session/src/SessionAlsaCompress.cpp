@@ -1794,7 +1794,7 @@ int SessionAlsaCompress::writeBufferInit(Stream *s __unused, size_t noOfBuf __un
     return 0;
 }
 
-struct mixer_ctl* SessionAlsaCompress::getFEMixerCtl(const char *controlName, int *device)
+struct mixer_ctl* SessionAlsaCompress::getFEMixerCtl(const char *controlName, int *device, pal_stream_direction_t dir __unused)
 {
     std::ostringstream CntrlName;
     struct mixer_ctl *ctl;
@@ -1855,37 +1855,6 @@ int SessionAlsaCompress::setParameters(Stream *s __unused, int tagId, uint32_t p
                                           builder, rxAifBackEnds);
         }
         break;
-        case PAL_PARAM_ID_UIEFFECT:
-        {
-            pal_effect_custom_payload_t *customPayload;
-            param_payload = (pal_param_payload *)payload;
-            effectPalPayload = (effect_pal_payload_t *)(param_payload->payload);
-            status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
-                                                           rxAifBackEnds[0].second.data(),
-                                                           tagId, &miid);
-            if (0 != status) {
-                PAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", tagId, status);
-                break;
-            } else {
-                customPayload = (pal_effect_custom_payload_t *)effectPalPayload->payload;
-                status = builder->payloadCustomParam(&alsaParamData, &alsaPayloadSize,
-                            customPayload->data,
-                            effectPalPayload->payloadSize - sizeof(uint32_t),
-                            miid, customPayload->paramId);
-                if (status != 0) {
-                    PAL_ERR(LOG_TAG, "payloadCustomParam failed. status = %d",
-                                status);
-                    break;
-                }
-                status = SessionAlsaUtils::setMixerParameter(mixer,
-                                                             compressDevIds.at(0),
-                                                             alsaParamData,
-                                                             alsaPayloadSize);
-                PAL_INFO(LOG_TAG, "mixer set param status=%d\n", status);
-                freeCustomPayload(&alsaParamData, &alsaPayloadSize);
-            }
-            break;
-        }
         case PAL_PARAM_ID_BT_A2DP_TWS_CONFIG:
         {
             pal_bt_tws_payload *tws_payload = (pal_bt_tws_payload *)payload;
