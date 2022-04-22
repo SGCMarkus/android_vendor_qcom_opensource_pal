@@ -131,7 +131,6 @@ int ECRefDevice::start()
     uint8_t* paramData = NULL;
     size_t paramSize = 0;
     uint32_t ratMiid = 0;
-    std::shared_ptr<Device> dev = nullptr;
 
     codecConfig.sample_rate = SAMPLINGRATE_48K;
     codecConfig.bit_width = BITWIDTH_16;
@@ -144,9 +143,8 @@ int ECRefDevice::start()
     customPayloadSize = 0;
 
     rm->getBackendName(mDeviceAttr.id, backEndName);
-    dev = Device::getInstance(&deviceAttr, rm);
 
-    status = rm->getActiveStream_l(activestreams, dev);
+    status = rm->getActiveStream_l(activestreams, getObject());
     if ((0 != status) || (activestreams.size() == 0)) {
         PAL_ERR(LOG_TAG, "no active stream available");
         status = -EINVAL;
@@ -165,7 +163,7 @@ int ECRefDevice::start()
 
     builder->payloadRATConfig(&paramData, &paramSize, ratMiid, &codecConfig);
     if (paramSize) {
-        dev->updateCustomPayload(paramData, paramSize);
+        updateCustomPayload(paramData, paramSize);
         free(paramData);
         paramData = NULL;
         paramSize = 0;
