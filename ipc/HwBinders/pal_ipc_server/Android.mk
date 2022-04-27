@@ -8,6 +8,9 @@ LOCAL_CFLAGS += -v
 LOCAL_SRC_FILES := \
     src/pal_server_wrapper.cpp
 
+LOCAL_C_INCLUDES := \
+    $(TOP)/vendor/qcom/opensource/pal/utils/inc
+
 LOCAL_EXPORT_C_INCLUDE_DIRS := $(LOCAL_PATH)/inc
 
 LOCAL_SHARED_LIBRARIES := \
@@ -20,6 +23,11 @@ LOCAL_SHARED_LIBRARIES := \
     libbase \
     vendor.qti.hardware.pal@1.0 \
     libar-pal
+
+LOCAL_HEADER_LIBRARIES := \
+    libspf-headers \
+    libarosal_headers \
+    libacdb_headers
 
 include $(BUILD_SHARED_LIBRARY)
 

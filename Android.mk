@@ -108,14 +108,16 @@ LOCAL_SRC_FILES := \
     utils/src/VoiceUIPlatformInfo.cpp \
     utils/src/PalRingBuffer.cpp \
     utils/src/SoundTriggerUtils.cpp \
-    utils/src/SignalHandler.cpp
+    utils/src/SignalHandler.cpp \
+    utils/src/MetadataParser.cpp
 
 LOCAL_HEADER_LIBRARIES := \
     libspf-headers \
     libcapiv2_headers \
     libagm_headers \
     libacdb_headers \
-    liblisten_headers
+    liblisten_headers \
+    libarosal_headers
 
 LOCAL_SHARED_LIBRARIES := \
     libar-gsl\

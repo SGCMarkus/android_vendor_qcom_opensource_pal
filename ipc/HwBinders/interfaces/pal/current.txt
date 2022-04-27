@@ -1,5 +1,5 @@
 # Hash for vendor.qti.hardware.pal@1.0 package
-f03a49df32c33edda4fc0f5ccc76e94460adb18c9c8f90912b3076c914acf0d9 vendor.qti.hardware.pal@1.0::types
+ae76fd8b151c3e2611be0d1402193d914a49e6661e538346652f07c4efcdb778 vendor.qti.hardware.pal@1.0::types
 490e78d428acdd280e198ae7071ffee6abfe790aff0f649653a619cc8ee5cf26 vendor.qti.hardware.pal@1.0::IPAL
-d6ae25f7077995036a155000e292422955e3c5515887d76947625337c7f8b9b6 vendor.qti.hardware.pal@1.0::IPALCallback
+2007701e85c4614778cf2604d6f519b297186781ef451a62eeb04fc32e44922b vendor.qti.hardware.pal@1.0::IPALCallback
 
