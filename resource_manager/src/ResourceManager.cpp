@@ -3367,8 +3367,8 @@ int ResourceManager::checkandEnableEC_l(std::shared_ptr<Device> d, Stream *s, bo
         goto exit;
     }
     if (sAttr.type == PAL_STREAM_PROXY ||
-        sAttr.type == PAL_STREAM_ULTRA_LOW_LATENCY ||
-        (sAttr.type == PAL_STREAM_GENERIC && sAttr.direction == PAL_AUDIO_INPUT)) {
+        ((sAttr.type == PAL_STREAM_ULTRA_LOW_LATENCY ||
+        sAttr.type == PAL_STREAM_GENERIC) && sAttr.direction == PAL_AUDIO_INPUT)) {
         PAL_DBG(LOG_TAG, "stream type %d is not supported for setting EC", sAttr.type);
         goto exit;
     }
@@ -4738,6 +4738,10 @@ std::vector<Stream*> ResourceManager::getConcurrentTxStream_l(
     for (auto& tx_str: mActiveStreams) {
         tx_device_list.clear();
         tx_str->getStreamAttributes(&tx_attr);
+        if (tx_attr.type == PAL_STREAM_PROXY ||
+            tx_attr.type == PAL_STREAM_ULTRA_LOW_LATENCY ||
+            tx_attr.type == PAL_STREAM_GENERIC)
+            continue;
         if (tx_attr.direction == PAL_AUDIO_INPUT) {
             if (!getEcRefStatus(tx_attr.type, rx_attr.type)) {
                 PAL_DBG(LOG_TAG, "No need to enable ec ref for rx %d tx %d",
@@ -8729,7 +8733,7 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                 status = -EINVAL;
                 goto exit;
             }
-            PAL_DBG(LOG_TAG, "set mspp linear gain %ld (0x%x)", linear_gain->gain, linear_gain->gain);
+            PAL_DBG(LOG_TAG, "set mspp linear gain (0x%x)", linear_gain->gain);
             rm->linear_gain.gain =  linear_gain->gain;
             for (int i = 0; i < active_devices.size(); i++) {
                 int deviceId = active_devices[i].first->getSndDeviceId();
