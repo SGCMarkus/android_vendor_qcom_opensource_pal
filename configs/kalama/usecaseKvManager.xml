@@ -607,6 +607,14 @@
                 <!-- BT_FORMAT - LC3 -->
                 <graph_kv key="0xB5000000" value="0xB5000005"/>
             </keys_and_values>
+            <keys_and_values CodecFormat="CODEC_TYPE_APTX_AD_QLEA" AbrEnabled="TRUE,FALSE" Hostless="FALSE">
+                <!-- DEVICERX - BT_RX -->
+                <graph_kv key="0xA2000000" value="0xA2000003"/>
+                <!-- BT_PROFILE - BLE -->
+                <graph_kv key="0xB4000000" value="0xB4000003"/>
+                <!-- BT_FORMAT - APTX_AD_QLEA -->
+                <graph_kv key="0xB5000000" value="0xB5000007"/>
+            </keys_and_values>
         </device>
         <!-- BT A2DP IN Device -->
         <device id="PAL_DEVICE_IN_BLUETOOTH_A2DP">
@@ -648,6 +656,14 @@
                 <graph_kv key="0xB4000000" value="0xB4000003"/>
                 <!-- BT_FORMAT - LC3 -->
                 <graph_kv key="0xB5000000" value="0xB5000005"/>
+            </keys_and_values>
+            <keys_and_values CodecFormat="CODEC_TYPE_APTX_AD_QLEA" Hostless="TRUE">
+                <!-- DEVICETX - BT_TX -->
+                <graph_kv key="0xA3000000" value="0xA3000002"/>
+                <!-- BT_PROFILE - BLE -->
+                <graph_kv key="0xB4000000" value="0xB4000003"/>
+                <!-- BT_FORMAT - APTX_AD_QLEA -->
+                <graph_kv key="0xB5000000" value="0xB5000007"/>
             </keys_and_values>
         </device>
         <!-- BT SCO OUT Device -->
@@ -1263,7 +1279,7 @@
                 <!-- DEVICETX - BT_TX -->
                 <graph_kv key="0xA3000000" value="0xA3000002"/>
                 <!-- DEVICEPP_TX - DEVICEPP_TX_VOICE_FLUENCE_SMECNS -->
-            <graph_kv key="0xAD000000" value="0xAD000008"/>
+                <graph_kv key="0xAD000000" value="0xAD000008"/>
             </keys_and_values>
             <keys_and_values StreamType="PAL_STREAM_VOIP_TX">
                 <!-- DEVICETX - BT_TX -->
