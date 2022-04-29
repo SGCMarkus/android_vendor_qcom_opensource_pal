@@ -72,7 +72,7 @@ static int ble_pack_enc_config(bt_codec_t *codec, void *src, void **dst)
     }
 
     enc_payload->is_abr_enabled    = true;
-    enc_payload->is_enc_config_set = true;
+    enc_payload->is_enc_config_set = ble_bt_cfg->is_enc_config_set;
     enc_payload->is_dec_config_set = ble_bt_cfg->is_dec_config_set;
 
     for (i = 0; i < num_blks; i++) {
@@ -166,7 +166,7 @@ static int ble_pack_dec_config(bt_codec_t *codec, void *src, void **dst)
     enc_payload->num_blks          = num_blks;
     enc_payload->is_abr_enabled    = true;
     enc_payload->is_enc_config_set = ble_bt_cfg->is_enc_config_set;
-    enc_payload->is_dec_config_set = true;
+    enc_payload->is_dec_config_set = ble_bt_cfg->is_dec_config_set;
 
     for (i = 0; i < num_blks; i++) {
         blk[i] = (custom_block_t *)calloc(1, sizeof(custom_block_t));
