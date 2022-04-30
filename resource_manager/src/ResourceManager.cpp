@@ -258,6 +258,7 @@ std::vector<std::pair<int32_t, std::string>> ResourceManager::deviceLinkName {
     {PAL_DEVICE_IN_HANDSET_VA_MIC,        {std::string{ "" }}},
     {PAL_DEVICE_IN_BLUETOOTH_A2DP,        {std::string{ "" }}},
     {PAL_DEVICE_IN_BLUETOOTH_BLE,         {std::string{ "" }}},
+    {PAL_DEVICE_IN_HAPTICS_VI_FEEDBACK,   {std::string{ "" }}},
     {PAL_DEVICE_IN_HEADSET_VA_MIC,        {std::string{ "" }}},
     {PAL_DEVICE_IN_TELEPHONY_RX,          {std::string{ "" }}},
     {PAL_DEVICE_IN_ULTRASOUND_MIC,        {std::string{ "" }}},
@@ -308,6 +309,7 @@ std::vector<std::pair<int32_t, int32_t>> ResourceManager::devicePcmId {
     {PAL_DEVICE_IN_HANDSET_VA_MIC,        0},
     {PAL_DEVICE_IN_BLUETOOTH_A2DP,        0},
     {PAL_DEVICE_IN_BLUETOOTH_BLE,         0},
+    {PAL_DEVICE_IN_HAPTICS_VI_FEEDBACK,   0},
     {PAL_DEVICE_IN_HEADSET_VA_MIC,        0},
     {PAL_DEVICE_IN_TELEPHONY_RX,          0},
     {PAL_DEVICE_IN_ULTRASOUND_MIC,        0},
@@ -359,6 +361,7 @@ std::vector<std::pair<int32_t, std::string>> ResourceManager::sndDeviceNameLUT {
     {PAL_DEVICE_IN_HANDSET_VA_MIC,        {std::string{ "" }}},
     {PAL_DEVICE_IN_BLUETOOTH_A2DP,        {std::string{ "" }}},
     {PAL_DEVICE_IN_BLUETOOTH_BLE,         {std::string{ "" }}},
+    {PAL_DEVICE_IN_HAPTICS_VI_FEEDBACK,   {std::string{ "" }}},
     {PAL_DEVICE_IN_HEADSET_VA_MIC,        {std::string{ "" }}},
     {PAL_DEVICE_IN_VI_FEEDBACK,           {std::string{ "" }}},
     {PAL_DEVICE_IN_TELEPHONY_RX,          {std::string{ "" }}},
@@ -610,6 +613,7 @@ std::vector<std::pair<int32_t, std::string>> ResourceManager::listAllBackEndIds 
     {PAL_DEVICE_IN_HANDSET_VA_MIC,        {std::string{ "none" }}},
     {PAL_DEVICE_IN_BLUETOOTH_A2DP,        {std::string{ "" }}},
     {PAL_DEVICE_IN_BLUETOOTH_BLE,         {std::string{ "" }}},
+    {PAL_DEVICE_IN_HAPTICS_VI_FEEDBACK,   {std::string{ "" }}},
     {PAL_DEVICE_IN_HEADSET_VA_MIC,        {std::string{ "none" }}},
     {PAL_DEVICE_IN_VI_FEEDBACK,           {std::string{ "" }}},
     {PAL_DEVICE_IN_TELEPHONY_RX,          {std::string{ "" }}},
@@ -6632,7 +6636,7 @@ int32_t ResourceManager::streamDevSwitch(std::vector <std::tuple<Stream *, uint3
         }
         if (sAttr.direction == PAL_AUDIO_OUTPUT && sAttr.type == PAL_STREAM_ULTRA_LOW_LATENCY) {
             (*sIter)->getAssociatedSession(&session);
-            if (session != NULL)
+            if ((session != NULL) && (*sIter)->isActive())
                 session->AdmRoutingChange((*sIter));
         }
     }
