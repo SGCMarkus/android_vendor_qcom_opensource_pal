@@ -80,7 +80,7 @@
         <param key="upd_dedicated_be" value ="true" />
         <param key="upd_duty_cycle_enable" value="false" />
         <param key="dual_mono" value ="false" />
-        <param key="signal_handler" value ="true" />
+        <param key="signal_handler" value ="false" />
         <param key="device_mux_config" value ="true" />
     </config_params>
     <config_volume>
