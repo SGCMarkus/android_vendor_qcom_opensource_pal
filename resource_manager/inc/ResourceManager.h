@@ -689,7 +689,8 @@ public:
                            pal_param_device_connection_t connection_state);
     /* bIsUpdated - to specify if the config is updated by rm */
     int checkAndGetDeviceConfig(struct pal_device *device ,bool* bIsUpdated);
-    static void getFileNameExtn(const char* in_snd_card_name, char* file_name_extn);
+    static void getFileNameExtn(const char* in_snd_card_name, char* file_name_extn,
+                                char* file_name_extn_wo_variant);
     int init_audio();
     void loadAdmLib();
     static int init();

@@ -182,6 +182,7 @@ uint32_t pal_log_lvl = (PAL_LOG_ERR|PAL_LOG_INFO);
 static struct str_parms *configParamKVPairs;
 
 char rmngr_xml_file[XML_PATH_MAX_LENGTH] = {0};
+char rmngr_xml_file_wo_variant[XML_PATH_MAX_LENGTH] = {0};
 
 char vendor_config_path[VENDOR_CONFIG_PATH_MAX_LENGTH] = {0};
 
@@ -671,7 +672,8 @@ ssize_t ResourceManager::getAvailableNTStreamInstance(
      return -EINVAL;
 }
 
-void ResourceManager::getFileNameExtn(const char *in_snd_card_name, char* file_name_extn)
+void ResourceManager::getFileNameExtn(const char *in_snd_card_name, char* file_name_extn,
+                                      char* file_name_extn_wo_variant)
 {
     /* Sound card name follows below mentioned convention:
        <target name>-<form factor>-<variant>-snd-card.
@@ -694,6 +696,7 @@ void ResourceManager::getFileNameExtn(const char *in_snd_card_name, char* file_n
 
     while ((card_sub_str = strtok_r(NULL, "-", &tmp))) {
         if (strncmp(card_sub_str, "snd", strlen("snd"))) {
+            strlcpy(file_name_extn_wo_variant, file_name_extn, XML_PATH_EXTN_MAX_SIZE);
             strlcat(file_name_extn, XML_FILE_DELIMITER, XML_PATH_EXTN_MAX_SIZE);
             strlcat(file_name_extn, card_sub_str, XML_PATH_EXTN_MAX_SIZE);
         }
@@ -701,6 +704,7 @@ void ResourceManager::getFileNameExtn(const char *in_snd_card_name, char* file_n
             break;
     }
     PAL_DBG(LOG_TAG,"file path extension(%s)", file_name_extn);
+    PAL_DBG(LOG_TAG,"file path extension without variant(%s)", file_name_extn_wo_variant);
 
 err:
     if (snd_card_name)
@@ -746,6 +750,8 @@ ResourceManager::ResourceManager()
     }
 
     ret = ResourceManager::XmlParser(rmngr_xml_file);
+    if (ret == -ENOENT) // try resourcemanager xml without variant name
+        ret = ResourceManager::XmlParser(rmngr_xml_file_wo_variant);
     if (ret) {
         PAL_ERR(LOG_TAG, "error in resource xml parsing ret %d", ret);
         throw std::runtime_error("error in resource xml parsing");
@@ -1202,6 +1208,7 @@ int ResourceManager::init_audio()
 
     char mixer_xml_file[XML_PATH_MAX_LENGTH] = {0};
     char file_name_extn[XML_PATH_EXTN_MAX_SIZE] = {0};
+    char file_name_extn_wo_variant[XML_PATH_EXTN_MAX_SIZE] = {0};
 
     PAL_DBG(LOG_TAG, "Enter.");
 
@@ -1268,7 +1275,7 @@ int ResourceManager::init_audio()
         return -EIO;
     }
 
-    getFileNameExtn(snd_card_name, file_name_extn);
+    getFileNameExtn(snd_card_name, file_name_extn, file_name_extn_wo_variant);
 
     getVendorConfigPath(vendor_config_path, sizeof(vendor_config_path));
 
@@ -1282,10 +1289,13 @@ int ResourceManager::init_audio()
     strlcat(mixer_xml_file, XML_FILE_DELIMITER, XML_PATH_MAX_LENGTH);
     strlcat(mixer_xml_file, file_name_extn, XML_PATH_MAX_LENGTH);
     strlcat(rmngr_xml_file, XML_FILE_DELIMITER, XML_PATH_MAX_LENGTH);
+    strlcpy(rmngr_xml_file_wo_variant, rmngr_xml_file, XML_PATH_MAX_LENGTH);
     strlcat(rmngr_xml_file, file_name_extn, XML_PATH_MAX_LENGTH);
+    strlcat(rmngr_xml_file_wo_variant, file_name_extn_wo_variant, XML_PATH_MAX_LENGTH);
 
     strlcat(mixer_xml_file, XML_FILE_EXT, XML_PATH_MAX_LENGTH);
     strlcat(rmngr_xml_file, XML_FILE_EXT, XML_PATH_MAX_LENGTH);
+    strlcat(rmngr_xml_file_wo_variant, XML_FILE_EXT, XML_PATH_MAX_LENGTH);
 
     audio_route = audio_route_init(snd_hw_card, mixer_xml_file);
     PAL_INFO(LOG_TAG, "audio route %pK, mixer path %s", audio_route, mixer_xml_file);
@@ -10648,7 +10658,7 @@ int ResourceManager::XmlParser(std::string xmlFile)
     PAL_INFO(LOG_TAG, "XML parsing started - file name %s", xmlFile.c_str());
     file = fopen(xmlFile.c_str(), "r");
     if(!file) {
-        ret = EINVAL;
+        ret = -ENOENT;
         PAL_ERR(LOG_TAG, "Failed to open xml file name %s ret %d", xmlFile.c_str(), ret);
         goto done;
     }
