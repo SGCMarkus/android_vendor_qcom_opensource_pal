@@ -2261,7 +2261,7 @@ int SessionAlsaUtils::connectSessionDevice(Session* sess, Stream* streamHandle, 
         PAL_ERR(LOG_TAG, "get mixer handle failed %d", status);
         goto exit;
     }
-    if ((((dAttr.id == PAL_DEVICE_OUT_SPEAKER) ||
+    if ((((dAttr.id == PAL_DEVICE_OUT_SPEAKER || dAttr.id == PAL_DEVICE_OUT_HANDSET) ||
           (rmHandle->activeGroupDevConfig && dAttr.id == PAL_DEVICE_OUT_ULTRASOUND))&&
           (streamType == PAL_STREAM_ULTRASOUND)) ||
         (is_out_dev && streamType == PAL_STREAM_LOOPBACK)) {
