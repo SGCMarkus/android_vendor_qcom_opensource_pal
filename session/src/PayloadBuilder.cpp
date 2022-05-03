@@ -2027,7 +2027,8 @@ int PayloadBuilder::getBtDeviceKV(int dev_id, std::vector<std::pair<int,int>>& d
                                    btCodecFormatLUT.at(codecFormat)));
 
     if (dev_id == PAL_DEVICE_OUT_BLUETOOTH_A2DP ||
-        dev_id == PAL_DEVICE_OUT_BLUETOOTH_BLE) {
+        dev_id == PAL_DEVICE_OUT_BLUETOOTH_BLE ||
+        dev_id == PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST) {
         filled_selector_pairs.push_back(std::make_pair(ABR_ENABLED_SEL,
             isAbrEnabled ? "TRUE" : "FALSE"));
         filled_selector_pairs.push_back(std::make_pair(HOSTLESS_SEL,

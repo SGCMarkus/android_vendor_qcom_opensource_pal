@@ -72,6 +72,10 @@ typedef enum {
     LE_AUDIO_HARDWARE_OFFLOAD_ENCODING_DATAPATH,
     /** Decoding is done by HW an there is control only */
     LE_AUDIO_HARDWARE_OFFLOAD_DECODING_DATAPATH,
+    /** SW Encoding for LE Audio Broadcast */
+    LE_AUDIO_BROADCAST_SOFTWARE_ENCODING_DATAPATH,
+    /** HW Encoding for LE Audio Broadcast */
+    LE_AUDIO_BROADCAST_HARDWARE_OFFLOAD_ENCODING_DATAPATH,
 }tSESSION_TYPE;
 
 typedef void (*bt_audio_pre_init_t)(void);
@@ -164,6 +168,7 @@ protected:
     static std::shared_ptr<Device> objTx;
     static std::shared_ptr<Device> objBleRx;
     static std::shared_ptr<Device> objBleTx;
+    static std::shared_ptr<Device> objBleBroadcastRx;
     BtA2dp(struct pal_device *device, std::shared_ptr<ResourceManager> Rm);
     pal_param_bta2dp_t param_bt_a2dp;
 

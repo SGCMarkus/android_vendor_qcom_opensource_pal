@@ -823,9 +823,12 @@ int32_t Stream::handleBTDeviceNotReady(bool& a2dpSuspend)
 
     /* A2DP/BLE device is not ready */
     if (rm->isDeviceAvailable(mDevices, PAL_DEVICE_OUT_BLUETOOTH_A2DP) ||
-        rm->isDeviceAvailable(mDevices, PAL_DEVICE_OUT_BLUETOOTH_BLE)) {
+        rm->isDeviceAvailable(mDevices, PAL_DEVICE_OUT_BLUETOOTH_BLE) ||
+        rm->isDeviceAvailable(mDevices, PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST)) {
         if (rm->isDeviceAvailable(mDevices, PAL_DEVICE_OUT_BLUETOOTH_A2DP)) {
             dattr.id = PAL_DEVICE_OUT_BLUETOOTH_A2DP;
+        } else if (rm->isDeviceAvailable(mDevices, PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST)){
+            dattr.id = PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST;
         } else {
             dattr.id = PAL_DEVICE_OUT_BLUETOOTH_BLE;
         }
@@ -1281,7 +1284,9 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
     for (int i = 0; i < mDevices.size(); i++) {
         pal_device_id_t curDevId = (pal_device_id_t)mDevices[i]->getSndDeviceId();
 
-        if (curDevId == PAL_DEVICE_OUT_BLUETOOTH_A2DP || curDevId == PAL_DEVICE_OUT_BLUETOOTH_BLE)
+        if (curDevId == PAL_DEVICE_OUT_BLUETOOTH_A2DP ||
+            curDevId == PAL_DEVICE_OUT_BLUETOOTH_BLE ||
+            curDevId == PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST)
             isCurDeviceA2dp = true;
 
         if (curDevId == PAL_DEVICE_OUT_PROXY)
@@ -1355,9 +1360,11 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
          */
         // This assumes that PAL_DEVICE_NONE comes as single device
         if ((newDevices[i].id == PAL_DEVICE_NONE) &&
-            (((isCurDeviceA2dp == true) && ((!rm->isDeviceReady(PAL_DEVICE_OUT_BLUETOOTH_A2DP)) ||
-             (!rm->isDeviceReady(PAL_DEVICE_OUT_BLUETOOTH_BLE)))) ||
-             (isCurrentDeviceProxyOut) || (isCurrentDeviceDpOut))) {
+            (((isCurDeviceA2dp == true) &&
+              ((!rm->isDeviceReady(PAL_DEVICE_OUT_BLUETOOTH_A2DP)) ||
+               (!rm->isDeviceReady(PAL_DEVICE_OUT_BLUETOOTH_BLE)) ||
+               (!rm->isDeviceReady(PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST)))) ||
+             ((isCurrentDeviceProxyOut) || (isCurrentDeviceDpOut)))) {
             newDevices[i].id = PAL_DEVICE_OUT_SPEAKER;
 
             if (rm->getDeviceConfig(&newDevices[i], mStreamAttr)) {
@@ -1374,7 +1381,8 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
         if (!rm->isDeviceReady(newDevices[i].id)) {
             PAL_ERR(LOG_TAG, "Device %d is not ready", newDevices[i].id);
             if (((newDevices[i].id == PAL_DEVICE_OUT_BLUETOOTH_A2DP) ||
-                (newDevices[i].id == PAL_DEVICE_OUT_BLUETOOTH_BLE)) &&
+                (newDevices[i].id == PAL_DEVICE_OUT_BLUETOOTH_BLE) ||
+                (newDevices[i].id == PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST)) &&
                 !(rm->isDeviceAvailable(newDevices, numDev, PAL_DEVICE_OUT_SPEAKER))) {
                 /* update suspended device to a2dp and don't route as BT returned error
                  * However it is still possible a2dp routing called as part of a2dp restore
@@ -1388,7 +1396,8 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
             connectCount++;
 
             if (newDevices[i].id == PAL_DEVICE_OUT_BLUETOOTH_A2DP ||
-                newDevices[i].id == PAL_DEVICE_OUT_BLUETOOTH_BLE)
+                newDevices[i].id == PAL_DEVICE_OUT_BLUETOOTH_BLE ||
+                newDevices[i].id == PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST)
                 isNewDeviceA2dp = true;
         }
         /* insert current stream-device attr to Device */

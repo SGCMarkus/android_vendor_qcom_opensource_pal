@@ -701,7 +701,8 @@ int Session::configureMFC(const std::shared_ptr<ResourceManager>& rm, struct pal
 
         if (dAttr.id == PAL_DEVICE_OUT_BLUETOOTH_A2DP ||
             dAttr.id == PAL_DEVICE_OUT_BLUETOOTH_SCO ||
-            dAttr.id == PAL_DEVICE_OUT_BLUETOOTH_BLE) {
+            dAttr.id == PAL_DEVICE_OUT_BLUETOOTH_BLE ||
+            dAttr.id == PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST) {
             dev = Device::getInstance((struct pal_device *)&dAttr , rm);
             if (!dev) {
                 PAL_ERR(LOG_TAG, "Device getInstance failed");
