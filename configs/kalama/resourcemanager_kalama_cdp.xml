@@ -79,7 +79,7 @@
         <param key="context_manager_enable" value ="false" />
         <param key="lpi_logging_enable" value ="false" />
         <param key="upd_dedicated_be" value ="true" />
-        <param key="signal_handler" value ="true" />
+        <param key="signal_handler" value ="false" />
         <param key="device_mux_config" value ="true" />
         <param key="upd_duty_cycle_enable" value="false" />
         <param key="upd_virtual_port" value ="false" />
