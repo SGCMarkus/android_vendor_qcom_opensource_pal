@@ -918,7 +918,7 @@ public:
     void restoreDevice(std::shared_ptr<Device> dev);
     bool doDevAttrDiffer(struct pal_device *inDevAttr,
                          struct pal_device *curDevAttr);
-    int32_t voteSleepMonitor(Stream *str, bool vote);
+    int32_t voteSleepMonitor(Stream *str, bool vote, bool force_nlpi_vote = false);
     static uint32_t palFormatToBitwidthLookup(const pal_audio_fmt_t format);
     void chargerListenerFeatureInit();
     static void chargerListenerInit(charger_status_change_fn_t);
