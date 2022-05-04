@@ -524,6 +524,7 @@ bool ResourceManager::lpi_logging_ = false;
 bool ResourceManager::isUpdDedicatedBeEnabled = false;
 bool ResourceManager::isDeviceMuxConfigEnabled = false;
 bool ResourceManager::isUpdDutyCycleEnabled = false;
+bool ResourceManager::isUPDVirtualPortEnabled = false;
 int ResourceManager::max_voice_vol = -1;     /* Variable to store max volume index for voice call */
 bool ResourceManager::isSignalHandlerEnabled = false;
 
@@ -764,6 +765,9 @@ ResourceManager::ResourceManager()
         PAL_ERR(LOG_TAG, "error in resource xml parsing ret %d", ret);
         throw std::runtime_error("error in resource xml parsing");
     }
+
+    if (IsVirtualPortForUPDEnabled())
+        updateVirtualBackendName();
 
     if (isHifiFilterEnabled)
         audio_route_apply_and_update_path(audio_route, "hifi-filter-coefficients");
@@ -3663,6 +3667,11 @@ bool ResourceManager::IsDedicatedBEForUPDEnabled()
 bool ResourceManager::IsDutyCycleForUPDEnabled()
 {
     return ResourceManager::isUpdDutyCycleEnabled;
+}
+
+bool ResourceManager::IsVirtualPortForUPDEnabled()
+{
+    return ResourceManager::isUPDVirtualPortEnabled;
 }
 
 void ResourceManager::GetSoundTriggerConcurrencyCount(
@@ -6798,6 +6807,35 @@ int ResourceManager::getBackendName(int deviceId, std::string &backendName)
     return 0;
 }
 
+void ResourceManager::updateVirtualBackendName()
+{
+    std::string PrevBackendName;
+    pal_device_id_t virtual_dev[] = {PAL_DEVICE_OUT_ULTRASOUND, PAL_DEVICE_OUT_SPEAKER, PAL_DEVICE_OUT_HANDSET};
+
+    if (getBackendName(PAL_DEVICE_OUT_HANDSET, PrevBackendName) != 0) {
+        PAL_ERR(LOG_TAG, "Error retrieving BE name");
+        return;
+    }
+
+    for (int i = 0; i < sizeof(virtual_dev) / sizeof(virtual_dev[0]); i++) {
+        std::string backendName(PrevBackendName);
+
+        switch(virtual_dev[i]) {
+            case PAL_DEVICE_OUT_ULTRASOUND:
+                backendName.append("-VIRT-1");
+                break;
+            case PAL_DEVICE_OUT_SPEAKER:
+            case PAL_DEVICE_OUT_HANDSET:
+                backendName.append("-VIRT-0");
+                break;
+            default:
+                break;
+        }
+
+        listAllBackEndIds[virtual_dev[i]].second.assign(backendName);
+    }
+}
+
 bool ResourceManager::isValidDevId(int deviceId)
 {
     if (((deviceId >= PAL_DEVICE_NONE) && (deviceId < PAL_DEVICE_OUT_MAX))
@@ -6981,6 +7019,7 @@ int ResourceManager::setConfigParams(struct str_parms *parms)
     ret = setSignalHandlerEnableParam(parms, value, len);
     ret = setMuxconfigEnableParam(parms, value, len);
     ret = setUpdDutyCycleEnableParam(parms, value, len);
+    ret = setUpdVirtualPortParam(parms, value, len);
 
     /* Not checking return value as this is optional */
     setLpiLoggingParams(parms, value, len);
@@ -7114,6 +7153,28 @@ int ResourceManager::setUpdDutyCycleEnableParam(struct str_parms *parms,
             ResourceManager::isUpdDutyCycleEnabled = true;
 
         str_parms_del(parms, AUDIO_PARAMETER_KEY_UPD_DUTY_CYCLE);
+    }
+
+    return ret;
+}
+
+int ResourceManager::setUpdVirtualPortParam(struct str_parms *parms, char *value, int len)
+{
+    int ret = -EINVAL;
+
+    if (!value || !parms)
+        return ret;
+
+    ret = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_UPD_VIRTUAL_PORT,
+                            value, len);
+
+    PAL_VERBOSE(LOG_TAG," value %s", value);
+
+    if (ret >= 0) {
+        if (value && !strncmp(value, "true", sizeof("true")))
+            ResourceManager::isUPDVirtualPortEnabled = true;
+
+        str_parms_del(parms, AUDIO_PARAMETER_KEY_UPD_VIRTUAL_PORT);
     }
 
     return ret;
@@ -10458,7 +10519,8 @@ void ResourceManager::startTag(void *userdata, const XML_Char *tag_name,
     }
 
     if (!strcmp(tag_name, "group_device_cfg")) {
-        data->is_parsing_group_device = true;
+        if (ResourceManager::isUPDVirtualPortEnabled)
+            data->is_parsing_group_device = true;
         return;
     }
 

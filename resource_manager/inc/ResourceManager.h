@@ -109,6 +109,7 @@ typedef enum {
 #define AUDIO_PARAMETER_KEY_SIGNAL_HANDLER "signal_handler"
 #define AUDIO_PARAMETER_KEY_DEVICE_MUX "device_mux_config"
 #define AUDIO_PARAMETER_KEY_UPD_DUTY_CYCLE "upd_duty_cycle_enable"
+#define AUDIO_PARAMETER_KEY_UPD_VIRTUAL_PORT "upd_virtual_port"
 #define MAX_PCM_NAME_SIZE 50
 #define MAX_STREAM_INSTANCES (sizeof(uint64_t) << 3)
 #define MIN_USECASE_PRIORITY 0xFFFFFFFF
@@ -624,6 +625,8 @@ public:
     static bool isUpdDedicatedBeEnabled;
     /* Flag to indicate if shared backend is enabled for UPD */
     static bool isUpdDutyCycleEnabled;
+    /* Flag to indicate if virtual port is enabled for UPD */
+    static bool isUPDVirtualPortEnabled;
     /* Variable to store max volume index for voice call */
     static int max_voice_vol;
     /*variable to store MSPP linear gain*/
@@ -739,6 +742,7 @@ public:
     int getSndDeviceName(int deviceId, char *device_name);
     int getDeviceEpName(int deviceId, std::string &epName);
     int getBackendName(int deviceId, std::string &backendName);
+    void updateVirtualBackendName();
     int getStreamTag(std::vector <int> &tag);
     int getDeviceTag(std::vector <int> &tag);
     int getMixerTag(std::vector <int> &tag);
@@ -771,6 +775,7 @@ public:
     bool IsTransitToNonLPIOnChargingSupported();
     bool IsDedicatedBEForUPDEnabled();
     bool IsDutyCycleForUPDEnabled();
+    bool IsVirtualPortForUPDEnabled();
     void GetSoundTriggerConcurrencyCount(pal_stream_type_t type, int32_t *enable_count, int32_t *disable_count);
     void GetSoundTriggerConcurrencyCount_l(pal_stream_type_t type, int32_t *enable_count, int32_t *disable_count);
     bool GetChargingState() const { return charging_state_; }
@@ -852,6 +857,7 @@ public:
     static int setLpiLoggingParams(struct str_parms *parms, char *value, int len);
     static int setUpdDedicatedBeEnableParam(struct str_parms *parms,char *value, int len);
     static int setUpdDutyCycleEnableParam(struct str_parms *parms,char *value, int len);
+    static int setUpdVirtualPortParam(struct str_parms *parms, char *value, int len);
     static int setDualMonoEnableParam(struct str_parms *parms,char *value, int len);
     static int setSignalHandlerEnableParam(struct str_parms *parms,char *value, int len);
     static int setMuxconfigEnableParam(struct str_parms *parms,char *value, int len);
