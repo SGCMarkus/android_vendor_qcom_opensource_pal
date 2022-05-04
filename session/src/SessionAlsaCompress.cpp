@@ -636,7 +636,8 @@ void SessionAlsaCompress::offloadThreadLoop(SessionAlsaCompress* compressObj)
                 is_drain_called = false;
                 event_id = PAL_STREAM_CBK_EVENT_DRAIN_READY;
             } else if (msg && msg->cmd == OFFLOAD_CMD_PARTIAL_DRAIN) {
-                if (compressObj->rm->cardState == CARD_STATUS_ONLINE) {
+                if (compressObj->rm->cardState == CARD_STATUS_ONLINE &&
+                        compressObj->compress != NULL) {
                     if (compressObj->isGaplessFmt) {
                         PAL_DBG(LOG_TAG, "calling partial compress_drain");
                         ret = compress_next_track(compressObj->compress);
