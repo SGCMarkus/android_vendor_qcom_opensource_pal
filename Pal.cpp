@@ -40,17 +40,16 @@
 #include "PalCommon.h"
 class Stream;
 
-/*
- * enable_gcov - Enable gcov for pal
+/**
+ *  Get PAL version in the form of Major and Minor number
+ *  seperated by period.
  *
- * Prerequisites
- *   Should be call from CATF
+ *  @return the version string in the form of Major and Minor
+ *  e.g '1.0'
  */
-
-/*void enable_gcov()
-{
-    __gcov_flush();
-}*/
+char* pal_get_version( ){
+    return PAL_VERSION;
+}
 
 static void notify_concurrent_stream(pal_stream_type_t type,
                                      pal_stream_direction_t dir,
@@ -925,4 +924,37 @@ int32_t pal_gef_rw_param_acdb(uint32_t param_id __unused, void *param_payload,
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
 
     return status;
+}
+
+int32_t pal_stream_get_buffer_size(pal_stream_handle_t *stream_handle,
+                                   size_t *in_buffer, size_t *out_buffer){
+    PAL_ERR(LOG_TAG, "error: API pal_stream_get_buffer_size not implemented");
+    return -ENOSYS;
+}
+
+int32_t pal_stream_get_device(pal_stream_handle_t *stream_handle,
+                            uint32_t no_of_devices, struct pal_device *devices){
+    PAL_ERR(LOG_TAG, "error: API: pal_stream_get_device not implemented");
+    return -ENOSYS;
+}
+
+int32_t pal_stream_get_volume(pal_stream_handle_t *stream_handle,
+                              struct pal_volume_data *volume){
+    PAL_ERR(LOG_TAG, "error: API: pal_stream_get_volume not implemented");
+    return -ENOSYS;
+}
+
+int32_t pal_stream_get_mute(pal_stream_handle_t *stream_handle, bool *state){
+    PAL_ERR(LOG_TAG, "error: API: pal_stream_get_mute not implemented");
+    return -ENOSYS;
+}
+
+int32_t pal_get_mic_mute(bool *state){
+    PAL_ERR(LOG_TAG, "error: API: pal_get_mic_mute not implemented");
+    return -ENOSYS;
+}
+
+int32_t pal_set_mic_mute(bool state){
+    PAL_ERR(LOG_TAG, "error: API: pal_set_mic_mute not implemented");
+    return -ENOSYS;
 }
