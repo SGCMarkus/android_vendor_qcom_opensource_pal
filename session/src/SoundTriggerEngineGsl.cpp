@@ -47,6 +47,13 @@
 #define PAL_DBG(LOG_TAG,...)  PAL_INFO(LOG_TAG,__VA_ARGS__)
 #endif
 
+/*
+ * Workaround for crash issue in buffering
+ * TODO: remove this when ADSP fix is ready
+ */
+#define MAX_RETRY_CNT 4
+#define SLEEP_TIME_MS 10
+
 ST_DBG_DECLARE(static int dsp_output_cnt = 0);
 
 std::map<st_module_type_t,std::vector<std::shared_ptr<SoundTriggerEngineGsl>>>
@@ -2004,6 +2011,9 @@ int32_t SoundTriggerEngineGsl::StartRecognition(Stream *s) {
 int32_t SoundTriggerEngineGsl::RestartRecognition(Stream *s) {
     int32_t status = 0;
     struct pal_mmap_position mmap_pos;
+    uint32_t total_retry_cnt = 0;
+    uint32_t retry_count = MAX_RETRY_CNT;
+    uint32_t sleep_ms = SLEEP_TIME_MS;
 
     PAL_DBG(LOG_TAG, "Enter");
     exit_buffering_ = true;
@@ -2032,12 +2042,24 @@ int32_t SoundTriggerEngineGsl::RestartRecognition(Stream *s) {
 
     // Update mmap write position after engine reset
     if (mmap_buffer_size_) {
-        status = session_->GetMmapPosition(s, &mmap_pos);
-        if (!status)
-            mmap_write_position_ = mmap_pos.position_frames;
-        else
-            PAL_ERR(LOG_TAG, "Failed to get mmap position, status %d", status);
+        while (retry_count) {
+            status = session_->GetMmapPosition(s, &mmap_pos);
+            if (!status) {
+                if (mmap_write_position_ == mmap_pos.position_frames) {
+                    retry_count--;
+                } else {
+                    mmap_write_position_ = mmap_pos.position_frames;
+                    retry_count = MAX_RETRY_CNT;
+                }
+            } else {
+                PAL_ERR(LOG_TAG, "Failed to get mmap position, status %d", status);
+                break;
+            }
+            if (++total_retry_cnt >= 2 * MAX_RETRY_CNT)
+                break;
 
+            std::this_thread::sleep_for(std::chrono::milliseconds(sleep_ms));
+        }
         // reset wall clk in agm pcm plugin
         status = session_->ResetMmapBuffer(s);
         if (status)
