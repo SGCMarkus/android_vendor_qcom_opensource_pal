@@ -4398,6 +4398,7 @@ void ResourceManager::GetConcurrencyInfo(pal_stream_type_t st_type,
         }
     } else if (dir == PAL_AUDIO_INPUT &&
                (in_type == PAL_STREAM_LOW_LATENCY ||
+                in_type == PAL_STREAM_COMPRESSED ||
                 in_type == PAL_STREAM_DEEP_BUFFER)) {
         *tx_conc = true;
         if (!audio_capture_conc_enable) {
