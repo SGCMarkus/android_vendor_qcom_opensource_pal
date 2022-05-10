@@ -2128,6 +2128,9 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
         deviceattr->config.bit_width = ((sAttr == NULL) ?  BITWIDTH_16 :
                     (sAttr->direction == PAL_AUDIO_INPUT) ? sAttr->in_media_config.bit_width : sAttr->out_media_config.bit_width);
     }
+    if (!isBitWidthSupported(deviceattr->config.bit_width))
+        deviceattr->config.bit_width = BITWIDTH_16;
+
     deviceattr->config.aud_fmt_id = bitWidthToFormat.at(deviceattr->config.bit_width);
     /*special case if bitFormatSupported is requested*/
     if (devinfo.bitFormatSupported != PAL_AUDIO_FMT_DEFAULT_PCM) {
