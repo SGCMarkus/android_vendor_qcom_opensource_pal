@@ -39,11 +39,17 @@
 #include <chrono>
 #include "SignalHandler.h"
 
+#ifdef _ANDROID_
+#include <utils/ProcessCallStack.h>
+#include <cutils/android_filesystem_config.h>
+#endif
+
 std::mutex SignalHandler::sDefaultSigMapLock;
 std::unordered_map<int, std::shared_ptr<struct sigaction>> SignalHandler::sDefaultSigMap;
 std::function<void(int, pid_t, uid_t)> SignalHandler::sClientCb;
 std::mutex SignalHandler::sAsyncRegisterLock;
 std::future<void> SignalHandler::sAsyncHandle;
+bool SignalHandler::sBuildDebuggable;
 
 // static
 void SignalHandler::asyncRegister(int signal) {
@@ -79,6 +85,14 @@ void SignalHandler::invokeDefaultHandler(std::shared_ptr<struct sigaction> sAct,
                  "(SI_QUEUE from pid %d, uid %d)",
                  code, si->si_pid, si->si_uid);
         status = sigqueue(getpid(), code, si->si_value);
+#ifdef _ANDROID_
+        if(isBuildDebuggable() && si->si_uid == AID_AUDIOSERVER) {
+            std::string prefix = "audioserver_" + std::to_string(si->si_pid) + " ";
+            android::ProcessCallStack pcs;
+            pcs.update();
+            pcs.log(LOG_TAG, ANDROID_LOG_FATAL, prefix.c_str());
+        }
+#endif
     } else {
         status = raise(code);
     }
