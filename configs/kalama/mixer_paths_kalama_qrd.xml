@@ -791,6 +791,36 @@
         <path name="speaker-and-headphones-liquid" />
     </path>
 
+    <path name="bt-sco">
+    </path>
+
+    <path name="bt-sco-mic">
+    </path>
+
+    <path name="bt-sco-wb">
+    </path>
+
+    <path name="bt-sco-mic-wb">
+    </path>
+
+    <path name="bt-sco-swb">
+    </path>
+
+    <path name="bt-sco-mic-swb">
+    </path>
+
+    <path name="bt-a2dp">
+    </path>
+
+    <path name="bt-a2dp-mic">
+    </path>
+
+    <path name="bt-ble">
+    </path>
+
+    <path name="bt-ble-mic">
+    </path>
+
     <path name="va-mic-mono">
         <ctl name="VA_AIF1_CAP Mixer DEC0" value="1" />
         <ctl name="VA DEC0 MUX" value="SWR_MIC" />

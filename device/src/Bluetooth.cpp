@@ -2233,6 +2233,7 @@ int32_t BtA2dp::setDeviceParameter(uint32_t param_id, void *param)
     case PAL_PARAM_ID_SET_SINK_METADATA:
         if (deviceAttr.id == PAL_DEVICE_IN_BLUETOOTH_BLE) {
           if (btoffload_update_metadata_api) {
+              PAL_INFO(LOG_TAG, "sending sink metadata to BT API");
               btoffload_update_metadata_api(get_session_type(), param);
           }
         }
@@ -2240,7 +2241,7 @@ int32_t BtA2dp::setDeviceParameter(uint32_t param_id, void *param)
     case PAL_PARAM_ID_SET_SOURCE_METADATA:
         if (deviceAttr.id == PAL_DEVICE_OUT_BLUETOOTH_BLE) {
             if (btoffload_update_metadata_api) {
-               PAL_ERR(LOG_TAG, "sending metadata to bt API");
+               PAL_INFO(LOG_TAG, "sending source metadata to BT API");
                btoffload_update_metadata_api(get_session_type(), param);
             }
         }
