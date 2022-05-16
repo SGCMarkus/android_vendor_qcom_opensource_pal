@@ -6362,7 +6362,6 @@ bool ResourceManager::compareSharedBEStreamDevAttr(std::vector <std::tuple<Strea
             switchStreams = true;
     }
 
-exit:
     return switchStreams;
 }
 
