@@ -3649,6 +3649,12 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
                 }
             }
 
+            if (st_stream_.mDevices.size() > 0) {
+                auto& dev = st_stream_.mDevices[0];
+                PAL_VERBOSE(LOG_TAG, "Deregister device %d-%s", dev->getSndDeviceId(),
+                    dev->getPALDeviceName().c_str());
+                st_stream_.rm->deregisterDevice(dev, &st_stream_);
+            }
             for (auto& eng: st_stream_.engines_) {
                 PAL_VERBOSE(LOG_TAG, "Stop engine %d", eng->GetEngineId());
                 status = eng->GetEngine()->StopRecognition(&st_stream_);
@@ -3664,8 +3670,6 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
                 status = dev->stop();
                 if (status)
                     PAL_ERR(LOG_TAG, "Device stop failed, status %d", status);
-
-                st_stream_.rm->deregisterDevice(dev, &st_stream_);
 
                 PAL_DBG(LOG_TAG, "Close device %d-%s", dev->getSndDeviceId(),
                         dev->getPALDeviceName().c_str());
@@ -3924,6 +3928,13 @@ int32_t StreamSoundTrigger::StDetected::ProcessEvent(
         }
         case ST_EV_UNLOAD_SOUND_MODEL:
         case ST_EV_STOP_RECOGNITION: {
+            if (st_stream_.mDevices.size() > 0) {
+                auto& dev = st_stream_.mDevices[0];
+                PAL_VERBOSE(LOG_TAG, "Deregister device %d-%s", dev->getSndDeviceId(),
+                    dev->getPALDeviceName().c_str());
+                st_stream_.rm->deregisterDevice(dev, &st_stream_);
+            }
+
             st_stream_.CancelDelayedStop();
             for (auto& eng: st_stream_.engines_) {
                 PAL_VERBOSE(LOG_TAG, "Stop engine %d", eng->GetEngineId());
@@ -3940,8 +3951,6 @@ int32_t StreamSoundTrigger::StDetected::ProcessEvent(
                 status = dev->stop();
                 if (status)
                     PAL_ERR(LOG_TAG, "Device stop failed, status %d", status);
-
-                st_stream_.rm->deregisterDevice(dev, &st_stream_);
 
                 status = dev->close();
                 st_stream_.device_opened_ = false;
@@ -3961,6 +3970,12 @@ int32_t StreamSoundTrigger::StDetected::ProcessEvent(
             break;
         }
         case ST_EV_RECOGNITION_CONFIG: {
+            if (st_stream_.mDevices.size() > 0) {
+                auto& dev = st_stream_.mDevices[0];
+                PAL_VERBOSE(LOG_TAG, "Deregister device %d-%s", dev->getSndDeviceId(),
+                    dev->getPALDeviceName().c_str());
+                st_stream_.rm->deregisterDevice(dev, &st_stream_);
+            }
             /*
              * Client can update config for next recognition.
              * Get to loaded state as START event will start recognition.
@@ -3982,8 +3997,6 @@ int32_t StreamSoundTrigger::StDetected::ProcessEvent(
                 status = dev->stop();
                 if (status)
                     PAL_ERR(LOG_TAG, "Device stop failed, status %d", status);
-
-                st_stream_.rm->deregisterDevice(dev, &st_stream_);
 
                 status = dev->close();
                 st_stream_.device_opened_ = false;
@@ -4007,6 +4020,13 @@ int32_t StreamSoundTrigger::StDetected::ProcessEvent(
         case ST_EV_CONCURRENT_STREAM:
         case ST_EV_DEVICE_DISCONNECTED:
         case ST_EV_DEVICE_CONNECTED: {
+            if (st_stream_.mDevices.size() > 0) {
+                auto& dev = st_stream_.mDevices[0];
+                PAL_VERBOSE(LOG_TAG, "Deregister device %d-%s", dev->getSndDeviceId(),
+                    dev->getPALDeviceName().c_str());
+                st_stream_.rm->deregisterDevice(dev, &st_stream_);
+            }
+
             st_stream_.CancelDelayedStop();
             for (auto& eng: st_stream_.engines_) {
                 PAL_VERBOSE(LOG_TAG, "Stop engine %d", eng->GetEngineId());
@@ -4023,8 +4043,6 @@ int32_t StreamSoundTrigger::StDetected::ProcessEvent(
                 status = dev->stop();
                 if (status)
                     PAL_ERR(LOG_TAG, "Device stop failed, status %d", status);
-
-                st_stream_.rm->deregisterDevice(dev, &st_stream_);
 
                 status = dev->close();
                 st_stream_.device_opened_ = false;
@@ -4146,6 +4164,13 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
             break;
         }
         case ST_EV_RECOGNITION_CONFIG: {
+            if (st_stream_.mDevices.size() > 0) {
+                auto& dev = st_stream_.mDevices[0];
+                PAL_VERBOSE(LOG_TAG, "Deregister device %d-%s", dev->getSndDeviceId(),
+                    dev->getPALDeviceName().c_str());
+                st_stream_.rm->deregisterDevice(dev, &st_stream_);
+            }
+
             /*
              * Can happen if client doesn't read buffers after sending detection
              * event, but requests next recognition with config change.
@@ -4176,8 +4201,6 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
                 if (status)
                     PAL_ERR(LOG_TAG, "Device stop failed, status %d", status);
 
-                st_stream_.rm->deregisterDevice(dev, &st_stream_);
-
                 status = dev->close();
                 st_stream_.device_opened_ = false;
                 if (0 != status)
@@ -4201,6 +4224,13 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
         }
         case ST_EV_UNLOAD_SOUND_MODEL:
         case ST_EV_STOP_RECOGNITION:  {
+            if (st_stream_.mDevices.size() > 0) {
+                auto& dev = st_stream_.mDevices[0];
+                PAL_VERBOSE(LOG_TAG, "Deregister device %d-%s", dev->getSndDeviceId(),
+                    dev->getPALDeviceName().c_str());
+                st_stream_.rm->deregisterDevice(dev, &st_stream_);
+            }
+
             // Possible with deffered stop if client doesn't start next recognition.
             if (st_stream_.force_nlpi_vote) {
                 rm->voteSleepMonitor(&st_stream_, false, true);
@@ -4226,8 +4256,6 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
                 status = dev->stop();
                 if (status)
                     PAL_ERR(LOG_TAG, "Device stop failed, status %d", status);
-
-                st_stream_.rm->deregisterDevice(dev, &st_stream_);
 
                 status = dev->close();
                 st_stream_.device_opened_ = false;
@@ -4338,6 +4366,13 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
                 rm->voteSleepMonitor(&st_stream_, false, true);
                 st_stream_.force_nlpi_vote = false;
             }
+            if (st_stream_.mDevices.size() > 0) {
+                auto& dev = st_stream_.mDevices[0];
+                PAL_VERBOSE(LOG_TAG, "Deregister device %d-%s", dev->getSndDeviceId(),
+                    dev->getPALDeviceName().c_str());
+                st_stream_.rm->deregisterDevice(dev, &st_stream_);
+            }
+
             st_stream_.CancelDelayedStop();
 
             for (auto& eng: st_stream_.engines_) {
@@ -4358,8 +4393,6 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
                 status = dev->stop();
                 if (status)
                     PAL_ERR(LOG_TAG, "Device stop failed, status %d", status);
-
-                st_stream_.rm->deregisterDevice(dev, &st_stream_);
 
                 status = dev->close();
                 st_stream_.device_opened_ = false;
