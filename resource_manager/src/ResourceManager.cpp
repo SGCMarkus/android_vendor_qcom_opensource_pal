@@ -568,7 +568,8 @@ std::map<std::string, uint32_t> ResourceManager::btFmtTable = {
     MAKE_STRING_FROM_ENUM(CODEC_TYPE_APTX_AD),
     MAKE_STRING_FROM_ENUM(CODEC_TYPE_APTX_AD_SPEECH),
     MAKE_STRING_FROM_ENUM(CODEC_TYPE_LC3),
-    MAKE_STRING_FROM_ENUM(CODEC_TYPE_PCM)
+    MAKE_STRING_FROM_ENUM(CODEC_TYPE_PCM),
+    MAKE_STRING_FROM_ENUM(CODEC_TYPE_APTX_AD_QLEA)
 };
 
 std::map<std::string, int> ResourceManager::spkrPosTable = {
