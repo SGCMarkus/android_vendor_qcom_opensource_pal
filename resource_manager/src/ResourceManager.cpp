@@ -2613,13 +2613,15 @@ bool ResourceManager::isStreamSupported(struct pal_stream_attributes *attributes
             result = true;
             break;
         case PAL_STREAM_RAW:
-            if (attributes->direction != PAL_AUDIO_INPUT) {
-               PAL_ERR(LOG_TAG, "config dir %d not supported", attributes->direction);
-               return result;
+            if (attributes->direction == PAL_AUDIO_INPUT) {
+               channels = attributes->in_media_config.ch_info.channels;
+               samplerate = attributes->in_media_config.sample_rate;
+               bitwidth = attributes->in_media_config.bit_width;
+            } else {
+                channels = attributes->out_media_config.ch_info.channels;
+                samplerate = attributes->out_media_config.sample_rate;
+                bitwidth = attributes->out_media_config.bit_width;
             }
-            channels = attributes->in_media_config.ch_info.channels;
-            samplerate = attributes->in_media_config.sample_rate;
-            bitwidth = attributes->in_media_config.bit_width;
             rc = (StreamPCM::isBitWidthSupported(bitwidth) |
                   StreamPCM::isSampleRateSupported(samplerate) |
                   StreamPCM::isChannelSupported(channels));
@@ -5855,10 +5857,6 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const struct pal_str
                     }
                     break;
                 case PAL_AUDIO_OUTPUT:
-                    if (sAttr.type == PAL_STREAM_RAW) {
-                        PAL_ERR(LOG_TAG, "Raw output stream not supported");
-                        goto error;
-                    }
                     if (howMany > listAllPcmPlaybackFrontEnds.size()) {
                         PAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %zu error",
                                           howMany, listAllPcmPlaybackFrontEnds.size());
