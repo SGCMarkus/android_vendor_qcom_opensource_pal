@@ -7666,6 +7666,7 @@ int32_t ResourceManager::a2dpResume(pal_device_id_t dev_id)
             status = (*sIter)->getVolumeData(volume);
             if (status) {
                 PAL_ERR(LOG_TAG, "getVolumeData failed %d", status);
+                (*sIter)->unlockStreamMutex();
                 continue;
             }
             (*sIter)->a2dpMuted = false;
@@ -7673,6 +7674,7 @@ int32_t ResourceManager::a2dpResume(pal_device_id_t dev_id)
             if (status) {
                 PAL_ERR(LOG_TAG, "setVolume failed %d", status);
                 (*sIter)->a2dpMuted = true;
+                (*sIter)->unlockStreamMutex();
                 continue;
             }
             (*sIter)->mute_l(false);
