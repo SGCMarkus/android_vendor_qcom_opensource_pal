@@ -8421,9 +8421,9 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
             int retrycnt = 20;
             const int retryPeriodMs = 100;
 
-            //Need to check for BLE
-            dattr.id = PAL_DEVICE_OUT_BLUETOOTH_A2DP;
-            if (isDeviceAvailable(dattr.id)) {
+            param_bt_a2dp.dev_id = PAL_DEVICE_OUT_BLUETOOTH_A2DP;
+            if (isDeviceAvailable(param_bt_a2dp.dev_id)) {
+                dattr.id = param_bt_a2dp.dev_id;
                 dev = Device::getInstance(&dattr, rm);
                 if (!dev) {
                     PAL_ERR(LOG_TAG, "Device getInstance failed");
@@ -8455,7 +8455,7 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                     *  succeeds with sleep period of 100 msecs and retry count = 20.
                     */
                     while ((status != 0) && (retrycnt > 0)) {
-                        if (isDeviceReady(PAL_DEVICE_OUT_BLUETOOTH_A2DP)) {
+                        if (isDeviceReady(param_bt_a2dp.dev_id)) {
                             param_bt_a2dp.a2dp_suspended = true;
                             status = dev->setDeviceParameter(PAL_PARAM_ID_BT_A2DP_SUSPENDED,
                                 &param_bt_a2dp);
