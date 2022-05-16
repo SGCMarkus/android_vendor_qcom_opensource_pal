@@ -1361,11 +1361,13 @@ void BtA2dp::open_a2dp_source()
                 ret = audio_source_open_api(get_session_type());
                 if (ret != 0) {
                     PAL_ERR(LOG_TAG, "Failed to open source stream for a2dp: status %d", ret);
+                    return;
                 }
             } else {
                 ret = audio_source_open();
                 if (ret != 0) {
                     PAL_ERR(LOG_TAG, "Failed to open source stream for a2dp: status %d", ret);
+                    return;
                 }
             }
             a2dpState = A2DP_STATE_CONNECTED;
