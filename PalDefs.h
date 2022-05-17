@@ -88,6 +88,8 @@ extern "C" {
 #define PAL_MAX_CHANNELS_SUPPORTED 64
 #define MAX_KEYWORD_SUPPORTED 8
 
+#define PAL_VERSION "1.0"
+
 /** Audio stream handle */
 typedef uint64_t pal_stream_handle_t;
 
