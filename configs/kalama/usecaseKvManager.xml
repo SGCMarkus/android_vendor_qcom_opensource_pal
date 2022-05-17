@@ -520,6 +520,13 @@
                 <graph_kv key="0xA3000000" value="0xA3000009"/>
             </keys_and_values>
         </device>
+        <!-- In CPS feedback Device -->
+        <device id="PAL_DEVICE_IN_CPS_FEEDBACK">
+            <keys_and_values>
+                <!-- DEVICETX - CPS_TX -->
+                <graph_kv key="0xA3000000" value="0xA300000E"/>
+            </keys_and_values>
+        </device>
         <!-- Out hearing AID Device -->
         <device id="PAL_DEVICE_OUT_HEARING_AID">
             <keys_and_values>

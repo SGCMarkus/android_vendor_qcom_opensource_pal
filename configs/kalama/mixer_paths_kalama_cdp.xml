@@ -64,6 +64,8 @@
     <!-- These are the initial mixer settings -->
     <ctl name="WSA_AIF_VI Mixer WSA_SPKR_VI_1" value="0" />
     <ctl name="WSA_AIF_VI Mixer WSA_SPKR_VI_2" value="0" />
+    <ctl name="WSA_AIF_CPS Mixer WSA_SPKR_CPS_1" value="0" />
+    <ctl name="WSA_AIF_CPS Mixer WSA_SPKR_CPS_2" value="0" />
 
     <!-- Codec controls -->
     <!-- WSA controls -->
@@ -80,6 +82,8 @@
     <ctl name="SpkrRight COMP Switch" value="0" />
     <ctl name="SpkrLeft VISENSE Switch" value="0" />
     <ctl name="SpkrRight VISENSE Switch" value="0" />
+    <ctl name="SpkrLeft CPS Switch" value="0" />
+    <ctl name="SpkrRight CPS Switch" value="0" />
     <ctl name="SpkrLeft SWR DAC_Port Switch" value="0" />
     <ctl name="SpkrRight SWR DAC_Port Switch" value="0" />
     <ctl name="SpkrLeft PBR Switch" value="0" />
@@ -401,9 +405,11 @@
         <ctl name="Idle Detect" value="1" />
         <ctl name="SpkrLeft COMP Switch" value="1" />
         <ctl name="SpkrLeft VISENSE Switch" value="1" />
+        <ctl name="SpkrLeft CPS Switch" value="1" />
         <ctl name="SpkrLeft SWR DAC_Port Switch" value="1" />
         <ctl name="SpkrRight COMP Switch" value="1" />
         <ctl name="SpkrRight VISENSE Switch" value="1" />
+        <ctl name="SpkrRight CPS Switch" value="1" />
         <ctl name="SpkrRight SWR DAC_Port Switch" value="1" />
         <ctl name="SpkrLeft PBR Switch" value="1" />
         <ctl name="SpkrRight PBR Switch" value="1" />
@@ -421,6 +427,7 @@
         <ctl name="WSA PBR Enable" value="1" />
         <ctl name="SpkrLeft COMP Switch" value="1" />
         <ctl name="SpkrLeft VISENSE Switch" value="1" />
+        <ctl name="SpkrLeft CPS Switch" value="1" />
         <ctl name="SpkrLeft SWR DAC_Port Switch" value="1" />
         <ctl name="SpkrLeft PBR Switch" value="1" />
     </path>
@@ -433,6 +440,7 @@
         <ctl name="Idle Detect" value="1" />
         <ctl name="SpkrRight COMP Switch" value="1" />
         <ctl name="SpkrRight VISENSE Switch" value="1" />
+        <ctl name="SpkrRight CPS Switch" value="1" />
         <ctl name="SpkrRight SWR DAC_Port Switch" value="1" />
         <ctl name="SpkrRight PBR Switch" value="1" />
     </path>
@@ -577,6 +585,19 @@
 
     <path name="vi-feedback-mono-2">
         <ctl name="WSA_AIF_VI Mixer WSA_SPKR_VI_2" value="1" />
+    </path>
+
+    <path name="cps-feedback">
+        <ctl name="WSA_AIF_CPS Mixer WSA_SPKR_CPS_1" value="1" />
+        <ctl name="WSA_AIF_CPS Mixer WSA_SPKR_CPS_2" value="1" />
+    </path>
+
+    <path name="cps-feedback-mono-1">
+        <ctl name="WSA_AIF_CPS Mixer WSA_SPKR_CPS_1" value="1" />
+    </path>
+
+    <path name="cps-feedback-mono-2">
+        <ctl name="WSA_AIF_CPS Mixer WSA_SPKR_CPS_2" value="1" />
     </path>
 
     <path name="handset">

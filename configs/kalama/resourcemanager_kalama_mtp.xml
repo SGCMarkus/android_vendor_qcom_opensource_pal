@@ -504,6 +504,15 @@
             <snd_device_name>vi-feedback</snd_device_name>
         </in-device>
         <in-device>
+            <id>PAL_DEVICE_IN_CPS_FEEDBACK</id>
+            <back_end_name>CODEC_DMA-LPAIF_WSA-TX-2</back_end_name>
+            <max_channels>2</max_channels>
+            <channels>2</channels>
+            <samplerate>24000</samplerate>
+            <bit_width>32</bit_width>
+            <snd_device_name>cps-feedback</snd_device_name>
+        </in-device>
+        <in-device>
             <id>PAL_DEVICE_IN_BLUETOOTH_A2DP</id>
             <back_end_name>SLIM-DEV1-TX-7</back_end_name>
             <max_channels>1</max_channels>
