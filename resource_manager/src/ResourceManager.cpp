@@ -6268,6 +6268,7 @@ void ResourceManager::getSharedBEActiveStreamDevs(std::vector <std::tuple<Stream
 bool ResourceManager::compareSharedBEStreamDevAttr(std::vector <std::tuple<Stream *, uint32_t>> &sharedBEStreamDev,
                                                   pal_device *newDevAttr, bool enable)
 {
+    int status = 0;
     pal_device curDevAttr;
     std::shared_ptr<Device> curDev, newDev = nullptr;
     uint32_t curDevPrio, newDevPrio;
@@ -6288,81 +6289,99 @@ bool ResourceManager::compareSharedBEStreamDevAttr(std::vector <std::tuple<Strea
     }
 
     if (enable){
-        newDev->getTopPriorityDeviceAttr(newDevAttr, &newDevPrio);
-        if (curDevAttr.id == newDevAttr->id) {
-            /* if incoming device is the same as running device, compare devAttr */
-            curDev->getDeviceAttributes(&curDevAttr);
-            if (doDevAttrDiffer(newDevAttr, &curDevAttr))
-                switchStreams = true;
-        } else {
-            /*
-             * if incoming device is different from running device, check stream priority
-             * for example: voice call is currently active on handset, and later voip call
-             * is setting output to speaker, as voip has lower prioriy, no device switch is needed
-             */
-            curDev->getTopPriorityDeviceAttr(&curDevAttr, &curDevPrio);
-            if (newDevPrio <= curDevPrio) {
-                PAL_DBG(LOG_TAG, "incoming dev: %d priority: 0x%x has same or higher priority than cur dev:%d priority: 0x%x",
-                                    newDevAttr->id, newDevPrio, curDevAttr.id, curDevPrio);
-                switchStreams = true;
-            } else {
-                PAL_DBG(LOG_TAG, "incoming dev: %d priority: 0x%x has lower priority than cur dev:%d priority: 0x%x,"
-                                " switching incoming stream to cur dev",
-                                    newDevAttr->id, newDevPrio, curDevAttr.id, curDevPrio);
-                newDevAttr->id = curDevAttr.id;
-                /*
-                 * when switching incoming stream to current device, check if dev atrr differs, like:
-                 * UPD started on handset, but music is already active on speaker, UDP needs switch
-                 * to speaker, but speaker sample rate updated to 96KHz, so need to switch current
-                 * active streams to 96K to apply new dev attr
-                 */
-                newDev = Device::getInstance(newDevAttr, rm);
-                if (!newDev) {
-                    PAL_ERR(LOG_TAG, "Getting Device instance failed");
-                    return switchStreams;
-                }
+        status = newDev->getTopPriorityDeviceAttr(newDevAttr, &newDevPrio);
+        if (status == 0) {
+            if (curDevAttr.id == newDevAttr->id) {
+                /* if incoming device is the same as running device, compare devAttr */
                 curDev->getDeviceAttributes(&curDevAttr);
-                newDev->getTopPriorityDeviceAttr(newDevAttr, &newDevPrio);
                 if (doDevAttrDiffer(newDevAttr, &curDevAttr))
                     switchStreams = true;
+            } else {
+                /*
+                 * if incoming device is different from running device, check stream priority
+                 * for example: voice call is currently active on handset, and later voip call
+                 * is setting output to speaker, as voip has lower prioriy, no device switch is needed
+                 */
+                status = curDev->getTopPriorityDeviceAttr(&curDevAttr, &curDevPrio);
+                if (status == 0) {
+                    if (newDevPrio <= curDevPrio) {
+                        PAL_DBG(LOG_TAG, "incoming dev: %d priority: 0x%x has same or higher priority than cur dev:%d priority: 0x%x",
+                                            newDevAttr->id, newDevPrio, curDevAttr.id, curDevPrio);
+                        switchStreams = true;
+                    } else {
+                        PAL_DBG(LOG_TAG, "incoming dev: %d priority: 0x%x has lower priority than cur dev:%d priority: 0x%x,"
+                                        " switching incoming stream to cur dev",
+                                            newDevAttr->id, newDevPrio, curDevAttr.id, curDevPrio);
+                        newDevAttr->id = curDevAttr.id;
+                        /*
+                         * when switching incoming stream to current device, check if dev atrr differs, like:
+                         * UPD started on handset, but music is already active on speaker, UDP needs switch
+                         * to speaker, but speaker sample rate updated to 96KHz, so need to switch current
+                         * active streams to 96K to apply new dev attr
+                         */
+                        newDev = Device::getInstance(newDevAttr, rm);
+                        if (!newDev) {
+                            PAL_ERR(LOG_TAG, "Getting Device instance failed");
+                            return switchStreams;
+                        }
+                        curDev->getDeviceAttributes(&curDevAttr);
+                        status = newDev->getTopPriorityDeviceAttr(newDevAttr, &newDevPrio);
+                        if ((status == 0) && doDevAttrDiffer(newDevAttr, &curDevAttr))
+                            switchStreams = true;
+                    }
+                } else {
+                    PAL_DBG(LOG_TAG, "last entry removed from cur dev, switch to new dev");
+                    switchStreams = true;
+                }
             }
         }
     } else {
         /* during restoreDevice, need to figure out which stream-device attr has highest priority */
         Stream *sharedStream = nullptr;
-        pal_stream_attributes sAttr;
         std::vector<std::shared_ptr<Device>> palDevices;
-        std::map<uint32_t, struct pal_device *> streamDevAttr;
-        pal_device sharedBEDevAttr;
+        std::multimap<uint32_t, struct pal_device *> streamDevAttr;
+        pal_device *sharedBEDevAttr;
         uint32_t sharedBEStreamPrio;
 
         std::string backEndName_in = listAllBackEndIds[newDevAttr->id].second;
         for (const auto &elem : sharedBEStreamDev) {
             sharedStream = std::get<0>(elem);
-            pal_device_id_t devId = (pal_device_id_t)std::get<1>(elem);
             sharedStream->getPalDevices(palDevices);
-            sharedStream->getStreamAttributes(&sAttr);
             /* sort shared BE device attr into map */
             for (int i = 0; i < palDevices.size(); i++) {
                 std::string backEndName = listAllBackEndIds[palDevices[i]->getSndDeviceId()].second;
                 if(backEndName_in == backEndName) {
-                    palDevices[i]->getTopPriorityDeviceAttr(&sharedBEDevAttr, &sharedBEStreamPrio);
-                    streamDevAttr.insert(std::make_pair(sharedBEStreamPrio, &sharedBEDevAttr));
+                    sharedBEDevAttr = (struct pal_device *) calloc(1, sizeof(struct pal_device));
+                    if (!sharedBEDevAttr) {
+                        PAL_ERR(LOG_TAG, "failed to allocate memory for pal device");
+                        return switchStreams;
+                    }
+                    status = palDevices[i]->getTopPriorityDeviceAttr(sharedBEDevAttr, &sharedBEStreamPrio);
+                    if (status == 0)
+                        streamDevAttr.insert(std::make_pair(sharedBEStreamPrio, sharedBEDevAttr));
                 }
             }
+            palDevices.clear();
         }
         /*
-         * Todo: if there're two steams on different device with same priority
+         * Todo: if there're two streams on different device with same priority
          * needs to compare channel/sample rate/bit width to decide which device to be enabled
          */
-        auto it = streamDevAttr.begin();
-        ar_mem_cpy(newDevAttr, sizeof(struct pal_device),
-                (*it).second, sizeof(struct pal_device));
+        if (!streamDevAttr.empty()) {
+            auto it = streamDevAttr.begin();
+            ar_mem_cpy(newDevAttr, sizeof(struct pal_device),
+                    (*it).second, sizeof(struct pal_device));
 
-        curDev->getDeviceAttributes(&curDevAttr);
-        if (doDevAttrDiffer(newDevAttr, &curDevAttr))
-            switchStreams = true;
+            curDev->getDeviceAttributes(&curDevAttr);
+            if (doDevAttrDiffer(newDevAttr, &curDevAttr))
+                switchStreams = true;
+
+            for (auto it = streamDevAttr.begin(); it != streamDevAttr.end(); it++)
+                free((*it).second);
+        }
     }
+
+    PAL_INFO(LOG_TAG, "switchStreams is %d", switchStreams);
 
     return switchStreams;
 }

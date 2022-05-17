@@ -323,9 +323,11 @@ int Device::getDeviceAttributes(struct pal_device *dattr, Stream* streamHandle)
             &deviceAttr, sizeof(struct pal_device));
 
     /* overwrite custom key if stream is specified */
+    mDeviceMutex.lock();
     if (streamHandle != NULL) {
         if (mStreamDevAttr.empty()) {
             PAL_ERR(LOG_TAG,"empty device attr for device %d", getSndDeviceId());
+            mDeviceMutex.unlock();
             return 0;
         }
         for (auto it = mStreamDevAttr.begin(); it != mStreamDevAttr.end(); ++it) {
@@ -339,6 +341,7 @@ int Device::getDeviceAttributes(struct pal_device *dattr, Stream* streamHandle)
             }
         }
     }
+    mDeviceMutex.unlock();
 
     return 0;
 }
@@ -737,6 +740,7 @@ int Device::insertStreamDeviceAttr(struct pal_device *inDevAttr,
     ar_mem_cpy(newDevAttr, sizeof(struct pal_device), inDevAttr,
                  sizeof(struct pal_device));
 
+    mDeviceMutex.lock();
     if (mStreamDevAttr.empty()) {
         mStreamDevAttr.insert(std::make_pair(inDevInfo.priority, std::make_pair(streamHandle, newDevAttr)));
         PAL_DBG(LOG_TAG, "insert the first device attribute");
@@ -816,13 +820,16 @@ exit:
     }
 #endif
 
+    mDeviceMutex.unlock();
     return 0;
 }
 
 void Device::removeStreamDeviceAttr(Stream* streamHandle)
 {
+    mDeviceMutex.lock();
     if (mStreamDevAttr.empty()) {
         PAL_ERR(LOG_TAG, "empty device attr for device %d", getSndDeviceId());
+        mDeviceMutex.unlock();
         return;
     }
 
@@ -870,12 +877,15 @@ void Device::removeStreamDeviceAttr(Stream* streamHandle)
         i++;
     }
 #endif
+    mDeviceMutex.unlock();
 }
 
 int Device::getTopPriorityDeviceAttr(struct pal_device *deviceAttr, uint32_t *streamPrio)
 {
+    mDeviceMutex.lock();
     if (mStreamDevAttr.empty()) {
         PAL_ERR(LOG_TAG, "empty device attr for device %d", getSndDeviceId());
+        mDeviceMutex.unlock();
         return -EINVAL;
     }
 
@@ -905,5 +915,6 @@ int Device::getTopPriorityDeviceAttr(struct pal_device *deviceAttr, uint32_t *st
                      deviceAttr->custom_config.custom_key);
 #endif
 
+    mDeviceMutex.unlock();
     return 0;
 }
