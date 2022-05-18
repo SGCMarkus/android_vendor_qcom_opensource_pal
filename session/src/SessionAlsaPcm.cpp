@@ -929,6 +929,7 @@ int SessionAlsaPcm::start(Stream * s)
                         }
 
                         if ((dAttr.id == PAL_DEVICE_IN_BLUETOOTH_A2DP) ||
+                                (dAttr.id == PAL_DEVICE_IN_BLUETOOTH_BLE) ||
                                 (dAttr.id == PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET)) {
                             struct pal_media_config codecConfig;
                             status = associatedDevices[i]->getCodecConfig(&codecConfig);
@@ -2352,7 +2353,7 @@ int SessionAlsaPcm::setECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_
 
     rxDevInfo.isExternalECRefEnabledFlag = 0;
     if (rx_dev) {
-        status = rx_dev->getDeviceAttributes(&rxDevAttr);
+        status = rx_dev->getDeviceAttributes(&rxDevAttr, s);
         if (status != 0) {
             PAL_ERR(LOG_TAG," get device attributes failed");
             goto exit;
@@ -2363,7 +2364,7 @@ int SessionAlsaPcm::setECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_
         rxDevAttr.id = ecRefDevId;
         rx_dev = Device::getInstance(&rxDevAttr, rm);
         if (rx_dev) {
-            status = rx_dev->getDeviceAttributes(&rxDevAttr);
+            status = rx_dev->getDeviceAttributes(&rxDevAttr, s);
             if (status) {
                 PAL_ERR(LOG_TAG, "getDeviceAttributes failed for ec dev: %d", ecRefDevId);
                 goto exit;

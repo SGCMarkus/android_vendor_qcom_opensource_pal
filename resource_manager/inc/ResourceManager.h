@@ -109,6 +109,7 @@ typedef enum {
 #define AUDIO_PARAMETER_KEY_SIGNAL_HANDLER "signal_handler"
 #define AUDIO_PARAMETER_KEY_DEVICE_MUX "device_mux_config"
 #define AUDIO_PARAMETER_KEY_UPD_DUTY_CYCLE "upd_duty_cycle_enable"
+#define AUDIO_PARAMETER_KEY_UPD_VIRTUAL_PORT "upd_virtual_port"
 #define MAX_PCM_NAME_SIZE 50
 #define MAX_STREAM_INSTANCES (sizeof(uint64_t) << 3)
 #define MIN_USECASE_PRIORITY 0xFFFFFFFF
@@ -462,7 +463,7 @@ private:
     static bool isBitWidthSupported(uint32_t bitWidth);
     uint32_t getNTPathForStreamAttr(const pal_stream_attributes attr);
     ssize_t getAvailableNTStreamInstance(const pal_stream_attributes attr);
-    int getECEnableSetting(std::shared_ptr<Device> tx_dev, pal_stream_type_t type, bool *ec_enable);
+    int getECEnableSetting(std::shared_ptr<Device> tx_dev, Stream * streamHandle, bool *ec_enable);
     int checkandEnableECForTXStream_l(std::shared_ptr<Device> tx_dev, Stream *tx_stream, bool ec_enable);
     int checkandEnableECForRXStream_l(std::shared_ptr<Device> rx_dev, Stream *rx_stream, bool ec_enable);
     int checkandEnableEC_l(std::shared_ptr<Device> d, Stream *s, bool enable);
@@ -499,7 +500,7 @@ protected:
     bool is_concurrent_boost_state_;
     bool use_lpi_;
     bool current_concurrent_state_;
-    bool is_limiter_configured_;
+    bool is_ICL_config_;
     pal_speaker_rotation_type rotation_type_;
     bool isDeviceSwitch = false;
     static std::mutex mResourceManagerMutex;
@@ -624,6 +625,8 @@ public:
     static bool isUpdDedicatedBeEnabled;
     /* Flag to indicate if shared backend is enabled for UPD */
     static bool isUpdDutyCycleEnabled;
+    /* Flag to indicate if virtual port is enabled for UPD */
+    static bool isUPDVirtualPortEnabled;
     /* Variable to store max volume index for voice call */
     static int max_voice_vol;
     /*variable to store MSPP linear gain*/
@@ -689,7 +692,8 @@ public:
                            pal_param_device_connection_t connection_state);
     /* bIsUpdated - to specify if the config is updated by rm */
     int checkAndGetDeviceConfig(struct pal_device *device ,bool* bIsUpdated);
-    static void getFileNameExtn(const char* in_snd_card_name, char* file_name_extn);
+    static void getFileNameExtn(const char* in_snd_card_name, char* file_name_extn,
+                                char* file_name_extn_wo_variant);
     int init_audio();
     void loadAdmLib();
     static int init();
@@ -714,6 +718,7 @@ public:
                      size_t payload_size, pal_device_id_t pal_device_id,
                      pal_stream_type_t pal_stream_type);
     int setSessionParamConfig(uint32_t param_id, Stream *stream, int tag);
+    int handleChargerEvent(Stream *stream, int tag);
     int rwParameterACDB(uint32_t param_id, void *param_payload,
                      size_t payload_size, pal_device_id_t pal_device_id,
                      pal_stream_type_t pal_stream_type, uint32_t sample_rate,
@@ -737,6 +742,7 @@ public:
     int getSndDeviceName(int deviceId, char *device_name);
     int getDeviceEpName(int deviceId, std::string &epName);
     int getBackendName(int deviceId, std::string &backendName);
+    void updateVirtualBackendName();
     int getStreamTag(std::vector <int> &tag);
     int getDeviceTag(std::vector <int> &tag);
     int getMixerTag(std::vector <int> &tag);
@@ -769,13 +775,14 @@ public:
     bool IsTransitToNonLPIOnChargingSupported();
     bool IsDedicatedBEForUPDEnabled();
     bool IsDutyCycleForUPDEnabled();
+    bool IsVirtualPortForUPDEnabled();
     void GetSoundTriggerConcurrencyCount(pal_stream_type_t type, int32_t *enable_count, int32_t *disable_count);
     void GetSoundTriggerConcurrencyCount_l(pal_stream_type_t type, int32_t *enable_count, int32_t *disable_count);
     bool GetChargingState() const { return charging_state_; }
     bool getChargerOnlineState(void) const { return is_charger_online_; }
     bool getConcurrentBoostState(void) const { return is_concurrent_boost_state_; }
     bool getLPIUsage() const { return use_lpi_; }
-    bool getLimiterConfigureStatus(void) const { return is_limiter_configured_; }
+    bool getInputCurrentLimitorConfigStatus(void) const { return is_ICL_config_; }
     bool CheckForForcedTransitToNonLPI();
     void GetVoiceUIProperties(struct pal_st_properties *qstp);
     int HandleDetectionStreamAction(pal_stream_type_t type, int32_t action, void *data);
@@ -789,7 +796,7 @@ public:
     std::shared_ptr<CaptureProfile> GetCaptureProfileByPriority(Stream *s);
     bool UpdateSoundTriggerCaptureProfile(Stream *s, bool is_active);
     std::shared_ptr<CaptureProfile> GetSoundTriggerCaptureProfile();
-    int SwitchSoundTriggerDevices(bool connect_state, pal_device_id_t device_id);
+    void SwitchSoundTriggerDevices(bool connect_state, pal_device_id_t st_device);
     static void mixerEventWaitThreadLoop(std::shared_ptr<ResourceManager> rm);
     bool isCallbackRegistered() { return (mixerEventRegisterCount > 0); }
     int handleMixerEvent(struct mixer *mixer, char *mixer_str);
@@ -850,6 +857,7 @@ public:
     static int setLpiLoggingParams(struct str_parms *parms, char *value, int len);
     static int setUpdDedicatedBeEnableParam(struct str_parms *parms,char *value, int len);
     static int setUpdDutyCycleEnableParam(struct str_parms *parms,char *value, int len);
+    static int setUpdVirtualPortParam(struct str_parms *parms, char *value, int len);
     static int setDualMonoEnableParam(struct str_parms *parms,char *value, int len);
     static int setSignalHandlerEnableParam(struct str_parms *parms,char *value, int len);
     static int setMuxconfigEnableParam(struct str_parms *parms,char *value, int len);
@@ -869,10 +877,10 @@ public:
     bool isDeviceReady(pal_device_id_t id);
     static bool isBtScoDevice(pal_device_id_t id);
     static bool isBtDevice(pal_device_id_t id);
-    int32_t a2dpSuspend();
-    int32_t a2dpResume();
-    int32_t a2dpCaptureSuspend();
-    int32_t a2dpCaptureResume();
+    int32_t a2dpSuspend(pal_device_id_t dev_id);
+    int32_t a2dpResume(pal_device_id_t dev_id);
+    int32_t a2dpCaptureSuspend(pal_device_id_t dev_id);
+    int32_t a2dpCaptureResume(pal_device_id_t dev_id);
     bool isPluginDevice(pal_device_id_t id);
     bool isDpDevice(pal_device_id_t id);
     bool isPluginPlaybackDevice(pal_device_id_t id);
@@ -886,6 +894,8 @@ public:
     void unlockActiveStream() { mActiveStreamMutex.unlock(); };
     void getSharedBEActiveStreamDevs(std::vector <std::tuple<Stream *, uint32_t>> &activeStreamDevs,
                                      int dev_id);
+    bool compareSharedBEStreamDevAttr(std::vector <std::tuple<Stream *, uint32_t>> &sharedBEStreamDev,
+                                     pal_device *newDevAttr, bool enable);
     int32_t streamDevSwitch(std::vector <std::tuple<Stream *, uint32_t>> streamDevDisconnectList,
                             std::vector <std::tuple<Stream *, struct pal_device *>> streamDevConnectList);
     char* getDeviceNameFromID(uint32_t id);
@@ -907,17 +917,8 @@ public:
     void getVendorConfigPath(char* config_file_path, int path_size);
     void restoreDevice(std::shared_ptr<Device> dev);
     bool doDevAttrDiffer(struct pal_device *inDevAttr,
-                         const char *CurrentSndDeviceName,
                          struct pal_device *curDevAttr);
-    int updatePriorityAttr(pal_device_id_t dev_id,
-                           std::vector <std::tuple<Stream *, uint32_t>> activestreams,
-                           struct pal_device *incomingDev,
-                           const pal_stream_attributes* currentStrAttr);
-    bool compareAndUpdateDevAttr(const struct pal_device *Dev1Attr,
-                                 const struct pal_device_info *Dev1Info,
-                                 struct pal_device *Dev2Attr,
-                                 const struct pal_device_info *Dev2Info);
-    int32_t voteSleepMonitor(Stream *str, bool vote);
+    int32_t voteSleepMonitor(Stream *str, bool vote, bool force_nlpi_vote = false);
     static uint32_t palFormatToBitwidthLookup(const pal_audio_fmt_t format);
     void chargerListenerFeatureInit();
     static void chargerListenerInit(charger_status_change_fn_t);

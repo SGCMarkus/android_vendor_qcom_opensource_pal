@@ -141,6 +141,7 @@ int32_t pal_stream_open(struct pal_stream_attributes *attributes,
     uint64_t *stream = NULL;
     Stream *s = NULL;
     int status;
+    struct pal_stream_attributes sAttr;
 
     if (!attributes) {
         status = -EINVAL;
@@ -174,6 +175,9 @@ int32_t pal_stream_open(struct pal_stream_attributes *attributes,
         goto exit;
     }
 
+    s->getStreamAttributes(&sAttr);
+    notify_concurrent_stream(sAttr.type, sAttr.direction, true);
+
     if (cb)
        s->registerCallBack(cb, cookie);
     stream = reinterpret_cast<uint64_t *>(s);
@@ -187,6 +191,8 @@ int32_t pal_stream_close(pal_stream_handle_t *stream_handle)
 {
     Stream *s = NULL;
     int status;
+    struct pal_stream_attributes sAttr;
+
     if (!stream_handle) {
         status = -EINVAL;
         PAL_ERR(LOG_TAG, "Invalid stream handle status %d", status);
@@ -200,8 +206,9 @@ int32_t pal_stream_close(pal_stream_handle_t *stream_handle)
         PAL_ERR(LOG_TAG, "stream closed failed. status %d", status);
         goto exit;
     }
-
 exit:
+    s->getStreamAttributes(&sAttr);
+    notify_concurrent_stream(sAttr.type, sAttr.direction, false);
     delete s;
     PAL_INFO(LOG_TAG, "Exit. status %d", status);
     return status;
@@ -211,8 +218,6 @@ int32_t pal_stream_start(pal_stream_handle_t *stream_handle)
 {
     Stream *s = NULL;
     int status;
-    pal_stream_type_t type;
-    pal_stream_direction_t dir;
     if (!stream_handle) {
         status = -EINVAL;
         PAL_ERR(LOG_TAG, "Invalid stream handle status %d", status);
@@ -222,14 +227,9 @@ int32_t pal_stream_start(pal_stream_handle_t *stream_handle)
 
     s = reinterpret_cast<Stream *>(stream_handle);
 
-    s->getStreamType(&type);
-    s->getStreamDirection(&dir);
-    notify_concurrent_stream(type, dir, true);
-
     status = s->start();
     if (0 != status) {
         PAL_ERR(LOG_TAG, "stream start failed. status %d", status);
-        notify_concurrent_stream(type, dir, false);
         goto exit;
     }
 
@@ -242,8 +242,7 @@ int32_t pal_stream_stop(pal_stream_handle_t *stream_handle)
 {
     Stream *s = NULL;
     int status;
-    pal_stream_type_t type;
-    pal_stream_direction_t dir;
+
     if (!stream_handle) {
         status = -EINVAL;
         PAL_ERR(LOG_TAG, "Invalid stream handle status %d", status);
@@ -252,17 +251,11 @@ int32_t pal_stream_stop(pal_stream_handle_t *stream_handle)
     PAL_INFO(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
 
     s = reinterpret_cast<Stream *>(stream_handle);
-    s->getStreamType(&type);
-    s->getStreamDirection(&dir);
-
     status = s->stop();
     if (0 != status) {
         PAL_ERR(LOG_TAG, "stream stop failed. status : %d", status);
-        notify_concurrent_stream(type, dir, false);
         goto exit;
     }
-
-    notify_concurrent_stream(type, dir, false);
 
 exit:
     PAL_INFO(LOG_TAG, "Exit. status %d", status);
@@ -619,8 +612,8 @@ int32_t pal_stream_set_device(pal_stream_handle_t *stream_handle,
     struct pal_stream_attributes sattr;
     struct pal_device_info devinfo = {};
     struct pal_device *pDevices = NULL;
+    struct pal_device activeDevAttr;
     std::vector <std::shared_ptr<Device>> aDevices;
-    std::vector <struct pal_device> palDevices;
 
     if (!stream_handle) {
         status = -EINVAL;
@@ -662,7 +655,6 @@ int32_t pal_stream_set_device(pal_stream_handle_t *stream_handle,
     }
 
     s->getAssociatedDevices(aDevices);
-    s->getAssociatedPalDevices(palDevices);
     if (!aDevices.empty()) {
         std::set<pal_device_id_t> activeDevices;
         std::set<pal_device_id_t> newDevices;
@@ -670,26 +662,16 @@ int32_t pal_stream_set_device(pal_stream_handle_t *stream_handle,
 
         for (auto &dev : aDevices) {
             activeDevices.insert((pal_device_id_t)dev->getSndDeviceId());
-            // check if custom key matches for stream associated pal device
+            // check if custom key matches for same device
             for (int i = 0; i < no_of_devices; i++) {
                 if (dev->getSndDeviceId() == devices[i].id) {
-                    s->getAssociatedPalDevices(palDevices);
-                    if (palDevices.size() != 0) {
-                        for (auto palDev: palDevices) {
-                            if (palDev.id == devices[i].id) {
-                                if (strcmp(devices[i].custom_config.custom_key,
-                                    palDev.custom_config.custom_key) != 0) {
-                                    PAL_DBG(LOG_TAG, "diff custom key found, force device switch");
-                                    force_switch = true;
-                                }
-                                break;
-                            }
-                        }
-                    } else {
-                        // pal device hasn't been enabled for this stream yet
+                    dev->getDeviceAttributes(&activeDevAttr, s);
+                    if (strcmp(devices[i].custom_config.custom_key,
+                        activeDevAttr.custom_config.custom_key) != 0) {
+                        PAL_DBG(LOG_TAG, "diff custom key found, force device switch");
                         force_switch = true;
+                        break;
                     }
-                    break;
                 }
             }
             if (force_switch)

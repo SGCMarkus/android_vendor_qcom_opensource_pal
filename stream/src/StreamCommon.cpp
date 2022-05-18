@@ -64,7 +64,6 @@ StreamCommon::StreamCommon(const struct pal_stream_attributes *sattr, struct pal
     inBufCount = NO_OF_BUF;
     outBufCount = NO_OF_BUF;
     mDevices.clear();
-    mPalDevice.clear();
     currentState = STREAM_IDLE;
     //Modify cached values only at time of SSR down.
     cachedState = STREAM_IDLE;
@@ -113,6 +112,20 @@ StreamCommon::StreamCommon(const struct pal_stream_attributes *sattr, struct pal
     }
 
     PAL_VERBOSE(LOG_TAG, "Create new Devices with no_of_devices - %d", no_of_devices);
+    /* update handset/speaker sample rate for UPD with shared backend */
+    if ((sattr->type == PAL_STREAM_ULTRASOUND) && !rm->IsDedicatedBEForUPDEnabled()) {
+        struct pal_device devAttr = {};
+        struct pal_device_info inDeviceInfo;
+        pal_device_id_t upd_dev[] = {PAL_DEVICE_OUT_SPEAKER, PAL_DEVICE_OUT_HANDSET};
+        for (int i = 0; i < sizeof(upd_dev)/sizeof(upd_dev[0]); i++) {
+            devAttr.id = upd_dev[i];
+            dev = Device::getInstance(&devAttr, rm);
+            if (!dev)
+                continue;
+            rm->getDeviceInfo(devAttr.id, sattr->type, "", &inDeviceInfo);
+            dev->setSampleRate(inDeviceInfo.samplerate);
+        }
+    }
     for (int i = 0; i < no_of_devices; i++) {
         //Check with RM if the configuration given can work or not
         //for e.g., if incoming stream needs 24 bit device thats also
@@ -127,6 +140,8 @@ StreamCommon::StreamCommon(const struct pal_stream_attributes *sattr, struct pal
             mStreamMutex.unlock();
             throw std::runtime_error("failed to create device object");
         }
+        dev->insertStreamDeviceAttr(&dattr[i], this);
+        mPalDevices.push_back(dev);
         mStreamMutex.unlock();
         isDeviceConfigUpdated = rm->updateDeviceConfig(&dev, &dattr[i], sattr);
         mStreamMutex.lock();
@@ -137,7 +152,6 @@ StreamCommon::StreamCommon(const struct pal_stream_attributes *sattr, struct pal
         /* Create only update device attributes first time so update here using set*/
         /* this will have issues if same device is being currently used by different stream */
         mDevices.push_back(dev);
-        mPalDevice.push_back(dattr[i]);
     }
 
     mStreamMutex.unlock();
@@ -147,11 +161,33 @@ StreamCommon::StreamCommon(const struct pal_stream_attributes *sattr, struct pal
 
 StreamCommon::~StreamCommon()
 {
+    pal_stream_type_t type = PAL_STREAM_MAX;
+
     PAL_DBG(LOG_TAG, "Enter");
     cachedState = STREAM_IDLE;
+
+    /* remove the device-stream attribute entry for the stopped stream */
+    for (int32_t i=0; i < mPalDevices.size(); i++)
+        mPalDevices[i]->removeStreamDeviceAttr(this);
+
     if (mStreamAttr) {
+        type = mStreamAttr->type;
         free(mStreamAttr);
         mStreamAttr = (struct pal_stream_attributes *)NULL;
+    }
+
+    /* restore handset/speaker sample rate to default for UPD with shared backend */
+    if ((type == PAL_STREAM_ULTRASOUND) && !rm->IsDedicatedBEForUPDEnabled()) {
+        std::shared_ptr<Device> dev = nullptr;
+        struct pal_device devAttr = {};
+        pal_device_id_t upd_dev[] = {PAL_DEVICE_OUT_SPEAKER, PAL_DEVICE_OUT_HANDSET};
+        for (int i = 0; i < sizeof(upd_dev)/sizeof(upd_dev[0]); i++) {
+            devAttr.id = upd_dev[i];
+            dev = Device::getInstance(&devAttr, rm);
+            if (!dev)
+                continue;
+            dev->setSampleRate(0);
+        }
     }
 
     /*switch back to proper config if there is a concurrency and device is still running*/
@@ -159,7 +195,7 @@ StreamCommon::~StreamCommon()
         rm->restoreDevice(mDevices[i]);
 
     mDevices.clear();
-    mPalDevice.clear();
+    mPalDevices.clear();
     delete session;
     session = nullptr;
     PAL_DBG(LOG_TAG, "Exit");
@@ -380,6 +416,7 @@ int32_t StreamCommon::stop()
         mStreamMutex.unlock();
         rm->lockActiveStream();
         mStreamMutex.lock();
+        currentState = STREAM_STOPPED;
         for (int i = 0; i < mDevices.size(); i++) {
             rm->deregisterDevice(mDevices[i], this);
         }
@@ -403,7 +440,6 @@ int32_t StreamCommon::stop()
         }
         rm->unlockGraph();
         PAL_VERBOSE(LOG_TAG, "devices stop successful");
-        currentState = STREAM_STOPPED;
     } else if (currentState == STREAM_STOPPED || currentState == STREAM_IDLE) {
         PAL_INFO(LOG_TAG, "Stream is already in Stopped state %d", currentState);
     } else {

@@ -80,8 +80,9 @@
         <param key="upd_dedicated_be" value ="true" />
         <param key="upd_duty_cycle_enable" value="false" />
         <param key="dual_mono" value ="false" />
-        <param key="signal_handler" value ="true" />
+        <param key="signal_handler" value ="false" />
         <param key="device_mux_config" value ="true" />
+        <param key="upd_virtual_port" value ="false" />
     </config_params>
     <config_volume>
         <use_volume_set_param>0</use_volume_set_param>
@@ -108,6 +109,7 @@
         <codec codec_format="CODEC_TYPE_APTX_DUAL_MONO" codec_type="enc" codec_library="lib_bt_aptx.so" />
         <codec codec_format="CODEC_TYPE_APTX_AD_SPEECH" codec_type="enc|dec" codec_library="lib_bt_aptx.so" />
         <codec codec_format="CODEC_TYPE_LC3" codec_type="enc|dec" codec_library="lib_bt_ble.so" />
+        <codec codec_format="CODEC_TYPE_APTX_AD_QLEA" codec_type="enc" codec_library="lib_bt_ble.so" />
     </bt_codecs>
     <gain_db_to_level_mapping>
         <gain_level_map db="-59" level="5"/>
@@ -133,6 +135,31 @@
         <stream_type>PAL_STREAM_ULTRASOUND</stream_type>
         <stream_type>PAL_STREAM_SENSOR_PCM_DATA</stream_type>
     </low_power_vote_streams>
+    <group_device_cfg>
+        <upd_rx>
+            <snd_device name="handset" />
+            <group_dev sample_rate = "0" channels="0" bit_fmt="PAL_AUDIO_FMT_PCM_S16_LE" slot_mask="1" />
+        </upd_rx>
+        <handset>
+            <group_dev sample_rate = "0" channels="0" bit_fmt="PAL_AUDIO_FMT_PCM_S16_LE" slot_mask="1" />
+        </handset>
+        <speaker>
+            <group_dev sample_rate = "0" channels="0" bit_fmt="PAL_AUDIO_FMT_PCM_S16_LE" slot_mask="3" />
+        </speaker>
+        <speaker_voice>
+            <group_dev sample_rate = "0" channels="0" bit_fmt="PAL_AUDIO_FMT_PCM_S16_LE" slot_mask="1" />
+        </speaker_voice>
+        <upd_rx_handset>
+            <snd_device name="speaker" />
+            <devicepp_mfc sample_rate="96000" channels="2" bit_width="16" />
+            <group_dev sample_rate = "96000" channels="2" bit_fmt="PAL_AUDIO_FMT_PCM_S16_LE" slot_mask="3" />
+        </upd_rx_handset>
+        <upd_rx_speaker>
+            <snd_device name="speaker" />
+            <devicepp_mfc sample_rate="96000" channels="2" bit_width="16" />
+            <group_dev sample_rate = "96000" channels="2" bit_fmt="PAL_AUDIO_FMT_PCM_S16_LE" slot_mask="3" />
+        </upd_rx_speaker>
+    </group_device_cfg>
     <device_profile>
         <in-device>
             <id>PAL_DEVICE_IN_HANDSET_MIC</id>
@@ -140,7 +167,6 @@
             <max_channels>4</max_channels>
             <channels>1</channels>
             <samplerate>48000</samplerate>
-            <bit_width>16</bit_width>
             <snd_device_name>handset-mic</snd_device_name>
             <ec_enable>0</ec_enable>
             <usecase>
@@ -174,6 +200,10 @@
                 </custom-config>
             </usecase>
         -->
+            <usecase>
+                <name>PAL_STREAM_COMPRESSED</name>
+                <ec_enable>1</ec_enable>
+            </usecase>
             <usecase>
                 <name>PAL_STREAM_VOIP_TX</name>
                 <priority>2</priority>
@@ -226,7 +256,6 @@
             <back_end_name>CODEC_DMA-LPAIF_RXTX-TX-3</back_end_name>
             <max_channels>4</max_channels>
             <samplerate>48000</samplerate>
-            <bit_width>16</bit_width>
             <channels>1</channels>
             <ec_enable>0</ec_enable>
             <snd_device_name>speaker-mic</snd_device_name>
@@ -236,6 +265,22 @@
             <usecase>
                 <name>PAL_STREAM_DEEP_BUFFER</name>
                 <ec_enable>1</ec_enable>
+                <custom-config key="unprocessed-hdr-mic-landscape">
+                    <channels>4</channels>
+                    <snd_device_name>unprocessed-hdr-mic-landscape</snd_device_name>
+                </custom-config>
+                <custom-config key="unprocessed-hdr-mic-portrait">
+                    <channels>4</channels>
+                    <snd_device_name>unprocessed-hdr-mic-portrait</snd_device_name>
+                </custom-config>
+                <custom-config key="unprocessed-hdr-mic-inverted-landscape">
+                    <channels>4</channels>
+                    <snd_device_name>unprocessed-hdr-mic-inverted-landscape</snd_device_name>
+                </custom-config>
+                <custom-config key="unprocessed-hdr-mic-inverted-portrait">
+                    <channels>4</channels>
+                    <snd_device_name>unprocessed-hdr-mic-inverted-portrait</snd_device_name>
+                </custom-config>
             </usecase>
         <!--Uncomment these lines instead of above lines if needing to enable EC per custom key
             <usecase>
@@ -245,6 +290,10 @@
                 </custom-config>
             </usecase>
         -->
+            <usecase>
+                <name>PAL_STREAM_COMPRESSED</name>
+                <ec_enable>1</ec_enable>
+            </usecase>
             <usecase>
                 <name>PAL_STREAM_VOIP_TX</name>
                 <priority>2</priority>
@@ -298,6 +347,10 @@
             </usecase>
         -->
             <usecase>
+                <name>PAL_STREAM_COMPRESSED</name>
+                <ec_enable>1</ec_enable>
+            </usecase>
+            <usecase>
                 <name>PAL_STREAM_VOIP_TX</name>
                 <samplerate>48000</samplerate>
                 <bit_width>16</bit_width>
@@ -334,6 +387,9 @@
                 <name>PAL_STREAM_DEEP_BUFFER</name>
             </usecase>
             <usecase>
+                <name>PAL_STREAM_COMPRESSED</name>
+            </usecase>
+            <usecase>
                 <name>PAL_STREAM_VOIP_TX</name>
             </usecase>
             <usecase>
@@ -360,6 +416,8 @@
                 <id>PAL_DEVICE_OUT_SPEAKER</id>
                 <id>PAL_DEVICE_OUT_HANDSET</id>
                 <id>PAL_DEVICE_OUT_BLUETOOTH_A2DP</id>
+                <id>PAL_DEVICE_OUT_BLUETOOTH_BLE</id>
+                <id>PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST</id>
             </ec_rx_device>
         </in-device>
         <in-device>
@@ -375,6 +433,8 @@
                 <id>PAL_DEVICE_OUT_WIRED_HEADSET</id>
                 <id>PAL_DEVICE_OUT_WIRED_HEADPHONE</id>
                 <id>PAL_DEVICE_OUT_BLUETOOTH_A2DP</id>
+                <id>PAL_DEVICE_OUT_BLUETOOTH_BLE</id>
+                <id>PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST</id>
             </ec_rx_device>
         </in-device>
         <in-device>
@@ -383,7 +443,6 @@
             <max_channels>1</max_channels>
             <channels>1</channels>
             <samplerate>48000</samplerate>
-            <bit_width>16</bit_width>
             <ec_enable>0</ec_enable>
             <snd_device_name>usb-headset-mic</snd_device_name>
             <usecase>
@@ -405,6 +464,10 @@
                 </custom-config>
             </usecase>
         -->
+            <usecase>
+                <name>PAL_STREAM_COMPRESSED</name>
+                <ec_enable>1</ec_enable>
+            </usecase>
             <usecase>
                 <name>PAL_STREAM_VOICE_CALL</name>
                 <priority>1</priority>
@@ -454,6 +517,34 @@
             <snd_device_name>bt-a2dp-mic</snd_device_name>
             <samplerate>44100</samplerate>
             <bit_width>16</bit_width>
+        </in-device>
+        <in-device>
+            <id>PAL_DEVICE_IN_BLUETOOTH_BLE</id>
+            <back_end_name>SLIM-DEV1-TX-7</back_end_name>
+            <max_channels>1</max_channels>
+            <channels>1</channels>
+            <snd_device_name>bt-ble-mic</snd_device_name>
+            <samplerate>44100</samplerate>
+            <bit_width>16</bit_width>
+            <usecase>
+                <name>PAL_STREAM_LOW_LATENCY</name>
+            </usecase>
+            <usecase>
+                <name>PAL_STREAM_DEEP_BUFFER</name>
+            </usecase>
+            <usecase>
+                <name>PAL_STREAM_VOIP_TX</name>
+            </usecase>
+            <usecase>
+                <name>PAL_STREAM_VOICE_CALL</name>
+                <priority>1</priority>
+            </usecase>
+            <usecase>
+                <name>PAL_STREAM_ULTRA_LOW_LATENCY</name>
+            </usecase>
+            <ec_rx_device>
+                <id>PAL_DEVICE_OUT_BLUETOOTH_BLE</id>
+            </ec_rx_device>
         </in-device>
         <in-device>
             <id>PAL_DEVICE_IN_TELEPHONY_RX</id>
@@ -513,14 +604,13 @@
             <max_channels>2</max_channels>
             <channels>2</channels>
             <samplerate>48000</samplerate>
-            <bit_width>16</bit_width>
             <snd_device_name>speaker</snd_device_name>
             <speaker_protection_enabled>0</speaker_protection_enabled>
             <fractional_sr>0</fractional_sr>
             <!-- To enable external EC reference the flag extec_ref_enabled must be added as 1 -->
             <ext_ec_ref_enabled>0</ext_ec_ref_enabled>
             <cps_enabled>0</cps_enabled>
-            <vbat_enabled>0</vbat_enabled>
+            <vbat_enabled>1</vbat_enabled>
             <!--specify the supported bit format on speaker end point -->
             <!--this should be in the form of pal_audio_fmt_id-->
             <!--e.g <supported_bit_format >PAL_AUDIO_FMT_PCM_S24_LE</supported_bit_format>-->
@@ -538,17 +628,17 @@
             <quick_cal_time>0</quick_cal_time>
             <usecase>
                 <name>PAL_STREAM_VOICE_CALL</name>
-                <priority>2</priority>
+                <priority>1</priority>
                 <channels>1</channels>
                 <snd_device_name>speaker-mono-2</snd_device_name>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_VOIP_RX</name>
-                <priority>3</priority>
+                <priority>2</priority>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_ULTRASOUND</name>
-                <priority>1</priority>
+                <priority>4</priority>
                 <samplerate>96000</samplerate>
             </usecase>
         </out-device>
@@ -560,12 +650,11 @@
             <!-- To enable external EC reference the flag extec_ref_enabled must be added as 1 -->
             <ext_ec_ref_enabled>0</ext_ec_ref_enabled>
             <samplerate>48000</samplerate>
-            <bit_width>16</bit_width>
             <fractional_sr>0</fractional_sr>
             <snd_device_name>handset</snd_device_name>
           <usecase>
               <name>PAL_STREAM_VOICE_CALL</name>
-              <priority>2</priority>
+              <priority>1</priority>
               <snd_device_name>voice-handset</snd_device_name>
               <custom-config key="HAC">
                  <snd_device_name>voice-handset-hac</snd_device_name> <!-- override sound device name with HAC handset -->
@@ -573,14 +662,14 @@
           </usecase>
           <usecase>
               <name>PAL_STREAM_VOIP_RX</name>
-              <priority>3</priority>
+              <priority>2</priority>
               <custom-config key="HAC">
                  <snd_device_name>voice-handset-hac</snd_device_name> <!-- override sound device name with HAC handset for voip -->
               </custom-config>
           </usecase>
           <usecase>
               <name>PAL_STREAM_ULTRASOUND</name>
-              <priority>1</priority>
+              <priority>4</priority>
               <samplerate>96000</samplerate>
           </usecase>
         </out-device>
@@ -676,6 +765,28 @@
                 <name>PAL_STREAM_VOICE_CALL</name>
                 <priority>1</priority>
             </usecase>
+        </out-device>
+        <out-device>
+            <id>PAL_DEVICE_OUT_BLUETOOTH_BLE</id>
+            <back_end_name>SLIM-DEV1-RX-7</back_end_name>
+            <max_channels>1</max_channels>
+            <channels>1</channels>
+            <snd_device_name>bt-ble</snd_device_name>
+            <samplerate>44100</samplerate>
+            <bit_width>16</bit_width>
+            <usecase>
+                <name>PAL_STREAM_VOICE_CALL</name>
+                <priority>1</priority>
+            </usecase>
+        </out-device>
+        <out-device>
+            <id>PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST</id>
+            <back_end_name>SLIM-DEV1-RX-7</back_end_name>
+            <max_channels>1</max_channels>
+            <channels>1</channels>
+            <snd_device_name>bt-ble</snd_device_name>
+            <samplerate>44100</samplerate>
+            <bit_width>16</bit_width>
         </out-device>
         <out-device>
             <id>PAL_DEVICE_OUT_BLUETOOTH_SCO</id>
@@ -791,6 +902,15 @@
             <samplerate>96000</samplerate>
             <bit_width>16</bit_width>
         </out-device>
+        <out-device>
+            <id>PAL_DEVICE_OUT_ULTRASOUND_DEDICATED</id>
+            <back_end_name>CODEC_DMA-LPAIF_WSA-RX-1</back_end_name>
+            <max_channels>2</max_channels>
+            <channels>1</channels>
+            <snd_device_name>ultrasound-handset</snd_device_name>
+            <samplerate>96000</samplerate>
+            <bit_width>16</bit_width>
+        </out-device>
     </device_profile>
     <in_streams>
         <in_stream>
@@ -803,6 +923,15 @@
         </in_stream>
         <in_stream>
             <name>PAL_STREAM_DEEP_BUFFER</name>
+                <policies>
+                    <ec_ref>
+                        <disabled_stream>PAL_STREAM_LOW_LATENCY</disabled_stream>
+                        <disabled_stream>PAL_STREAM_GENERIC</disabled_stream>
+                    </ec_ref>
+                </policies>
+        </in_stream>
+        <in_stream>
+            <name>PAL_STREAM_COMPRESSED</name>
                 <policies>
                     <ec_ref>
                         <disabled_stream>PAL_STREAM_LOW_LATENCY</disabled_stream>
@@ -881,6 +1010,13 @@
                 <param snd_name="headset-va-mic-lpi" />
                 <param ec_ref="false" />
             </capture_profile>
+            <capture_profile name="SINGLE_MIC_16KHZ_16BIT_HEADSET_RAW_LPI_AAD">
+                <param sample_rate="16000" />
+                <param channels="1" />
+                <param bit_width="16" />
+                <param snd_name="headset-va-mic-lpi" />
+                <param ec_ref="false" />
+            </capture_profile>
             <capture_profile name="SINGLE_MIC_16KHZ_16BIT_HEADSET_FFNS">
                 <param sample_rate="16000" />
                 <param channels="1" />
@@ -896,6 +1032,13 @@
                 <param ec_ref="true" />
             </capture_profile>
             <capture_profile name="SINGLE_MIC_16KHZ_16BIT_RAW_LPI">
+                <param sample_rate="16000" />
+                <param channels="1" />
+                <param bit_width="16" />
+                <param snd_name="va-mic-mono-lpi" />
+                <param ec_ref="false" />
+            </capture_profile>
+            <capture_profile name="SINGLE_MIC_16KHZ_16BIT_RAW_LPI_AAD">
                 <param sample_rate="16000" />
                 <param channels="1" />
                 <param bit_width="16" />
@@ -962,6 +1105,13 @@
                 <param ec_ref="false" />
             </capture_profile>
             <capture_profile name="DUAL_MIC_16KHZ_16BIT_RAW_LPI">
+                <param sample_rate="16000" />
+                <param channels="2" />
+                <param bit_width="16" />
+                <param snd_name="va-mic-dmic-lpi" />
+                <param ec_ref="false" />
+            </capture_profile>
+            <capture_profile name="DUAL_MIC_16KHZ_16BIT_RAW_LPI_AAD">
                 <param sample_rate="16000" />
                 <param channels="2" />
                 <param bit_width="16" />

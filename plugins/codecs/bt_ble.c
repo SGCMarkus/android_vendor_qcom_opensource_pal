@@ -65,7 +65,7 @@ static int ble_pack_enc_config(bt_codec_t *codec, void *src, void **dst)
     enc_payload->sample_rate    = ble_bt_cfg->enc_cfg.toAirConfig.sampling_freq;
     enc_payload->num_blks       = num_blks;
     if (ble_bt_cfg->enc_cfg.stream_map_size) {
-        if (!ble_bt_cfg->enc_cfg.streamMapOut[0].audio_location)
+        if (1 == ble_bt_cfg->enc_cfg.stream_map_size)
             enc_payload->channel_count = CH_MONO;
         else
             enc_payload->channel_count = CH_STEREO;
@@ -243,6 +243,10 @@ static int bt_ble_populate_payload(bt_codec_t *codec, void *src, void **dst)
             config_fn = ((codec->direction == ENC) ? &ble_pack_enc_config :
                                                      &ble_pack_dec_config);
             break;
+        case CODEC_TYPE_APTX_AD_QLEA:
+            config_fn = ((codec->direction == ENC) ? &ble_pack_enc_config :
+                                                     NULL);
+            break;
         default:
             ALOGD("%s unsupported codecFmt %d\n", __func__, codec->codecFmt);
     }
@@ -278,6 +282,7 @@ static uint64_t bt_ble_get_encoder_latency(bt_codec_t *codec,
 
     switch (codec->codecFmt) {
         case CODEC_TYPE_LC3:
+        case CODEC_TYPE_APTX_AD_QLEA:
             latency = slatency;
             break;
         default:

@@ -38,7 +38,8 @@ std::shared_ptr<Device> UltrasoundDevice::objTx = nullptr;
 
 std::shared_ptr<Device> UltrasoundDevice::getObject(pal_device_id_t id)
 {
-    if (id == PAL_DEVICE_OUT_ULTRASOUND)
+    if (id == PAL_DEVICE_OUT_ULTRASOUND ||
+        id == PAL_DEVICE_OUT_ULTRASOUND_DEDICATED)
         return objRx;
     else
         return objTx;
@@ -47,7 +48,8 @@ std::shared_ptr<Device> UltrasoundDevice::getObject(pal_device_id_t id)
 std::shared_ptr<Device> UltrasoundDevice::getInstance(struct pal_device *device,
                                              std::shared_ptr<ResourceManager> Rm)
 {
-    if (device->id == PAL_DEVICE_OUT_ULTRASOUND) {
+    if (device->id == PAL_DEVICE_OUT_ULTRASOUND ||
+        device->id == PAL_DEVICE_OUT_ULTRASOUND_DEDICATED) {
         if (!objRx) {
             PAL_INFO(LOG_TAG, "%s creating instance for  %d\n", __func__, device->id);
             std::shared_ptr<Device> sp(new UltrasoundDevice(device, Rm));

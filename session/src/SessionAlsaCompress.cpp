@@ -41,283 +41,329 @@
 #include <fstream>
 #include <agm/agm_api.h>
 
-void SessionAlsaCompress::updateCodecOptions(pal_param_payload *param_payload)
-{
-    pal_snd_dec_t *pal_snd_dec = nullptr;
+void SessionAlsaCompress::updateCodecOptions(
+    pal_param_payload *param_payload, pal_stream_direction_t stream_direction) {
 
-    pal_snd_dec = (pal_snd_dec_t *)param_payload->payload;
-    PAL_DBG(LOG_TAG, "compress format %x", audio_fmt);
-    switch (audio_fmt) {
-        case PAL_AUDIO_FMT_MP3:
-        case PAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_END:
-        case PAL_AUDIO_FMT_AMR_NB:
-        case PAL_AUDIO_FMT_AMR_WB:
-        case PAL_AUDIO_FMT_AMR_WB_PLUS:
-        case PAL_AUDIO_FMT_QCELP:
-        case PAL_AUDIO_FMT_EVRC:
-        case PAL_AUDIO_FMT_G711:
-        break;
-        case PAL_AUDIO_FMT_PCM_S16_LE:
-        case PAL_AUDIO_FMT_PCM_S8:
-        case PAL_AUDIO_FMT_PCM_S24_LE:
-        case PAL_AUDIO_FMT_PCM_S24_3LE:
-        case PAL_AUDIO_FMT_PCM_S32_LE:
-        break;
-        case PAL_AUDIO_FMT_COMPRESSED_RANGE_BEGIN:
-        case PAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_BEGIN:
-        break;
-        case PAL_AUDIO_FMT_AAC:
-        {
-            codec.format = SND_AUDIOSTREAMFORMAT_RAW;
-            codec.options.generic.reserved[0] =
-                                    pal_snd_dec->aac_dec.audio_obj_type;
-            codec.options.generic.reserved[1] =
-                                    pal_snd_dec->aac_dec.pce_bits_size;
-            PAL_VERBOSE(LOG_TAG, "format- %x audio_obj_type- %x pce_bits_size- %x",
-                        codec.format, codec.options.generic.reserved[0],
-                        codec.options.generic.reserved[1]);
-        }
-        break;
-        case PAL_AUDIO_FMT_AAC_ADTS:
-        {
-            codec.format = SND_AUDIOSTREAMFORMAT_MP4ADTS;
-            codec.options.generic.reserved[0] =
-                                    pal_snd_dec->aac_dec.audio_obj_type;
-            codec.options.generic.reserved[1] =
-                                    pal_snd_dec->aac_dec.pce_bits_size;
-            PAL_VERBOSE(LOG_TAG, "format- %x audio_obj_type- %x pce_bits_size- %x",
-                        codec.format, codec.options.generic.reserved[0],
-                        codec.options.generic.reserved[1]);
-        }
-        break;
-        case PAL_AUDIO_FMT_AAC_ADIF:
-        {
-            codec.format = SND_AUDIOSTREAMFORMAT_ADIF;
-            codec.options.generic.reserved[0] =
-                                    pal_snd_dec->aac_dec.audio_obj_type;
-            codec.options.generic.reserved[1] =
-                                    pal_snd_dec->aac_dec.pce_bits_size;
-            PAL_VERBOSE(LOG_TAG, "format- %x audio_obj_type- %x pce_bits_size- %x",
-                        codec.format, codec.options.generic.reserved[0],
-                        codec.options.generic.reserved[1]);
-        }
-        break;
-        case PAL_AUDIO_FMT_AAC_LATM:
-        {
-            codec.format = SND_AUDIOSTREAMFORMAT_MP4LATM;
-            codec.options.generic.reserved[0] =
-                                    pal_snd_dec->aac_dec.audio_obj_type;
-            codec.options.generic.reserved[1] =
-                                    pal_snd_dec->aac_dec.pce_bits_size;
-            PAL_VERBOSE(LOG_TAG, "format- %x audio_obj_type- %x pce_bits_size- %x",
-                        codec.format, codec.options.generic.reserved[0],
-                        codec.options.generic.reserved[1]);
-        }
-        break;
-        case PAL_AUDIO_FMT_WMA_STD:
-        {
-            codec.format = pal_snd_dec->wma_dec.fmt_tag;
-            codec.options.generic.reserved[0] =
-                                    pal_snd_dec->wma_dec.avg_bit_rate/8;
-            codec.options.generic.reserved[1] =
-                                    pal_snd_dec->wma_dec.super_block_align;
-            codec.options.generic.reserved[2] =
-                                    pal_snd_dec->wma_dec.bits_per_sample;
-            codec.options.generic.reserved[3] =
-                                    pal_snd_dec->wma_dec.channelmask;
-            codec.options.generic.reserved[4] =
-                                    pal_snd_dec->wma_dec.encodeopt;
-            codec.options.generic.reserved[5] =
-                                    pal_snd_dec->wma_dec.encodeopt1;
-            codec.options.generic.reserved[6] =
-                                    pal_snd_dec->wma_dec.encodeopt2;
-            PAL_VERBOSE(LOG_TAG, "format- %x super_block_align- %x bits_per_sample- %x"
-                        ", channelmask - %x \n", codec.format,
-                        codec.options.generic.reserved[1],
-                        codec.options.generic.reserved[2],
-                        codec.options.generic.reserved[3]);
-            PAL_VERBOSE(LOG_TAG, "encodeopt - %x, encodeopt1 - %x, encodeopt2 - %x"
-                        ", avg_byte_rate - %x \n", codec.options.generic.reserved[4],
-                        codec.options.generic.reserved[5], codec.options.generic.reserved[6],
-                        codec.options.generic.reserved[0]);
-        }
-        break;
-        case PAL_AUDIO_FMT_WMA_PRO:
-        {
-            codec.format = pal_snd_dec->wma_dec.fmt_tag;
-            if (pal_snd_dec->wma_dec.fmt_tag == 0x161)
-                codec.profile = SND_AUDIOPROFILE_WMA9;
-            else if (pal_snd_dec->wma_dec.fmt_tag == 0x162)
-                codec.profile = PAL_SND_PROFILE_WMA9_PRO;
-            else if (pal_snd_dec->wma_dec.fmt_tag == 0x163)
-                codec.profile = PAL_SND_PROFILE_WMA9_LOSSLESS;
-            else if (pal_snd_dec->wma_dec.fmt_tag == 0x166)
-                codec.profile = SND_AUDIOPROFILE_WMA10;
-            else if (pal_snd_dec->wma_dec.fmt_tag == 0x167)
-                codec.profile = PAL_SND_PROFILE_WMA10_LOSSLESS;
+    if (stream_direction == PAL_AUDIO_OUTPUT) {
+        pal_snd_dec_t *pal_snd_dec = nullptr;
 
-            codec.options.generic.reserved[0] =
-                                    pal_snd_dec->wma_dec.avg_bit_rate/8;
-            codec.options.generic.reserved[1] =
-                                    pal_snd_dec->wma_dec.super_block_align;
-            codec.options.generic.reserved[2] =
-                                    pal_snd_dec->wma_dec.bits_per_sample;
-            codec.options.generic.reserved[3] =
-                                    pal_snd_dec->wma_dec.channelmask;
-            codec.options.generic.reserved[4] =
-                                    pal_snd_dec->wma_dec.encodeopt;
-            codec.options.generic.reserved[5] =
-                                    pal_snd_dec->wma_dec.encodeopt1;
-            codec.options.generic.reserved[6] =
-                                    pal_snd_dec->wma_dec.encodeopt2;
-            PAL_VERBOSE(LOG_TAG, "format- %x super_block_align- %x"
-                        "bits_per_sample- %x channelmask- %x\n",
-                        codec.format, codec.options.generic.reserved[1],
-                        codec.options.generic.reserved[2],
-                        codec.options.generic.reserved[3]);
-            PAL_VERBOSE(LOG_TAG, "encodeopt- %x encodeopt1- %x"
-                        "encodeopt2- %x avg_byte_rate- %x\n",
-                        codec.options.generic.reserved[4],
-                        codec.options.generic.reserved[5],
-                        codec.options.generic.reserved[6],
-                        codec.options.generic.reserved[0]);
+        pal_snd_dec = (pal_snd_dec_t *)param_payload->payload;
+        PAL_DBG(LOG_TAG, "playback compress format %x", audio_fmt);
+        switch (audio_fmt) {
+            case PAL_AUDIO_FMT_MP3:
+            case PAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_END:
+            case PAL_AUDIO_FMT_AMR_NB:
+            case PAL_AUDIO_FMT_AMR_WB:
+            case PAL_AUDIO_FMT_AMR_WB_PLUS:
+            case PAL_AUDIO_FMT_QCELP:
+            case PAL_AUDIO_FMT_EVRC:
+            case PAL_AUDIO_FMT_G711:
+            break;
+            case PAL_AUDIO_FMT_PCM_S16_LE:
+            case PAL_AUDIO_FMT_PCM_S8:
+            case PAL_AUDIO_FMT_PCM_S24_LE:
+            case PAL_AUDIO_FMT_PCM_S24_3LE:
+            case PAL_AUDIO_FMT_PCM_S32_LE:
+            break;
+            case PAL_AUDIO_FMT_COMPRESSED_RANGE_BEGIN:
+            case PAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_BEGIN:
+            break;
+            case PAL_AUDIO_FMT_AAC:
+            {
+                codec.format = SND_AUDIOSTREAMFORMAT_RAW;
+                codec.options.generic.reserved[0] =
+                                        pal_snd_dec->aac_dec.audio_obj_type;
+                codec.options.generic.reserved[1] =
+                                        pal_snd_dec->aac_dec.pce_bits_size;
+                PAL_VERBOSE(LOG_TAG, "format- %x audio_obj_type- %x pce_bits_size- %x",
+                            codec.format, codec.options.generic.reserved[0],
+                            codec.options.generic.reserved[1]);
+            }
+            break;
+            case PAL_AUDIO_FMT_AAC_ADTS:
+            {
+                codec.format = SND_AUDIOSTREAMFORMAT_MP4ADTS;
+                codec.options.generic.reserved[0] =
+                                        pal_snd_dec->aac_dec.audio_obj_type;
+                codec.options.generic.reserved[1] =
+                                        pal_snd_dec->aac_dec.pce_bits_size;
+                PAL_VERBOSE(LOG_TAG, "format- %x audio_obj_type- %x pce_bits_size- %x",
+                            codec.format, codec.options.generic.reserved[0],
+                            codec.options.generic.reserved[1]);
+            }
+            break;
+            case PAL_AUDIO_FMT_AAC_ADIF:
+            {
+                codec.format = SND_AUDIOSTREAMFORMAT_ADIF;
+                codec.options.generic.reserved[0] =
+                                        pal_snd_dec->aac_dec.audio_obj_type;
+                codec.options.generic.reserved[1] =
+                                        pal_snd_dec->aac_dec.pce_bits_size;
+                PAL_VERBOSE(LOG_TAG, "format- %x audio_obj_type- %x pce_bits_size- %x",
+                            codec.format, codec.options.generic.reserved[0],
+                            codec.options.generic.reserved[1]);
+            }
+            break;
+            case PAL_AUDIO_FMT_AAC_LATM:
+            {
+                codec.format = SND_AUDIOSTREAMFORMAT_MP4LATM;
+                codec.options.generic.reserved[0] =
+                                        pal_snd_dec->aac_dec.audio_obj_type;
+                codec.options.generic.reserved[1] =
+                                        pal_snd_dec->aac_dec.pce_bits_size;
+                PAL_VERBOSE(LOG_TAG, "format- %x audio_obj_type- %x pce_bits_size- %x",
+                            codec.format, codec.options.generic.reserved[0],
+                            codec.options.generic.reserved[1]);
+            }
+            break;
+            case PAL_AUDIO_FMT_WMA_STD:
+            {
+                codec.format = pal_snd_dec->wma_dec.fmt_tag;
+                codec.options.generic.reserved[0] =
+                                        pal_snd_dec->wma_dec.avg_bit_rate/8;
+                codec.options.generic.reserved[1] =
+                                        pal_snd_dec->wma_dec.super_block_align;
+                codec.options.generic.reserved[2] =
+                                        pal_snd_dec->wma_dec.bits_per_sample;
+                codec.options.generic.reserved[3] =
+                                        pal_snd_dec->wma_dec.channelmask;
+                codec.options.generic.reserved[4] =
+                                        pal_snd_dec->wma_dec.encodeopt;
+                codec.options.generic.reserved[5] =
+                                        pal_snd_dec->wma_dec.encodeopt1;
+                codec.options.generic.reserved[6] =
+                                        pal_snd_dec->wma_dec.encodeopt2;
+                PAL_VERBOSE(LOG_TAG, "format- %x super_block_align- %x bits_per_sample- %x"
+                            ", channelmask - %x \n", codec.format,
+                            codec.options.generic.reserved[1],
+                            codec.options.generic.reserved[2],
+                            codec.options.generic.reserved[3]);
+                PAL_VERBOSE(LOG_TAG, "encodeopt - %x, encodeopt1 - %x, encodeopt2 - %x"
+                            ", avg_byte_rate - %x \n", codec.options.generic.reserved[4],
+                            codec.options.generic.reserved[5], codec.options.generic.reserved[6],
+                            codec.options.generic.reserved[0]);
+            }
+            break;
+            case PAL_AUDIO_FMT_WMA_PRO:
+            {
+                codec.format = pal_snd_dec->wma_dec.fmt_tag;
+                if (pal_snd_dec->wma_dec.fmt_tag == 0x161)
+                    codec.profile = SND_AUDIOPROFILE_WMA9;
+                else if (pal_snd_dec->wma_dec.fmt_tag == 0x162)
+                    codec.profile = PAL_SND_PROFILE_WMA9_PRO;
+                else if (pal_snd_dec->wma_dec.fmt_tag == 0x163)
+                    codec.profile = PAL_SND_PROFILE_WMA9_LOSSLESS;
+                else if (pal_snd_dec->wma_dec.fmt_tag == 0x166)
+                    codec.profile = SND_AUDIOPROFILE_WMA10;
+                else if (pal_snd_dec->wma_dec.fmt_tag == 0x167)
+                    codec.profile = PAL_SND_PROFILE_WMA10_LOSSLESS;
+
+                codec.options.generic.reserved[0] =
+                                        pal_snd_dec->wma_dec.avg_bit_rate/8;
+                codec.options.generic.reserved[1] =
+                                        pal_snd_dec->wma_dec.super_block_align;
+                codec.options.generic.reserved[2] =
+                                        pal_snd_dec->wma_dec.bits_per_sample;
+                codec.options.generic.reserved[3] =
+                                        pal_snd_dec->wma_dec.channelmask;
+                codec.options.generic.reserved[4] =
+                                        pal_snd_dec->wma_dec.encodeopt;
+                codec.options.generic.reserved[5] =
+                                        pal_snd_dec->wma_dec.encodeopt1;
+                codec.options.generic.reserved[6] =
+                                        pal_snd_dec->wma_dec.encodeopt2;
+                PAL_VERBOSE(LOG_TAG, "format- %x super_block_align- %x"
+                            "bits_per_sample- %x channelmask- %x\n",
+                            codec.format, codec.options.generic.reserved[1],
+                            codec.options.generic.reserved[2],
+                            codec.options.generic.reserved[3]);
+                PAL_VERBOSE(LOG_TAG, "encodeopt- %x encodeopt1- %x"
+                            "encodeopt2- %x avg_byte_rate- %x\n",
+                            codec.options.generic.reserved[4],
+                            codec.options.generic.reserved[5],
+                            codec.options.generic.reserved[6],
+                            codec.options.generic.reserved[0]);
+            }
+            break;
+            case PAL_AUDIO_FMT_ALAC:
+            {
+                codec.options.generic.reserved[0] =
+                                        pal_snd_dec->alac_dec.frame_length;
+                codec.options.generic.reserved[1] =
+                                        pal_snd_dec->alac_dec.compatible_version;
+                codec.options.generic.reserved[2] =
+                                        pal_snd_dec->alac_dec.bit_depth;
+                codec.options.generic.reserved[3] =
+                                        pal_snd_dec->alac_dec.pb;
+                codec.options.generic.reserved[4] =
+                                        pal_snd_dec->alac_dec.mb;
+                codec.options.generic.reserved[5] =
+                                        pal_snd_dec->alac_dec.kb;
+                codec.options.generic.reserved[6] =
+                                        pal_snd_dec->alac_dec.max_run;
+                codec.options.generic.reserved[7] =
+                                    pal_snd_dec->alac_dec.max_frame_bytes;
+                codec.options.generic.reserved[8] =
+                                    pal_snd_dec->alac_dec.avg_bit_rate;
+                codec.options.generic.reserved[9] =
+                                    pal_snd_dec->alac_dec.channel_layout_tag;
+                PAL_VERBOSE(LOG_TAG, "frame_length- %x compatible_version- %x"
+                            "bit_depth- %x pb- %x mb- %x kb- %x",
+                            codec.options.generic.reserved[0],
+                            codec.options.generic.reserved[1],
+                            codec.options.generic.reserved[2],
+                            codec.options.generic.reserved[3],
+                            codec.options.generic.reserved[4],
+                            codec.options.generic.reserved[5]);
+                PAL_VERBOSE(LOG_TAG, "max_run- %x max_frame_bytes- %x avg_bit_rate- %x"
+                            "channel_layout_tag- %x",
+                            codec.options.generic.reserved[6],
+                            codec.options.generic.reserved[7],
+                            codec.options.generic.reserved[8],
+                            codec.options.generic.reserved[9]);
+            }
+            break;
+            case PAL_AUDIO_FMT_APE:
+            {
+                codec.options.generic.reserved[0] =
+                                        pal_snd_dec->ape_dec.bits_per_sample;
+                codec.options.generic.reserved[1] =
+                                        pal_snd_dec->ape_dec.compatible_version;
+                codec.options.generic.reserved[2] =
+                                        pal_snd_dec->ape_dec.compression_level;
+                codec.options.generic.reserved[3] =
+                                        pal_snd_dec->ape_dec.format_flags;
+                codec.options.generic.reserved[4] =
+                                        pal_snd_dec->ape_dec.blocks_per_frame;
+                codec.options.generic.reserved[5] =
+                                        pal_snd_dec->ape_dec.final_frame_blocks;
+                codec.options.generic.reserved[6] =
+                                        pal_snd_dec->ape_dec.total_frames;
+                codec.options.generic.reserved[7] =
+                                        pal_snd_dec->ape_dec.seek_table_present;
+                PAL_VERBOSE(LOG_TAG, "compatible_version- %x compression_level- %x "
+                            "format_flags- %x blocks_per_frame- %x "
+                            "final_frame_blocks - %x",
+                            codec.options.generic.reserved[1],
+                            codec.options.generic.reserved[2],
+                            codec.options.generic.reserved[3],
+                            codec.options.generic.reserved[4],
+                            codec.options.generic.reserved[5]);
+                PAL_VERBOSE(LOG_TAG, "total_frames- %x bits_per_sample- %x"
+                            " seek_table_present - %x",
+                            codec.options.generic.reserved[6],
+                            codec.options.generic.reserved[0],
+                            codec.options.generic.reserved[7]);
+            }
+            break;
+            case PAL_AUDIO_FMT_FLAC:
+            {
+                codec.format = SND_AUDIOSTREAMFORMAT_FLAC;
+                codec.options.generic.reserved[0] =
+                                        pal_snd_dec->flac_dec.sample_size;
+                codec.options.generic.reserved[1] =
+                                        pal_snd_dec->flac_dec.min_blk_size;
+                codec.options.generic.reserved[2] =
+                                        pal_snd_dec->flac_dec.max_blk_size;
+                codec.options.generic.reserved[3] =
+                                        pal_snd_dec->flac_dec.min_frame_size;
+                codec.options.generic.reserved[4] =
+                                        pal_snd_dec->flac_dec.max_frame_size;
+                PAL_VERBOSE(LOG_TAG, "sample_size- %x min_blk_size- %x "
+                            "max_blk_size- %x min_frame_size- %x "
+                            "max_frame_size- %x",
+                            codec.options.generic.reserved[0],
+                            codec.options.generic.reserved[1],
+                            codec.options.generic.reserved[2],
+                            codec.options.generic.reserved[3],
+                            codec.options.generic.reserved[4]);
+            }
+            break;
+            case PAL_AUDIO_FMT_FLAC_OGG:
+            {
+                codec.format = SND_AUDIOSTREAMFORMAT_FLAC_OGG;
+                codec.options.generic.reserved[0] =
+                                        pal_snd_dec->flac_dec.sample_size;
+                codec.options.generic.reserved[1] =
+                                        pal_snd_dec->flac_dec.min_blk_size;
+                codec.options.generic.reserved[2] =
+                                        pal_snd_dec->flac_dec.max_blk_size;
+                codec.options.generic.reserved[3] =
+                                        pal_snd_dec->flac_dec.min_frame_size;
+                codec.options.generic.reserved[4] =
+                                        pal_snd_dec->flac_dec.max_frame_size;
+                PAL_VERBOSE(LOG_TAG, "sample_size- %x min_blk_size- %x "
+                            "max_blk_size- %x min_frame_size- %x "
+                            "max_frame_size - %x",
+                            codec.options.generic.reserved[0],
+                            codec.options.generic.reserved[1],
+                            codec.options.generic.reserved[2],
+                            codec.options.generic.reserved[3],
+                            codec.options.generic.reserved[4]);
+            }
+            break;
+            case PAL_AUDIO_FMT_VORBIS:
+                codec.format = pal_snd_dec->vorbis_dec.bit_stream_fmt;
+            break;
+            default:
+                PAL_ERR(LOG_TAG, "Entered default, format %x", audio_fmt);
+            break;
         }
-        break;
-        case PAL_AUDIO_FMT_ALAC:
-        {
-            codec.options.generic.reserved[0] =
-                                    pal_snd_dec->alac_dec.frame_length;
-            codec.options.generic.reserved[1] =
-                                    pal_snd_dec->alac_dec.compatible_version;
-            codec.options.generic.reserved[2] =
-                                    pal_snd_dec->alac_dec.bit_depth;
-            codec.options.generic.reserved[3] =
-                                    pal_snd_dec->alac_dec.pb;
-            codec.options.generic.reserved[4] =
-                                    pal_snd_dec->alac_dec.mb;
-            codec.options.generic.reserved[5] =
-                                    pal_snd_dec->alac_dec.kb;
-            codec.options.generic.reserved[6] =
-                                    pal_snd_dec->alac_dec.max_run;
-            codec.options.generic.reserved[7] =
-                                   pal_snd_dec->alac_dec.max_frame_bytes;
-            codec.options.generic.reserved[8] =
-                                   pal_snd_dec->alac_dec.avg_bit_rate;
-            codec.options.generic.reserved[9] =
-                                   pal_snd_dec->alac_dec.channel_layout_tag;
-            PAL_VERBOSE(LOG_TAG, "frame_length- %x compatible_version- %x"
-                        "bit_depth- %x pb- %x mb- %x kb- %x",
-                        codec.options.generic.reserved[0],
-                        codec.options.generic.reserved[1],
-                        codec.options.generic.reserved[2],
-                        codec.options.generic.reserved[3],
-                        codec.options.generic.reserved[4],
-                        codec.options.generic.reserved[5]);
-            PAL_VERBOSE(LOG_TAG, "max_run- %x max_frame_bytes- %x avg_bit_rate- %x"
-                        "channel_layout_tag- %x",
-                        codec.options.generic.reserved[6],
-                        codec.options.generic.reserved[7],
-                        codec.options.generic.reserved[8],
-                        codec.options.generic.reserved[9]);
-        }
-        break;
-        case PAL_AUDIO_FMT_APE:
-        {
-            codec.options.generic.reserved[0] =
-                                    pal_snd_dec->ape_dec.bits_per_sample;
-            codec.options.generic.reserved[1] =
-                                    pal_snd_dec->ape_dec.compatible_version;
-            codec.options.generic.reserved[2] =
-                                    pal_snd_dec->ape_dec.compression_level;
-            codec.options.generic.reserved[3] =
-                                    pal_snd_dec->ape_dec.format_flags;
-            codec.options.generic.reserved[4] =
-                                    pal_snd_dec->ape_dec.blocks_per_frame;
-            codec.options.generic.reserved[5] =
-                                    pal_snd_dec->ape_dec.final_frame_blocks;
-            codec.options.generic.reserved[6] =
-                                    pal_snd_dec->ape_dec.total_frames;
-            codec.options.generic.reserved[7] =
-                                    pal_snd_dec->ape_dec.seek_table_present;
-            PAL_VERBOSE(LOG_TAG, "compatible_version- %x compression_level- %x "
-                        "format_flags- %x blocks_per_frame- %x "
-                        "final_frame_blocks - %x",
-                        codec.options.generic.reserved[1],
-                        codec.options.generic.reserved[2],
-                        codec.options.generic.reserved[3],
-                        codec.options.generic.reserved[4],
-                        codec.options.generic.reserved[5]);
-            PAL_VERBOSE(LOG_TAG, "total_frames- %x bits_per_sample- %x"
-                        " seek_table_present - %x",
-                        codec.options.generic.reserved[6],
-                        codec.options.generic.reserved[0],
-                        codec.options.generic.reserved[7]);
-        }
-        break;
-        case PAL_AUDIO_FMT_FLAC:
-        {
-            codec.format = SND_AUDIOSTREAMFORMAT_FLAC;
-            codec.options.generic.reserved[0] =
-                                    pal_snd_dec->flac_dec.sample_size;
-            codec.options.generic.reserved[1] =
-                                    pal_snd_dec->flac_dec.min_blk_size;
-            codec.options.generic.reserved[2] =
-                                    pal_snd_dec->flac_dec.max_blk_size;
-            codec.options.generic.reserved[3] =
-                                    pal_snd_dec->flac_dec.min_frame_size;
-            codec.options.generic.reserved[4] =
-                                    pal_snd_dec->flac_dec.max_frame_size;
-            PAL_VERBOSE(LOG_TAG, "sample_size- %x min_blk_size- %x "
-                        "max_blk_size- %x min_frame_size- %x "
-                        "max_frame_size- %x",
-                        codec.options.generic.reserved[0],
-                        codec.options.generic.reserved[1],
-                        codec.options.generic.reserved[2],
-                        codec.options.generic.reserved[3],
-                        codec.options.generic.reserved[4]);
-        }
-        break;
-        case PAL_AUDIO_FMT_FLAC_OGG:
-        {
-            codec.format = SND_AUDIOSTREAMFORMAT_FLAC_OGG;
-            codec.options.generic.reserved[0] =
-                                    pal_snd_dec->flac_dec.sample_size;
-            codec.options.generic.reserved[1] =
-                                    pal_snd_dec->flac_dec.min_blk_size;
-            codec.options.generic.reserved[2] =
-                                    pal_snd_dec->flac_dec.max_blk_size;
-            codec.options.generic.reserved[3] =
-                                    pal_snd_dec->flac_dec.min_frame_size;
-            codec.options.generic.reserved[4] =
-                                    pal_snd_dec->flac_dec.max_frame_size;
-            PAL_VERBOSE(LOG_TAG, "sample_size- %x min_blk_size- %x "
-                        "max_blk_size- %x min_frame_size- %x "
-                        "max_frame_size - %x",
-                        codec.options.generic.reserved[0],
-                        codec.options.generic.reserved[1],
-                        codec.options.generic.reserved[2],
-                        codec.options.generic.reserved[3],
-                        codec.options.generic.reserved[4]);
-        }
-        break;
-        case PAL_AUDIO_FMT_VORBIS:
-            codec.format = pal_snd_dec->vorbis_dec.bit_stream_fmt;
-        break;
-        default:
-            PAL_ERR(LOG_TAG, "Entered default, format %x", audio_fmt);
-        break;
     }
+
+    if (stream_direction == PAL_AUDIO_INPUT) {
+        pal_snd_enc_t *pal_snd_enc = nullptr;
+        PAL_DBG(LOG_TAG, "capture compress format %x", audio_fmt);
+        pal_snd_enc = (pal_snd_enc_t *)param_payload->payload;
+        switch (audio_fmt) {
+            case PAL_AUDIO_FMT_AAC: {
+                codec.format = pal_snd_enc->aac_enc.enc_cfg.aac_fmt_flag;
+                codec.profile = pal_snd_enc->aac_enc.enc_cfg.aac_enc_mode;
+                codec.bit_rate = pal_snd_enc->aac_enc.aac_bit_rate;
+                PAL_DBG(LOG_TAG,
+                        "requested AAC encode mode: %x, AAC format flag: %x, "
+                        "AAC "
+                        "bit rate: %d",
+                        codec.profile, codec.format, codec.bit_rate);
+                break;
+            }
+            default:
+                break;
+        }
+    }
+
 }
 
 void SessionAlsaCompress::getSndCodecParam(struct snd_codec &codec, struct pal_stream_attributes &sAttr)
 {
-    struct pal_media_config *config = &sAttr.out_media_config;
+    struct pal_media_config *config = nullptr;
+    PAL_DBG(LOG_TAG, "Enter");
+    switch (sAttr.direction) {
+        case PAL_AUDIO_OUTPUT:
+            PAL_DBG(LOG_TAG, "playback codec setting");
+            config = &sAttr.out_media_config;
+            codec.id = getSndCodecId(config->aud_fmt_id);
+            codec.ch_in = config->ch_info.channels;
+            codec.ch_out = codec.ch_in;
+            codec.sample_rate = config->sample_rate;
+            codec.bit_rate = config->bit_width;
+            break;
 
-    codec.id = getSndCodecId(config->aud_fmt_id);
-    codec.ch_in = config->ch_info.channels;
-    codec.ch_out = codec.ch_in;
-    codec.sample_rate = config->sample_rate;
-    codec.bit_rate = config->bit_width;
+        case PAL_AUDIO_INPUT:
+            PAL_VERBOSE(LOG_TAG, "capture codec setting");
+            config = &sAttr.in_media_config;
+            codec.id = getSndCodecId(config->aud_fmt_id);
+            codec.ch_in = config->ch_info.channels;
+            codec.ch_out = codec.ch_in;
+            codec.sample_rate = config->sample_rate;
+            break;
+
+        case PAL_AUDIO_INPUT_OUTPUT:
+            break;
+        default:
+            break;
+    }
+    PAL_DBG(LOG_TAG, "Exit");
 }
 
 int SessionAlsaCompress::getSndCodecId(pal_audio_fmt_t fmt)
@@ -422,33 +468,48 @@ bool SessionAlsaCompress::isGaplessFormat(pal_audio_fmt_t fmt)
     return isSupported;
 }
 
-bool SessionAlsaCompress::isCodecConfigNeeded(pal_audio_fmt_t audio_fmt)
-{
+bool SessionAlsaCompress::isCodecConfigNeeded(
+    pal_audio_fmt_t audio_fmt, pal_stream_direction_t stream_direction) {
     bool ret = false;
-    switch (audio_fmt) {
-        case PAL_AUDIO_FMT_VORBIS:
-        case PAL_AUDIO_FMT_FLAC:
-        case PAL_AUDIO_FMT_WMA_PRO:
-        case PAL_AUDIO_FMT_APE:
-        case PAL_AUDIO_FMT_WMA_STD:
-            ret = true;
-            break;
-        case PAL_AUDIO_FMT_DEFAULT_COMPRESSED:
-        case PAL_AUDIO_FMT_AAC:
-        case PAL_AUDIO_FMT_AAC_ADTS:
-        case PAL_AUDIO_FMT_AAC_ADIF:
-        case PAL_AUDIO_FMT_AAC_LATM:
-        case PAL_AUDIO_FMT_PCM_S8:
-        case PAL_AUDIO_FMT_PCM_S16_LE:
-        case PAL_AUDIO_FMT_PCM_S24_3LE:
-        case PAL_AUDIO_FMT_PCM_S24_LE:
-        case PAL_AUDIO_FMT_PCM_S32_LE:
-        case PAL_AUDIO_FMT_ALAC:
-        case PAL_AUDIO_FMT_FLAC_OGG:
-            break;
-        default:
-            break;
+    if (stream_direction == PAL_AUDIO_OUTPUT) {
+        switch (audio_fmt) {
+            case PAL_AUDIO_FMT_VORBIS:
+            case PAL_AUDIO_FMT_FLAC:
+            case PAL_AUDIO_FMT_WMA_PRO:
+            case PAL_AUDIO_FMT_APE:
+            case PAL_AUDIO_FMT_WMA_STD:
+                ret = true;
+                break;
+            case PAL_AUDIO_FMT_DEFAULT_COMPRESSED:
+            case PAL_AUDIO_FMT_AAC:
+            case PAL_AUDIO_FMT_AAC_ADTS:
+            case PAL_AUDIO_FMT_AAC_ADIF:
+            case PAL_AUDIO_FMT_AAC_LATM:
+            case PAL_AUDIO_FMT_PCM_S8:
+            case PAL_AUDIO_FMT_PCM_S16_LE:
+            case PAL_AUDIO_FMT_PCM_S24_3LE:
+            case PAL_AUDIO_FMT_PCM_S24_LE:
+            case PAL_AUDIO_FMT_PCM_S32_LE:
+            case PAL_AUDIO_FMT_ALAC:
+            case PAL_AUDIO_FMT_FLAC_OGG:
+                break;
+            default:
+                break;
+        }
     }
+    if (stream_direction == PAL_AUDIO_INPUT) {
+        switch (audio_fmt) {
+            case PAL_AUDIO_FMT_AAC:
+            case PAL_AUDIO_FMT_AAC_ADTS:
+            case PAL_AUDIO_FMT_AAC_ADIF:
+            case PAL_AUDIO_FMT_AAC_LATM:
+                ret = true;
+                break;
+            default:
+                break;
+        }
+    }
+
     PAL_DBG(LOG_TAG, "format %x, need to send codec config %d", audio_fmt,
                       ret);
     return ret;
@@ -561,7 +622,8 @@ void SessionAlsaCompress::offloadThreadLoop(SessionAlsaCompress* compressObj)
             } else if (msg && msg->cmd == OFFLOAD_CMD_DRAIN) {
                 if (!is_drain_called) {
                     PAL_INFO(LOG_TAG, "calling compress_drain");
-                    if (compressObj->rm->cardState == CARD_STATUS_ONLINE) {
+                    if (compressObj->rm->cardState == CARD_STATUS_ONLINE &&
+                        compressObj->compress != NULL) {
                          ret = compress_drain(compressObj->compress);
                          PAL_INFO(LOG_TAG, "out of compress_drain, ret %d", ret);
                     }
@@ -574,7 +636,8 @@ void SessionAlsaCompress::offloadThreadLoop(SessionAlsaCompress* compressObj)
                 is_drain_called = false;
                 event_id = PAL_STREAM_CBK_EVENT_DRAIN_READY;
             } else if (msg && msg->cmd == OFFLOAD_CMD_PARTIAL_DRAIN) {
-                if (compressObj->rm->cardState == CARD_STATUS_ONLINE) {
+                if (compressObj->rm->cardState == CARD_STATUS_ONLINE &&
+                        compressObj->compress != NULL) {
                     if (compressObj->isGaplessFmt) {
                         PAL_DBG(LOG_TAG, "calling partial compress_drain");
                         ret = compress_next_track(compressObj->compress);
@@ -621,15 +684,17 @@ SessionAlsaCompress::SessionAlsaCompress(std::shared_ptr<ResourceManager> Rm)
     codec.ch_in = 2;
     codec.ch_out = codec.ch_in;
     codec.sample_rate = 48000;
-    codec.bit_rate = 16;
     customPayload = NULL;
     customPayloadSize = 0;
     compress = NULL;
     sessionCb = NULL;
     this->cbCookie = 0;
     playback_started = false;
+    capture_started = false;
     playback_paused = false;
+    capture_paused = false;
     streamHandle = NULL;
+    ecRefDevId = PAL_DEVICE_OUT_MIN;
 }
 
 SessionAlsaCompress::~SessionAlsaCompress()
@@ -652,12 +717,6 @@ int SessionAlsaCompress::open(Stream * s)
         goto exit;
     }
 
-    ioMode = sAttr.flags & PAL_STREAM_FLAG_NON_BLOCKING_MASK;
-    if (!ioMode) {
-        PAL_ERR(LOG_TAG, "IO mode 0x%x not supported", ioMode);
-        status = -EINVAL;
-        goto exit;
-    }
     status = s->getAssociatedDevices(associatedDevices);
     if (0 != status) {
         PAL_ERR(LOG_TAG, "getAssociatedDevices Failed \n");
@@ -669,35 +728,72 @@ int SessionAlsaCompress::open(Stream * s)
         PAL_ERR(LOG_TAG, "no more FE vailable");
         return -EINVAL;
     }
+    frontEndIdAllocated = true;
+
     for (int i = 0; i < compressDevIds.size(); i++) {
-        //compressDevIds[i] = 5;
-        PAL_DBG(LOG_TAG, "devid size %zu, compressDevIds[%d] %d", compressDevIds.size(), i, compressDevIds[i]);
+        PAL_DBG(LOG_TAG, "dev id size %zu, compressDevIds[%d] %d", compressDevIds.size(), i, compressDevIds[i]);
     }
-    rm->getBackEndNames(associatedDevices, rxAifBackEnds, emptyBackEnds);
+    rm->getBackEndNames(associatedDevices, rxAifBackEnds, txAifBackEnds);
+    if (rxAifBackEnds.empty() && txAifBackEnds.empty()) {
+        status = -EINVAL;
+        PAL_ERR(LOG_TAG, "no backend specified for this stream");
+        goto exit;
+    }
     status = rm->getVirtualAudioMixer(&mixer);
     if (status) {
         PAL_ERR(LOG_TAG, "mixer error");
         goto exit;
     }
-    status = SessionAlsaUtils::open(s, rm, compressDevIds, rxAifBackEnds);
-    if (status) {
-        PAL_ERR(LOG_TAG, "session alsa open failed with %d", status);
-        rm->freeFrontEndIds(compressDevIds, sAttr, 0);
-    }
-    audio_fmt = sAttr.out_media_config.aud_fmt_id;
-    isGaplessFmt = isGaplessFormat(audio_fmt);
 
-    // Register for  mixer event callback
-    status = rm->registerMixerEventCallback(compressDevIds, sessionCb, cbCookie,
-                    true);
-    if (status != 0) {
-        // Not a fatal error. Only pop noise will come for Soft pause use case
-        PAL_ERR(LOG_TAG, "Failed to register callback to rm");
-        status = 0;
-        isPauseRegistrationDone = false;
+    switch(sAttr.direction){
+        case PAL_AUDIO_OUTPUT:
+            ioMode = sAttr.flags & PAL_STREAM_FLAG_NON_BLOCKING_MASK;
+            if (!ioMode) {
+                PAL_ERR(LOG_TAG, "IO mode 0x%x not supported", ioMode);
+                status = -EINVAL;
+                goto exit;
+            }
+            status =
+                SessionAlsaUtils::open(s, rm, compressDevIds, rxAifBackEnds);
+            if (status) {
+                PAL_ERR(LOG_TAG, "session alsa utils open failed with %d",
+                        status);
+                rm->freeFrontEndIds(compressDevIds, sAttr, 0);
+                frontEndIdAllocated = false;
+            }
+            audio_fmt = sAttr.out_media_config.aud_fmt_id;
+            isGaplessFmt = isGaplessFormat(audio_fmt);
+
+            // Register for  mixer event callback
+            status = rm->registerMixerEventCallback(compressDevIds, sessionCb,
+                                                    cbCookie, true);
+            if (status != 0) {
+                // Not a fatal error. Only pop noise will come for Soft pause
+                // use case
+                PAL_ERR(LOG_TAG, "Failed to register callback to rm");
+                status = 0;
+                isPauseRegistrationDone = false;
+            } else
+                isPauseRegistrationDone = true;
+            break;
+
+        case PAL_AUDIO_INPUT:
+            status =
+                SessionAlsaUtils::open(s, rm, compressDevIds, txAifBackEnds);
+            if (status) {
+                PAL_ERR(LOG_TAG, "session alsa utils open failed with %d",
+                        status);
+                rm->freeFrontEndIds(compressDevIds, sAttr, 0);
+                frontEndIdAllocated = false;
+            }
+            audio_fmt = sAttr.in_media_config.aud_fmt_id;
+            break;
+
+        default:
+            status = -EINVAL;
+            PAL_ERR(LOG_TAG, "Invalid direction");
+            break;
     }
-    else
-        isPauseRegistrationDone = true;
 
 exit:
     PAL_DBG(LOG_TAG, "Exit status: %d", status);
@@ -1127,35 +1223,45 @@ int SessionAlsaCompress::start(Stream * s)
     bool isStreamAvail = false;
     uint16_t volSize = 0;
     uint8_t *volPayload = nullptr;
+    uint32_t miid;
+    uint8_t* payload = NULL;
+    size_t payloadSize = 0;
+    struct sessionToPayloadParam streamData;
+    memset(&streamData, 0, sizeof(struct sessionToPayloadParam));
 
     PAL_DBG(LOG_TAG, "Enter");
-    /** create an offload thread for posting callbacks */
-    worker_thread = std::make_unique<std::thread>(offloadThreadLoop, this);
 
     rm->voteSleepMonitor(s, true);
     s->getStreamAttributes(&sAttr);
     getSndCodecParam(codec, sAttr);
-    s->getBufInfo(&in_buf_size,&in_buf_count,&out_buf_size,&out_buf_count);
-    compress_config.fragment_size = out_buf_size;
-    compress_config.fragments = out_buf_count;
-    compress_config.codec = &codec;
-    // compress_open
-    compress = compress_open(rm->getVirtualSndCard(), compressDevIds.at(0), COMPRESS_IN, &compress_config);
-    if (!compress) {
-        PAL_ERR(LOG_TAG, "compress open failed");
-        status = -EINVAL;
-        goto exit;
-    }
-    if (!is_compress_ready(compress)) {
-        PAL_ERR(LOG_TAG, "compress open not ready %s", compress_get_error(compress));
-        status = -EINVAL;
-        goto exit;
-    }
-    /** set non blocking mode for writes */
-    compress_nonblock(compress, !!ioMode);
+    s->getBufInfo(&in_buf_size, &in_buf_count, &out_buf_size,
+                          &out_buf_count);
 
     switch (sAttr.direction) {
         case PAL_AUDIO_OUTPUT:
+            /** create an offload thread for posting callbacks */
+            worker_thread = std::make_unique<std::thread>(offloadThreadLoop, this);
+            compress_config.fragment_size = out_buf_size;
+            compress_config.fragments = out_buf_count;
+            compress_config.codec = &codec;
+            // compress_open
+            compress =
+                compress_open(rm->getVirtualSndCard(), compressDevIds.at(0),
+                              COMPRESS_IN, &compress_config);
+            if (!compress) {
+                PAL_ERR(LOG_TAG, "compress open failed");
+                status = -EINVAL;
+                goto exit;
+            }
+            if (!is_compress_ready(compress)) {
+                PAL_ERR(LOG_TAG, "compress open not ready %s",
+                        compress_get_error(compress));
+                status = -EINVAL;
+                goto exit;
+            }
+            /** set non blocking mode for writes */
+            compress_nonblock(compress, !!ioMode);
+
             status = s->getAssociatedDevices(associatedDevices);
             if (0 != status) {
                 PAL_ERR(LOG_TAG, "getAssociatedDevices Failed \n");
@@ -1270,6 +1376,76 @@ int SessionAlsaCompress::start(Stream * s)
                 }
             }
             break;
+        case PAL_AUDIO_INPUT:
+            compress_cap_buf_size = in_buf_size;
+            compress_config.fragment_size = in_buf_size;
+            compress_config.fragments = in_buf_count;
+            compress_config.codec = &codec;
+            // compress_open for capture
+            //can use PAL_STREAM_FLAG_FRAME_BY_FRAME
+            compress =
+                compress_open(rm->getVirtualSndCard(), compressDevIds.at(0),
+                              COMPRESS_OUT, &compress_config);
+            if (!compress) {
+                PAL_ERR(LOG_TAG, "compress open failed");
+                status = -EINVAL;
+                goto exit;
+            }
+            PAL_VERBOSE(LOG_TAG, "capture: compress open successful");
+            if (!is_compress_ready(compress)) {
+                PAL_ERR(LOG_TAG, "compress open not ready %s",
+                        compress_get_error(compress));
+                status = -EINVAL;
+                goto exit;
+            }
+            PAL_VERBOSE(LOG_TAG, "capture: compress is ready");
+            status = s->getAssociatedDevices(associatedDevices);
+            if (0 != status) {
+                PAL_ERR(LOG_TAG, "getAssociatedDevices Failed \n");
+                goto exit;
+            }
+            rm->getBackEndNames(associatedDevices, rxAifBackEnds,
+                                txAifBackEnds);
+            if (rxAifBackEnds.empty() && txAifBackEnds.empty()) {
+                PAL_ERR(LOG_TAG, "no backend specified for this stream");
+                goto exit;
+            }
+            status = SessionAlsaUtils::getModuleInstanceId(mixer, compressDevIds.at(0),
+                                                                txAifBackEnds[0].second.data(),
+                                                                TAG_STREAM_MFC_SR, &miid);
+            if (status != 0) {
+                PAL_ERR(LOG_TAG, "getModuleInstanceId failed");
+                goto exit;
+            }
+            PAL_DBG(LOG_TAG, "miid : %x id = %d, data %s\n", miid,
+                    compressDevIds.at(0), txAifBackEnds[0].second.data());
+
+            streamData.bitWidth = sAttr.in_media_config.bit_width;
+            streamData.sampleRate = sAttr.in_media_config.sample_rate;
+            streamData.numChannel = sAttr.in_media_config.ch_info.channels;
+            streamData.ch_info = nullptr;
+            builder->payloadMFCConfig(&payload, &payloadSize, miid, &streamData);
+            if (payloadSize && payload) {
+                status = updateCustomPayload(payload, payloadSize);
+                freeCustomPayload(&payload, &payloadSize);
+                if (0 != status) {
+                    PAL_ERR(LOG_TAG, "updateCustomPayload Failed\n");
+                    goto exit;
+                }
+            }
+
+            if (customPayload) {
+                status = SessionAlsaUtils::setMixerParameter(
+                    mixer, compressDevIds.at(0), customPayload,
+                    customPayloadSize);
+                freeCustomPayload();
+                if (status != 0) {
+                    PAL_ERR(LOG_TAG, "setMixerParameter failed");
+                    goto exit;
+                }
+            }
+
+            break;
         default:
             break;
     }
@@ -1313,7 +1489,7 @@ exit:
     return status;
 }
 
-int SessionAlsaCompress::pause(Stream * s __unused)
+int SessionAlsaCompress::pause(Stream * s)
 {
     int32_t status = 0;
 
@@ -1348,23 +1524,49 @@ int SessionAlsaCompress::stop(Stream * s __unused)
     int32_t status = 0;
     size_t payload_size = 0;
     struct agm_event_reg_cfg event_cfg;
-
-    // Deregister for callback for Soft Pause
-    if (isPauseRegistrationDone) {
-        payload_size = sizeof(struct agm_event_reg_cfg);
-        memset(&event_cfg, 0, sizeof(event_cfg));
-        event_cfg.event_id = EVENT_ID_SOFT_PAUSE_PAUSE_COMPLETE;
-        event_cfg.event_config_payload_size = 0;
-        event_cfg.is_register = 0;
-        SessionAlsaUtils::registerMixerEvent(mixer, compressDevIds.at(0),
-                    rxAifBackEnds[0].second.data(), TAG_PAUSE, (void *)&event_cfg,
-                    payload_size);
-        isPauseRegistrationDone = false;
-    }
+    struct pal_stream_attributes sAttr;
 
     PAL_DBG(LOG_TAG, "Enter");
-    if (compress && playback_started) {
-        status = compress_stop(compress);
+
+    status = s->getStreamAttributes(&sAttr);
+    if (status != 0) {
+        PAL_ERR(LOG_TAG, "stream get attributes failed");
+        return status;
+    }
+
+    switch (sAttr.direction) {
+        case PAL_AUDIO_OUTPUT:
+            // Deregister for callback for Soft Pause
+            if (isPauseRegistrationDone) {
+                payload_size = sizeof(struct agm_event_reg_cfg);
+                memset(&event_cfg, 0, sizeof(event_cfg));
+                event_cfg.event_id = EVENT_ID_SOFT_PAUSE_PAUSE_COMPLETE;
+                event_cfg.event_config_payload_size = 0;
+                event_cfg.is_register = 0;
+                SessionAlsaUtils::registerMixerEvent(
+                    mixer, compressDevIds.at(0), rxAifBackEnds[0].second.data(),
+                    TAG_PAUSE, (void *)&event_cfg, payload_size);
+                isPauseRegistrationDone = false;
+            }
+
+            if (compress && playback_started) {
+                status = compress_stop(compress);
+            }
+            break;
+        case PAL_AUDIO_INPUT:
+            if (compress) {
+                status = compress_stop(compress);
+                if (status) {
+                    status = errno;
+                    PAL_ERR(LOG_TAG, "compress_stop failed %d for capture",
+                            status);
+                } else {
+                    PAL_VERBOSE(LOG_TAG,"compress_stop successful for capture");
+                }
+            }
+            break;
+        case PAL_AUDIO_INPUT_OUTPUT:
+            break;
     }
     rm->voteSleepMonitor(s, false);
     PAL_DBG(LOG_TAG, "Exit status: %d", status);
@@ -1376,63 +1578,105 @@ int SessionAlsaCompress::close(Stream * s)
     struct pal_stream_attributes sAttr;
     int32_t status = 0;
     std::ostringstream disconnectCtrlName;
+    std::string backendname;
+    std::vector<std::shared_ptr<Device>> associatedDevices;
+    int32_t beDevId = 0;
 
     PAL_DBG(LOG_TAG, "Enter");
 
     s->getStreamAttributes(&sAttr);
-    if (!compress) {
-        if (compressDevIds.size() != 0)
+    switch(sAttr.direction){
+        case PAL_AUDIO_OUTPUT:
+            if (!compress) {
+                if (compressDevIds.size() != 0)
+                    rm->freeFrontEndIds(compressDevIds, sAttr, 0);
+                if (rm->cardState == CARD_STATUS_OFFLINE) {
+                    if (sessionCb)
+                        sessionCb(cbCookie, PAL_STREAM_CBK_EVENT_ERROR, NULL, 0);
+                }
+                goto exit;
+                /** close unstarted session should return normal. */
+            }
+            disconnectCtrlName << "COMPRESS" << compressDevIds.at(0) << " disconnect";
+            disconnectCtrl = mixer_get_ctl_by_name(mixer, disconnectCtrlName.str().data());
+            if (!disconnectCtrl) {
+                PAL_ERR(LOG_TAG, "invalid mixer control: %s", disconnectCtrlName.str().data());
+                status = -EINVAL;
+                goto exit;
+            }
+            /** Disconnect FE to BE */
+            mixer_ctl_set_enum_by_string(disconnectCtrl, rxAifBackEnds[0].second.data());
+            compress_close(compress);
+            PAL_DBG(LOG_TAG, "out of compress close");
+
             rm->freeFrontEndIds(compressDevIds, sAttr, 0);
-        if (rm->cardState == CARD_STATUS_OFFLINE) {
-            if (sessionCb)
-                sessionCb(cbCookie, PAL_STREAM_CBK_EVENT_ERROR, NULL, 0);
-        }
-        goto exit;
-        /** close unstarted session should return normal. */
-    }
-    disconnectCtrlName << "COMPRESS" << compressDevIds.at(0) << " disconnect";
-    disconnectCtrl = mixer_get_ctl_by_name(mixer, disconnectCtrlName.str().data());
-    if (!disconnectCtrl) {
-        PAL_ERR(LOG_TAG, "invalid mixer control: %s", disconnectCtrlName.str().data());
-        status = -EINVAL;
-        goto exit;
-    }
-    /** Disconnect FE to BE */
-    mixer_ctl_set_enum_by_string(disconnectCtrl, rxAifBackEnds[0].second.data());
-    compress_close(compress);
-    compress = NULL;
-    PAL_DBG(LOG_TAG, "out of compress close");
+            freeCustomPayload();
 
-    rm->freeFrontEndIds(compressDevIds, sAttr, 0);
-    freeCustomPayload();
+            if (rm->cardState == CARD_STATUS_OFFLINE) {
+                std::shared_ptr<offload_msg> msg = std::make_shared<offload_msg>(OFFLOAD_CMD_ERROR);
+                std::lock_guard<std::mutex> lock(cv_mutex_);
+                msg_queue_.push(msg);
+                cv_.notify_all();
+            }
+            {
+                std::shared_ptr<offload_msg> msg = std::make_shared<offload_msg>(OFFLOAD_CMD_EXIT);
+                std::lock_guard<std::mutex> lock(cv_mutex_);
+                msg_queue_.push(msg);
+                cv_.notify_all();
+            }
 
-    if (rm->cardState == CARD_STATUS_OFFLINE) {
-        std::shared_ptr<offload_msg> msg = std::make_shared<offload_msg>(OFFLOAD_CMD_ERROR);
-        std::lock_guard<std::mutex> lock(cv_mutex_);
-        msg_queue_.push(msg);
-        cv_.notify_all();
-    }
-    {
-        std::shared_ptr<offload_msg> msg = std::make_shared<offload_msg>(OFFLOAD_CMD_EXIT);
-        std::lock_guard<std::mutex> lock(cv_mutex_);
-        msg_queue_.push(msg);
-        cv_.notify_all();
-    }
+            /* wait for handler to exit */
+            worker_thread->join();
+            worker_thread.reset(NULL);
 
-    /* wait for handler to exit */
-    worker_thread->join();
-    worker_thread.reset(NULL);
+            /* empty the pending messages in queue */
+            while (!msg_queue_.empty())
+                msg_queue_.pop();
 
-    /* empty the pending messages in queue */
-    while (!msg_queue_.empty())
-        msg_queue_.pop();
+            // Deregister for mixer event callback
+            status = rm->registerMixerEventCallback(compressDevIds, sessionCb, cbCookie,
+                            false);
+            if (status != 0) {
+                PAL_ERR(LOG_TAG, "Failed to deregister callback to rm");
+                status = 0;
+            }
+            break;
 
-    // Deregister for mixer event callback
-    status = rm->registerMixerEventCallback(compressDevIds, sessionCb, cbCookie,
-                    false);
-    if (status != 0) {
-        PAL_ERR(LOG_TAG, "Failed to deregister callback to rm");
-        status = 0;
+        case PAL_AUDIO_INPUT:
+            freeDeviceMetadata.clear();
+            status = s->getAssociatedDevices(associatedDevices);
+            if (status != 0) {
+                PAL_ERR(LOG_TAG, "getAssociatedDevices Failed\n");
+                goto exit;
+            }
+            for (auto &dev : associatedDevices) {
+                beDevId = dev->getSndDeviceId();
+                rm->getBackendName(beDevId, backendname);
+                PAL_DBG(LOG_TAG, "backendname %s", backendname.c_str());
+                if (dev->getDeviceCount() != 0) {
+                    PAL_DBG(LOG_TAG, "Tx dev still active\n");
+                    freeDeviceMetadata.push_back(
+                        std::make_pair(backendname, 0));
+                } else {
+                    freeDeviceMetadata.push_back(
+                        std::make_pair(backendname, 1));
+                    PAL_DBG(LOG_TAG, "Tx dev not active");
+                }
+            }
+            status = SessionAlsaUtils::close(s, rm, compressDevIds,
+                                             txAifBackEnds, freeDeviceMetadata);
+            if (status) {
+                PAL_ERR(LOG_TAG, "session alsa close failed with %d", status);
+            }
+            compress_close(compress);
+
+            rm->freeFrontEndIds(compressDevIds, sAttr, 0);
+            compress = NULL;
+            break;
+
+        case PAL_AUDIO_INPUT_OUTPUT:
+        default:
+            break;
     }
 
  exit:
@@ -1440,9 +1684,42 @@ int SessionAlsaCompress::close(Stream * s)
     return status;
 }
 
-int SessionAlsaCompress::read(Stream *s __unused, int tag __unused, struct pal_buffer *buf __unused, int * size __unused)
-{
-    return 0;
+int SessionAlsaCompress::read(Stream *s, int tag __unused,
+                              struct pal_buffer *buf, int *size) {
+    int status = 0, bytesRead = 0, offset = 0;
+    struct pal_stream_attributes sAttr;
+
+    PAL_VERBOSE(LOG_TAG, "Enter")
+    status = s->getStreamAttributes(&sAttr);
+    if (status != 0) {
+        PAL_ERR(LOG_TAG, "stream get attributes failed");
+        return status;
+    }
+
+    /* Upon first read start the the capture */
+    if (!capture_started) {
+        status = compress_start(compress);  // for capture usecase
+        if (status) {
+            PAL_ERR(LOG_TAG, "compress start failed with err %d", status);
+            return status;
+        }
+        capture_started = true;
+    }
+
+    void *data = buf->buffer;
+    data = static_cast<char *>(data) + offset;
+
+    bytesRead = compress_read(compress, data, *size);
+
+    if (bytesRead < 0) {
+        PAL_ERR(LOG_TAG, "compress read failed, status %d", bytesRead);
+        *size = 0;
+        return -EINVAL;
+    }
+    *size = bytesRead;
+    buf->size = bytesRead;
+    PAL_VERBOSE(LOG_TAG, "exit bytesRead:%d ", bytesRead);
+    return status;
 }
 
 int SessionAlsaCompress::fileWrite(Stream *s __unused, int tag __unused, struct pal_buffer *buf, int * size, int flag __unused)
@@ -1565,6 +1842,8 @@ int SessionAlsaCompress::setParameters(Stream *s __unused, int tagId, uint32_t p
     struct pal_compr_gapless_mdata *gaplessMdata = NULL;
     struct pal_stream_attributes sAttr;
 
+    s->getStreamAttributes(&sAttr);
+
     PAL_DBG(LOG_TAG, "Enter");
 
     switch (param_id) {
@@ -1649,14 +1928,14 @@ int SessionAlsaCompress::setParameters(Stream *s __unused, int tagId, uint32_t p
         }
         case PAL_PARAM_ID_CODEC_CONFIGURATION:
             PAL_DBG(LOG_TAG, "Compress Codec Configuration");
-            updateCodecOptions((pal_param_payload *) payload);
+            updateCodecOptions((pal_param_payload *)payload, sAttr.direction);
             if (compress && audio_fmt != PAL_AUDIO_FMT_VORBIS) {
                 /* For some audio fmt, codec configuration is default like
                  * for mp3, and for some it is hardcoded like for aac, in
                  * these cases, we don't need to send codec params to ADSP
                  * again even if it comes from hal as it will not change.
                  */
-                if (isCodecConfigNeeded(audio_fmt)) {
+                if (isCodecConfigNeeded(audio_fmt, sAttr.direction)) {
                     PAL_DBG(LOG_TAG, "Setting params for second clip for gapless");
                     status = compress_set_codec_params(compress, &codec);
                 } else {
@@ -1837,6 +2116,127 @@ int SessionAlsaCompress::getTimestamp(struct pal_session_time *stime)
 
 int SessionAlsaCompress::setECRef(Stream *s __unused, std::shared_ptr<Device> rx_dev __unused, bool is_enable __unused)
 {
-    return 0;
+    int status = 0;
+    struct pal_stream_attributes sAttr = {};
+    std::vector <std::shared_ptr<Device>> rxDeviceList;
+    std::vector <std::string> backendNames;
+    struct pal_device rxDevAttr = {};
+    struct pal_device_info rxDevInfo = {};
+
+    PAL_DBG(LOG_TAG, "Enter");
+    if (!s) {
+        PAL_ERR(LOG_TAG, "Invalid stream or rx device");
+        status = -EINVAL;
+        goto exit;
+    }
+
+    status = s->getStreamAttributes(&sAttr);
+    if (status != 0) {
+        PAL_ERR(LOG_TAG, "stream get attributes failed");
+        goto exit;
+    }
+
+    if (sAttr.direction != PAL_AUDIO_INPUT) {
+        PAL_ERR(LOG_TAG, "EC Ref cannot be set to output stream");
+        status = -EINVAL;
+        goto exit;
+    }
+
+    rxDevInfo.isExternalECRefEnabledFlag = 0;
+    if (rx_dev) {
+        status = rx_dev->getDeviceAttributes(&rxDevAttr);
+        if (status != 0) {
+            PAL_ERR(LOG_TAG," get device attributes failed");
+            goto exit;
+        }
+        rm->getDeviceInfo(rxDevAttr.id, sAttr.type, rxDevAttr.custom_config.custom_key, &rxDevInfo);
+    } else if (!is_enable && ecRefDevId != PAL_DEVICE_OUT_MIN) {
+        // if disable EC with null rx_dev, retrieve current EC device
+        rxDevAttr.id = ecRefDevId;
+        rx_dev = Device::getInstance(&rxDevAttr, rm);
+        if (rx_dev) {
+            status = rx_dev->getDeviceAttributes(&rxDevAttr);
+            if (status) {
+                PAL_ERR(LOG_TAG, "getDeviceAttributes failed for ec dev: %d", ecRefDevId);
+                goto exit;
+            }
+        }
+        rm->getDeviceInfo(rxDevAttr.id, sAttr.type, rxDevAttr.custom_config.custom_key, &rxDevInfo);
+    }
+
+    if (!is_enable) {
+        if (ecRefDevId == PAL_DEVICE_OUT_MIN) {
+            PAL_DBG(LOG_TAG, "EC ref not enabled, skip disabling");
+            goto exit;
+        } else if (rx_dev && ecRefDevId != rx_dev->getSndDeviceId()) {
+            PAL_DBG(LOG_TAG, "Invalid rx dev %d for disabling EC ref, "
+                "rx dev %d already enabled", rx_dev->getSndDeviceId(), ecRefDevId);
+            goto exit;
+        }
+
+        if (rxDevInfo.isExternalECRefEnabledFlag) {
+            status = checkAndSetExtEC(rm, s, false);
+            if (status) {
+                PAL_ERR(LOG_TAG, "Failed to disable External EC, status %d", status);
+                goto exit;
+            }
+        } else {
+            status = SessionAlsaUtils::setECRefPath(mixer, compressDevIds.at(0), "ZERO");
+            if (status) {
+                PAL_ERR(LOG_TAG, "Failed to disable EC Ref, status %d", status);
+                goto exit;
+            }
+        }
+    } else if (is_enable && rx_dev) {
+        if (ecRefDevId == rx_dev->getSndDeviceId()) {
+            PAL_DBG(LOG_TAG, "EC Ref already set for dev %d", ecRefDevId);
+            goto exit;
+        }
+        // TODO: handle EC Ref switch case also
+        rxDeviceList.push_back(rx_dev);
+        backendNames = rm->getBackEndNames(rxDeviceList);
+
+        if (rxDevInfo.isExternalECRefEnabledFlag) {
+            // reset EC if internal EC is being used
+            if (ecRefDevId != PAL_DEVICE_OUT_MIN && !rm->isExternalECRefEnabled(ecRefDevId)) {
+                status = SessionAlsaUtils::setECRefPath(mixer, compressDevIds.at(0), "ZERO");
+                if (status) {
+                    PAL_ERR(LOG_TAG, "Failed to reset before set ext EC, status %d", status);
+                    goto exit;
+                }
+            }
+            status = checkAndSetExtEC(rm, s, true);
+            if (status) {
+                PAL_ERR(LOG_TAG, "Failed to enable External EC, status %d", status);
+                goto exit;
+            }
+        } else {
+            // avoid set internal ec if ext ec connected
+            if (ecRefDevId != PAL_DEVICE_OUT_MIN && rm->isExternalECRefEnabled(ecRefDevId)) {
+                PAL_ERR(LOG_TAG, "Cannot be set internal EC with external EC connected");
+                status = -EINVAL;
+                goto exit;
+            }
+            status = SessionAlsaUtils::setECRefPath(mixer, compressDevIds.at(0),
+                    backendNames[0].c_str());
+            if (status) {
+                PAL_ERR(LOG_TAG, "Failed to enable EC Ref, status %d", status);
+                goto exit;
+            }
+        }
+    } else {
+        PAL_ERR(LOG_TAG, "Invalid operation");
+        status = -EINVAL;
+        goto exit;
+    }
+exit:
+    if (status == 0) {
+        if (is_enable && rx_dev)
+            ecRefDevId = static_cast<pal_device_id_t>(rx_dev->getSndDeviceId());
+        else
+            ecRefDevId = PAL_DEVICE_OUT_MIN;
+    }
+    PAL_DBG(LOG_TAG, "Exit, status: %d", status);
+    return status;
 }
 

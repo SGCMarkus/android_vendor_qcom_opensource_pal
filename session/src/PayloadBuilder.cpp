@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -2025,12 +2026,15 @@ int PayloadBuilder::getBtDeviceKV(int dev_id, std::vector<std::pair<int,int>>& d
     filled_selector_pairs.push_back(std::make_pair(CODECFORMAT_SEL,
                                    btCodecFormatLUT.at(codecFormat)));
 
-    if (dev_id == PAL_DEVICE_OUT_BLUETOOTH_A2DP) {
+    if (dev_id == PAL_DEVICE_OUT_BLUETOOTH_A2DP ||
+        dev_id == PAL_DEVICE_OUT_BLUETOOTH_BLE ||
+        dev_id == PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST) {
         filled_selector_pairs.push_back(std::make_pair(ABR_ENABLED_SEL,
             isAbrEnabled ? "TRUE" : "FALSE"));
         filled_selector_pairs.push_back(std::make_pair(HOSTLESS_SEL,
             isHostless ? "TRUE" : "FALSE"));
-    } else if (dev_id == PAL_DEVICE_IN_BLUETOOTH_A2DP) {
+    } else if (dev_id == PAL_DEVICE_IN_BLUETOOTH_A2DP ||
+        dev_id == PAL_DEVICE_IN_BLUETOOTH_BLE) {
         filled_selector_pairs.push_back(std::make_pair(HOSTLESS_SEL,
             isHostless ? "TRUE" : "FALSE"));
     }
@@ -2617,7 +2621,7 @@ int PayloadBuilder::populateDeviceKV(Stream* s, int32_t beDevId,
         dAttr.id = (pal_device_id_t)beDevId;
         dev = Device::getInstance(&dAttr, rm);
         if (dev) {
-            status = dev->getDeviceAttributes(&dAttr);
+            status = dev->getDeviceAttributes(&dAttr, s);
             selectors = retrieveSelectors(beDevId, all_devices);
             if (selectors.empty() != true)
                 filled_selector_pairs = getSelectorValues(selectors, s, &dAttr);
@@ -2693,7 +2697,6 @@ int PayloadBuilder::populateDeviceKVTunnel(Stream* s, int32_t beDevId,
         retrieveKVs(filled_selector_pairs, beDevId, all_devices, keyVector);
     }
 
-exit:
     PAL_INFO(LOG_TAG, "Exit device id:%d, status %d", beDevId, status);
     return status;
 }
@@ -2738,7 +2741,6 @@ int PayloadBuilder::populateDevicePPKV(Stream* s, int32_t rxBeDevId,
     std::vector <std::pair<selector_type_t, std::string>> filled_selector_pairs;
 
     PAL_DBG(LOG_TAG, "Enter");
-
     /* Populate Rx Device PP KV */
     if (rxBeDevId > 0) {
         PAL_INFO(LOG_TAG, "Rx device id:%d", rxBeDevId);
@@ -2746,7 +2748,7 @@ int PayloadBuilder::populateDevicePPKV(Stream* s, int32_t rxBeDevId,
         dAttr.id = (pal_device_id_t)rxBeDevId;
         dev = Device::getInstance(&dAttr, rm);
         if (dev) {
-            status = dev->getDeviceAttributes(&dAttr);
+            status = dev->getDeviceAttributes(&dAttr, s);
             selectors = retrieveSelectors(dAttr.id, all_devicepps);
             if (selectors.empty() != true)
                 filled_selector_pairs = getSelectorValues(selectors, s, &dAttr);
@@ -2765,7 +2767,7 @@ int PayloadBuilder::populateDevicePPKV(Stream* s, int32_t rxBeDevId,
         dAttr.id = (pal_device_id_t)txBeDevId;
         dev = Device::getInstance(&dAttr, rm);
         if (dev) {
-            status = dev->getDeviceAttributes(&dAttr);
+            status = dev->getDeviceAttributes(&dAttr, s);
             selectors = retrieveSelectors(dAttr.id, all_devicepps);
             if (selectors.empty() != true)
                 filled_selector_pairs = getSelectorValues(selectors, s, &dAttr);

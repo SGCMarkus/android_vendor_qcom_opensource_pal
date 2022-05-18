@@ -47,6 +47,13 @@
 #define PAL_DBG(LOG_TAG,...)  PAL_INFO(LOG_TAG,__VA_ARGS__)
 #endif
 
+/*
+ * Workaround for crash issue in buffering
+ * TODO: remove this when ADSP fix is ready
+ */
+#define MAX_RETRY_CNT 4
+#define SLEEP_TIME_MS 10
+
 ST_DBG_DECLARE(static int dsp_output_cnt = 0);
 
 std::map<st_module_type_t,std::vector<std::shared_ptr<SoundTriggerEngineGsl>>>
@@ -61,6 +68,7 @@ void SoundTriggerEngineGsl::EventProcessingThread(
 
     int32_t status = 0;
     StreamSoundTrigger *s = nullptr;
+    std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
 
     PAL_INFO(LOG_TAG, "Enter. start thread loop");
     if (!gsl_engine) {
@@ -75,6 +83,7 @@ void SoundTriggerEngineGsl::EventProcessingThread(
 
         if (gsl_engine->exit_thread_) {
             PAL_VERBOSE(LOG_TAG, "Exit thread");
+            rm->releaseWakeLock();
             break;
         }
 
@@ -83,6 +92,7 @@ void SoundTriggerEngineGsl::EventProcessingThread(
         if (gsl_engine->eng_state_ != ENG_DETECTED) {
             gsl_engine->state_mutex_.unlock();
             PAL_DBG(LOG_TAG, "Engine stopped/restarted after notification");
+            rm->releaseWakeLock();
             continue;
         }
         gsl_engine->state_mutex_.unlock();
@@ -150,6 +160,7 @@ void SoundTriggerEngineGsl::EventProcessingThread(
                 }
             }
         }
+        rm->releaseWakeLock();
     }
     PAL_DBG(LOG_TAG, "Exit");
 }
@@ -2000,6 +2011,9 @@ int32_t SoundTriggerEngineGsl::StartRecognition(Stream *s) {
 int32_t SoundTriggerEngineGsl::RestartRecognition(Stream *s) {
     int32_t status = 0;
     struct pal_mmap_position mmap_pos;
+    uint32_t total_retry_cnt = 0;
+    uint32_t retry_count = MAX_RETRY_CNT;
+    uint32_t sleep_ms = SLEEP_TIME_MS;
 
     PAL_DBG(LOG_TAG, "Enter");
     exit_buffering_ = true;
@@ -2028,12 +2042,24 @@ int32_t SoundTriggerEngineGsl::RestartRecognition(Stream *s) {
 
     // Update mmap write position after engine reset
     if (mmap_buffer_size_) {
-        status = session_->GetMmapPosition(s, &mmap_pos);
-        if (!status)
-            mmap_write_position_ = mmap_pos.position_frames;
-        else
-            PAL_ERR(LOG_TAG, "Failed to get mmap position, status %d", status);
+        while (retry_count) {
+            status = session_->GetMmapPosition(s, &mmap_pos);
+            if (!status) {
+                if (mmap_write_position_ == mmap_pos.position_frames) {
+                    retry_count--;
+                } else {
+                    mmap_write_position_ = mmap_pos.position_frames;
+                    retry_count = MAX_RETRY_CNT;
+                }
+            } else {
+                PAL_ERR(LOG_TAG, "Failed to get mmap position, status %d", status);
+                break;
+            }
+            if (++total_retry_cnt >= 2 * MAX_RETRY_CNT)
+                break;
 
+            std::this_thread::sleep_for(std::chrono::milliseconds(sleep_ms));
+        }
         // reset wall clk in agm pcm plugin
         status = session_->ResetMmapBuffer(s);
         if (status)
@@ -2215,6 +2241,7 @@ int32_t SoundTriggerEngineGsl::UpdateConfLevels(
 
     int32_t status = 0;
     StreamSoundTrigger *st = dynamic_cast<StreamSoundTrigger *>(s);
+    uint32_t recognition_mode = st->GetRecognitionMode();
 
     exit_buffering_ = true;
     std::lock_guard<std::mutex> lck(mutex_);
@@ -2270,7 +2297,7 @@ int32_t SoundTriggerEngineGsl::UpdateConfLevels(
     }
 
     if (IS_MODULE_TYPE_PDK(module_type_)){
-        pdk_wakeup_config_.mode = config->phrases[0].recognition_modes;
+        pdk_wakeup_config_.mode = recognition_mode;
         pdk_wakeup_config_.num_keywords = num_conf_levels;
         pdk_wakeup_config_.model_id = st->GetModelId();
         pdk_wakeup_config_.custom_payload_size = sizeof(uint32_t) * 2 +
@@ -2304,7 +2331,7 @@ int32_t SoundTriggerEngineGsl::UpdateConfLevels(
                     pdk_wakeup_config_.confidence_levels[i]);
         }
     } else if (!CheckIfOtherStreamsAttached(s)) {
-        wakeup_config_.mode = config->phrases[0].recognition_modes;
+        wakeup_config_.mode = recognition_mode;
         wakeup_config_.custom_payload_size = config->data_size;
         wakeup_config_.num_active_models = num_conf_levels;
         wakeup_config_.reserved = 0;
@@ -2317,8 +2344,8 @@ int32_t SoundTriggerEngineGsl::UpdateConfLevels(
         }
     } else {
         /* Update recognition mode considering all streams */
-        if (wakeup_config_.mode != config->phrases[0].recognition_modes)
-            wakeup_config_.mode |= config->phrases[0].recognition_modes;
+        if (wakeup_config_.mode != recognition_mode)
+            wakeup_config_.mode |= recognition_mode;
             wakeup_config_.custom_payload_size = config->data_size;
             wakeup_config_.num_active_models = eng_sm_info_->GetConfLevelsSize();
             wakeup_config_.reserved = 0;
@@ -2468,6 +2495,7 @@ int32_t SoundTriggerEngineGsl::UpdateEngineConfigOnRestart(Stream *s) {
 void SoundTriggerEngineGsl::HandleSessionEvent(uint32_t event_id __unused,
                                                void *data, uint32_t size) {
     int32_t status = 0;
+    std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
 
     /*
      * reset ring buffer before parsing detection payload as
@@ -2482,6 +2510,7 @@ void SoundTriggerEngineGsl::HandleSessionEvent(uint32_t event_id __unused,
         if (status) {
             PAL_ERR(LOG_TAG, "Failed to parse detection payload, status %d",
                     status);
+            rm->releaseWakeLock();
             return;
         }
     } else {
@@ -2490,6 +2519,7 @@ void SoundTriggerEngineGsl::HandleSessionEvent(uint32_t event_id __unused,
         custom_detection_event = (uint8_t *)calloc(1, size);
         if (!custom_detection_event) {
             PAL_ERR(LOG_TAG, "Failed to allocate custom detection event");
+            rm->releaseWakeLock();
             return;
         }
         ar_mem_cpy(custom_detection_event, size, data, size);
@@ -2515,6 +2545,7 @@ void SoundTriggerEngineGsl::HandleSessionEvent(uint32_t event_id __unused,
 void SoundTriggerEngineGsl::HandleSessionCallBack(uint64_t hdl, uint32_t event_id,
                                                   void *data, uint32_t event_size) {
     SoundTriggerEngineGsl *engine = nullptr;
+    std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
 
     PAL_DBG(LOG_TAG, "Enter, event detected on SPF, event id = 0x%x", event_id);
     if ((hdl == 0) || !data || !event_size) {
@@ -2539,6 +2570,8 @@ void SoundTriggerEngineGsl::HandleSessionCallBack(uint64_t hdl, uint32_t event_i
     if (engine->eng_state_ == ENG_ACTIVE) {
         engine->state_mutex_.unlock();
         engine->detection_time_ = std::chrono::steady_clock::now();
+        /* Acquire the wake lock and handle session event to avoid apps suspend */
+        rm->acquireWakeLock();
         engine->HandleSessionEvent(event_id, data, event_size);
     } else if (engine->eng_state_ == ENG_LOADED) {
         engine->state_mutex_.unlock();

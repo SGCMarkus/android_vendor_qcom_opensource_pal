@@ -164,13 +164,11 @@ int32_t StreamSensorPCMData::start()
 {
     int32_t status = 0;
     bool backend_update = false;
-    bool use_rm_profile = (currentState == STREAM_PAUSED) ? true : false;
     std::shared_ptr<Device> device = nullptr;
 
     PAL_DBG(LOG_TAG,
-            "Enter. session handle: %pK, state: %d, paused_: %s, use_rm_profile %s",
-            session, currentState, paused_ ? "True" : "False",
-            use_rm_profile ? "True" : "False");
+            "Enter. session handle: %pK, state: %d, paused_: %s",
+            session, currentState, paused_ ? "True" : "False");
 
     std::lock_guard<std::mutex> lck(mStreamMutex);
     if (true == paused_) {
@@ -187,8 +185,7 @@ int32_t StreamSensorPCMData::start()
 
     if (currentState == STREAM_INIT || currentState == STREAM_STOPPED ||
         currentState == STREAM_PAUSED) {
-        /* use common capture profile when resuming stream, use_rm_profile = true */
-        device = GetPalDevice(GetAvailCaptureDevice(), use_rm_profile);
+        device = GetPalDevice(this, GetAvailCaptureDevice());
         if (!device) {
             status = -EINVAL;
             PAL_ERR(LOG_TAG, "Error:%d Device creation is failed", status);
@@ -457,49 +454,6 @@ std::shared_ptr<CaptureProfile> StreamSensorPCMData::GetCurrentCaptureProfile()
     return cap_prof;
 }
 
-std::shared_ptr<Device> StreamSensorPCMData::GetPalDevice(pal_device_id_t dev_id,
-                                                          bool use_rm_profile)
-{
-    std::shared_ptr<CaptureProfile> cap_prof = nullptr;
-    std::shared_ptr<Device> device = nullptr;
-    struct pal_device dev = {};
-
-    PAL_DBG(LOG_TAG, "Enter");
-    if (use_rm_profile) {
-        /* Use the rm's common capture profile */
-        cap_prof = rm->GetSoundTriggerCaptureProfile();
-        if (!cap_prof) {
-            PAL_DBG(LOG_TAG, "Failed to get common capture profile");
-            cap_prof = GetCurrentCaptureProfile();
-        }
-    } else {
-        cap_prof = GetCurrentCaptureProfile();
-    }
-
-    if (!cap_prof) {
-        PAL_ERR(LOG_TAG, "Error:Failed to get capture profile");
-        goto exit;
-    }
-
-    dev.id = dev_id;
-    dev.config.bit_width = cap_prof->GetBitWidth();
-    dev.config.ch_info.channels = cap_prof->GetChannels();
-    dev.config.sample_rate = cap_prof->GetSampleRate();
-    dev.config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S16_LE;
-
-    device = Device::getInstance(&dev, rm);
-    if (!device) {
-        PAL_ERR(LOG_TAG, "Failed to get device instance");
-        goto exit;
-    }
-
-    device->setDeviceAttributes(dev);
-    device->setSndName(cap_prof->GetSndName());
-
-exit:
-    return device;
-}
-
 int32_t StreamSensorPCMData::addRemoveEffect(pal_audio_effect_t effect, bool enable)
 {
     int32_t status = 0;
@@ -682,7 +636,7 @@ int32_t StreamSensorPCMData::ConnectDevice_l(pal_device_id_t device_id)
 
     PAL_DBG(LOG_TAG, "Enter, device_id: %d", device_id);
 
-    device = GetPalDevice(device_id, false);
+    device = GetPalDevice(this, device_id);
     if (!device) {
         status = -EINVAL;
         PAL_ERR(LOG_TAG, "Error:%d Device creation is failed", status);

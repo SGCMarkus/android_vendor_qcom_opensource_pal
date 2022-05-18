@@ -152,6 +152,10 @@
             </usecase>
         -->
             <usecase>
+                <name>PAL_STREAM_COMPRESSED</name>
+                <ec_enable>1</ec_enable>
+            </usecase>
+            <usecase>
                 <name>PAL_STREAM_VOIP_TX</name>
                 <priority>2</priority>
                 <ec_enable>1</ec_enable>
@@ -223,6 +227,10 @@
             </usecase>
         -->
             <usecase>
+                <name>PAL_STREAM_COMPRESSED</name>
+                <ec_enable>1</ec_enable>
+            </usecase>
+            <usecase>
                 <name>PAL_STREAM_VOIP_TX</name>
                 <priority>2</priority>
                 <ec_enable>1</ec_enable>
@@ -275,6 +283,10 @@
             </usecase>
         -->
             <usecase>
+                <name>PAL_STREAM_COMPRESSED</name>
+                <ec_enable>1</ec_enable>
+            </usecase>
+            <usecase>
                 <name>PAL_STREAM_VOIP_TX</name>
                 <samplerate>48000</samplerate>
                 <bit_width>16</bit_width>
@@ -311,6 +323,9 @@
                 <name>PAL_STREAM_DEEP_BUFFER</name>
             </usecase>
             <usecase>
+                <name>PAL_STREAM_COMPRESSED</name>
+            </usecase>
+            <usecase>
                 <name>PAL_STREAM_VOIP_TX</name>
             </usecase>
             <usecase>
@@ -337,6 +352,7 @@
                 <id>PAL_DEVICE_OUT_SPEAKER</id>
                 <id>PAL_DEVICE_OUT_HANDSET</id>
                 <id>PAL_DEVICE_OUT_BLUETOOTH_A2DP</id>
+                <id>PAL_DEVICE_OUT_BLUETOOTH_BLE</id>
             </ec_rx_device>
         </in-device>
         <in-device>
@@ -352,6 +368,7 @@
                 <id>PAL_DEVICE_OUT_WIRED_HEADSET</id>
                 <id>PAL_DEVICE_OUT_WIRED_HEADPHONE</id>
                 <id>PAL_DEVICE_OUT_BLUETOOTH_A2DP</id>
+                <id>PAL_DEVICE_OUT_BLUETOOTH_BLE</id>
             </ec_rx_device>
         </in-device>
         <in-device>
@@ -382,6 +399,10 @@
                 </custom-config>
             </usecase>
         -->
+            <usecase>
+                <name>PAL_STREAM_COMPRESSED</name>
+                <ec_enable>1</ec_enable>
+            </usecase>
             <usecase>
                 <name>PAL_STREAM_VOICE_CALL</name>
                 <priority>1</priority>
@@ -431,6 +452,34 @@
             <snd_device_name>bt-a2dp-mic</snd_device_name>
             <samplerate>44100</samplerate>
             <bit_width>16</bit_width>
+        </in-device>
+        <in-device>
+            <id>PAL_DEVICE_IN_BLUETOOTH_BLE</id>
+            <back_end_name>SLIM-DEV1-TX-7</back_end_name>
+            <max_channels>1</max_channels>
+            <channels>1</channels>
+            <snd_device_name>bt-ble-mic</snd_device_name>
+            <samplerate>44100</samplerate>
+            <bit_width>16</bit_width>
+            <usecase>
+                <name>PAL_STREAM_LOW_LATENCY</name>
+            </usecase>
+            <usecase>
+                <name>PAL_STREAM_DEEP_BUFFER</name>
+            </usecase>
+            <usecase>
+                <name>PAL_STREAM_VOIP_TX</name>
+            </usecase>
+            <usecase>
+                <name>PAL_STREAM_VOICE_CALL</name>
+                <priority>1</priority>
+            </usecase>
+            <usecase>
+                <name>PAL_STREAM_ULTRA_LOW_LATENCY</name>
+            </usecase>
+            <ec_rx_device>
+                <id>PAL_DEVICE_OUT_BLUETOOTH_BLE</id>
+            </ec_rx_device>
         </in-device>
         <in-device>
             <id>PAL_DEVICE_IN_TELEPHONY_RX</id>
@@ -654,6 +703,19 @@
             </usecase>
         </out-device>
         <out-device>
+            <id>PAL_DEVICE_OUT_BLUETOOTH_BLE</id>
+            <back_end_name>SLIM-DEV1-RX-7</back_end_name>
+            <max_channels>1</max_channels>
+            <channels>1</channels>
+            <snd_device_name>bt-ble</snd_device_name>
+            <samplerate>44100</samplerate>
+            <bit_width>16</bit_width>
+            <usecase>
+                <name>PAL_STREAM_VOICE_CALL</name>
+                <priority>1</priority>
+            </usecase>
+        </out-device>
+        <out-device>
             <id>PAL_DEVICE_OUT_BLUETOOTH_SCO</id>
             <back_end_name>SLIM-DEV1-RX-7</back_end_name>
             <max_channels>1</max_channels>
@@ -779,6 +841,15 @@
         </in_stream>
         <in_stream>
             <name>PAL_STREAM_DEEP_BUFFER</name>
+                <policies>
+                    <ec_ref>
+                        <disabled_stream>PAL_STREAM_LOW_LATENCY</disabled_stream>
+                        <disabled_stream>PAL_STREAM_GENERIC</disabled_stream>
+                    </ec_ref>
+                </policies>
+        </in_stream>
+        <in_stream>
+            <name>PAL_STREAM_COMPRESSED</name>
                 <policies>
                     <ec_ref>
                         <disabled_stream>PAL_STREAM_LOW_LATENCY</disabled_stream>

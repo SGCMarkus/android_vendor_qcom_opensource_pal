@@ -62,7 +62,6 @@ StreamInCall::StreamInCall(const struct pal_stream_attributes *sattr, struct pal
     inBufCount = NO_OF_BUF;
     outBufCount = NO_OF_BUF;
     mDevices.clear();
-    mPalDevice.clear();
     currentState = STREAM_IDLE;
     //Modify cached values only at time of SSR down.
     cachedState = STREAM_IDLE;
@@ -1016,7 +1015,6 @@ StreamInCall::~StreamInCall(){
         rm->restoreDevice(mDevices[i]);
 
     mDevices.clear();
-    mPalDevice.clear();
     delete session;
     session = nullptr;
 }

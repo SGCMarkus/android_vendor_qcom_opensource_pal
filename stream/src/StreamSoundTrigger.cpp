@@ -106,6 +106,7 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
     model_id_ = 0;
     sm_config_ = nullptr;
     rec_config_ = nullptr;
+    recognition_mode_ = 0;
     paused_ = false;
     device_opened_ = false;
     pending_stop_ = false;
@@ -127,7 +128,6 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
     sm_info_ = nullptr;
     sm_cfg_ = nullptr;
     mDevices.clear();
-    mPalDevice.clear();
 
     // Setting default volume to unity
     mVolumeData = (struct pal_volume_data *)malloc(sizeof(struct pal_volume_data)
@@ -155,10 +155,6 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
     if (!dattr) {
         PAL_ERR(LOG_TAG,"Error:invalid device arguments");
         throw std::runtime_error("invalid device arguments");
-    }
-
-    for (int i=0; i < no_of_devices; i++) {
-        mPalDevice.push_back(dattr[i]);
     }
 
     mStreamAttr = (struct pal_stream_attributes *)calloc(1,
@@ -314,6 +310,7 @@ int32_t StreamSoundTrigger::close() {
         sm_config_ = nullptr;
     }
 
+    currentState = STREAM_IDLE;
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
 }
@@ -371,6 +368,10 @@ int32_t StreamSoundTrigger::read(struct pal_buffer* buf) {
             lab_cnt);
         lab_cnt++;
     }
+    if (cur_state_ == st_buffering_ && !this->force_nlpi_vote) {
+        rm->voteSleepMonitor(this, true, true);
+        this->force_nlpi_vote = true;
+    }
 
     std::shared_ptr<StEventConfig> ev_cfg(
         new StReadBufferEventConfig((void *)buf));
@@ -426,21 +427,19 @@ int32_t StreamSoundTrigger::getParameters(uint32_t param_id, void **payload) {
         }
 
         if (!mDevices.size()) {
-            struct pal_device* dattr = new (struct pal_device);
             std::shared_ptr<Device> dev = nullptr;
 
             // update best device
             pal_device_id_t dev_id = GetAvailCaptureDevice();
             PAL_DBG(LOG_TAG, "Select available caputre device %d", dev_id);
 
-            dev = GetPalDevice(dev_id, dattr, false);
+            dev = GetPalDevice(this, dev_id);
             if (!dev) {
                 PAL_ERR(LOG_TAG, "Device creation is failed");
                 return -EINVAL;
             }
             mDevices.push_back(dev);
             dev = nullptr;
-            delete dattr;
         }
 
         if (mDevices.size() > 0 && !device_opened_) {
@@ -517,6 +516,8 @@ int32_t StreamSoundTrigger::setParameters(uint32_t param_id, void *payload) {
             std::shared_ptr<StEventConfig> ev_cfg(
                 new StLoadEventConfig((void *)param_payload->payload));
             status = cur_state_->ProcessEvent(ev_cfg);
+            if (!status)
+                currentState = STREAM_OPENED;
             break;
         }
         case PAL_PARAM_ID_RECOGNITION_CONFIG: {
@@ -707,54 +708,6 @@ int32_t StreamSoundTrigger::Pause() {
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
 
     return status;
-}
-
-std::shared_ptr<Device> StreamSoundTrigger::GetPalDevice(
-    pal_device_id_t dev_id, struct pal_device *dev, bool use_rm_profile) {
-    std::shared_ptr<CaptureProfile> cap_prof = nullptr;
-    std::shared_ptr<Device> device = nullptr;
-
-    if (!dev) {
-        PAL_ERR(LOG_TAG, "Invalid pal device object");
-        goto exit;
-    }
-
-    dev->id = dev_id;
-
-    if (use_rm_profile) {
-        cap_prof = rm->GetSoundTriggerCaptureProfile();
-        if (!cap_prof) {
-            PAL_DBG(LOG_TAG, "Failed to get common capture profile");
-            cap_prof = GetCurrentCaptureProfile();
-        }
-    } else {
-        /* TODO: we may need to add input param for this function
-        * to indicate the device id we need for capture profile
-        */
-        cap_prof = GetCurrentCaptureProfile();
-    }
-
-    if (!cap_prof) {
-        PAL_ERR(LOG_TAG, "Failed to get common capture profile");
-        goto exit;
-    }
-    dev->config.bit_width = cap_prof->GetBitWidth();
-    dev->config.ch_info.channels = cap_prof->GetChannels();
-    dev->config.sample_rate = cap_prof->GetSampleRate();
-    dev->config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S16_LE;
-
-    device = Device::getInstance(dev, rm);
-    if (!device) {
-        PAL_ERR(LOG_TAG, "Failed to get device instance");
-        goto exit;
-    }
-
-    device->setDeviceAttributes(*dev);
-    device->setSndName(cap_prof->GetSndName());
-
-exit:
-
-    return device;
 }
 
 int32_t StreamSoundTrigger::isSampleRateSupported(uint32_t sampleRate) {
@@ -1152,6 +1105,7 @@ int32_t StreamSoundTrigger::LoadSoundModel(
                              common_sm->data_size,
                              (uint8_t *)phrase_sm + common_sm->data_offset,
                              common_sm->data_size);
+            recognition_mode_ = phrase_sm->phrases[0].recognition_mode;
         } else {
             ar_mem_cpy(sm_config_, sizeof(*common_sm),
                              common_sm, sizeof(*common_sm));
@@ -1159,6 +1113,7 @@ int32_t StreamSoundTrigger::LoadSoundModel(
                              common_sm->data_size,
                              (uint8_t *)common_sm + common_sm->data_offset,
                              common_sm->data_size);
+            recognition_mode_ = PAL_RECOGNITION_MODE_VOICE_TRIGGER;
         }
     }
     GetUUID(&uuid, sound_model);
@@ -1656,8 +1611,14 @@ int32_t StreamSoundTrigger::SendRecognitionConfig(
     PAL_DBG(LOG_TAG, "history buf len = %d, preroll len = %d, read delay = %d",
         hist_buf_duration_, pre_roll_duration_, client_capture_read_delay);
 
-    status = gsl_engine_->UpdateBufConfig(this, hist_buf_duration_,
-                                                pre_roll_duration_);
+    if (!hist_buf_duration_) {
+        status = gsl_engine_->UpdateBufConfig(this,
+            sm_cfg_->GetKwDuration(), pre_roll_duration_);
+    } else {
+        status = gsl_engine_->UpdateBufConfig(this,
+            hist_buf_duration_, pre_roll_duration_);
+    }
+
     if (status) {
         PAL_ERR(LOG_TAG, "Failed to update buf config, status %d", status);
         goto error_exit;
@@ -2233,6 +2194,10 @@ int32_t StreamSoundTrigger::GenerateCallbackEvent(
         kw_indices = (struct st_keyword_indices_info *)opaque_data;
         kw_indices->version = 0x1;
         reader_->getIndices(&start_index, &end_index);
+        // adjust reader offset if lab requested and history buffer not set
+        if (rec_config_->capture_requested && !hist_buf_duration_)
+            reader_->advanceReadOffset(end_index);
+
         kw_indices->start_index = start_index;
         kw_indices->end_index = end_index;
         opaque_data += sizeof(struct st_keyword_indices_info);
@@ -2986,14 +2951,13 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
             }
 
             if (!st_stream_.mDevices.size()) {
-                struct pal_device* dattr = new (struct pal_device);
                 std::shared_ptr<Device> dev = nullptr;
 
                 // update best device
                 pal_device_id_t dev_id = st_stream_.GetAvailCaptureDevice();
                 PAL_DBG(LOG_TAG, "Select available caputre device %d", dev_id);
 
-                dev = st_stream_.GetPalDevice(dev_id, dattr, false);
+                dev = st_stream_.GetPalDevice(&st_stream_, dev_id);
                 if (!dev) {
                     PAL_ERR(LOG_TAG, "Device creation is failed");
                     status = -EINVAL;
@@ -3001,7 +2965,6 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
                 }
                 st_stream_.mDevices.push_back(dev);
                 dev = nullptr;
-                delete dattr;
             }
 
             cap_prof = st_stream_.GetCurrentCaptureProfile();
@@ -3099,7 +3062,6 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
             break;
         }
         case ST_EV_DEVICE_CONNECTED: {
-            struct pal_device *pal_dev = new struct pal_device;
             std::shared_ptr<Device> dev = nullptr;
             StDeviceConnectedEventConfigData *data =
                 (StDeviceConnectedEventConfigData *)ev_cfg->data_.get();
@@ -3112,7 +3074,7 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
                 goto connect_err;
             }
 
-            dev = st_stream_.GetPalDevice(dev_id, pal_dev, false);
+            dev = st_stream_.GetPalDevice(&st_stream_, dev_id);
             if (!dev) {
                 PAL_ERR(LOG_TAG, "Device creation failed");
                 status = -EINVAL;
@@ -3121,7 +3083,6 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
 
             st_stream_.mDevices.push_back(dev);
         connect_err:
-            delete pal_dev;
             break;
         }
         case ST_EV_CONCURRENT_STREAM: {
@@ -3154,14 +3115,13 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
                     new_cap_prof->isECRequired());
                 if (active) {
                     if (!st_stream_.mDevices.size()) {
-                        struct pal_device dattr;
                         std::shared_ptr<Device> dev = nullptr;
 
                         // update best device
                         pal_device_id_t dev_id = st_stream_.GetAvailCaptureDevice();
                         PAL_DBG(LOG_TAG, "Select available caputre device %d", dev_id);
 
-                        dev = st_stream_.GetPalDevice(dev_id, &dattr, false);
+                        dev = st_stream_.GetPalDevice(&st_stream_, dev_id);
                         if (!dev) {
                             PAL_ERR(LOG_TAG, "Device creation is failed");
                             status = -EINVAL;
@@ -3283,7 +3243,6 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
                 &st_stream_,
                 st_stream_.mInstanceID);
             st_stream_.notification_state_ = ENGINE_IDLE;
-
             TransitTo(ST_STATE_IDLE);
             break;
         }
@@ -3472,7 +3431,6 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
             break;
         }
         case ST_EV_DEVICE_CONNECTED: {
-            struct pal_device *pal_dev = new struct pal_device;
             std::shared_ptr<Device> dev = nullptr;
             StDeviceConnectedEventConfigData *data =
                 (StDeviceConnectedEventConfigData *)ev_cfg->data_.get();
@@ -3485,7 +3443,7 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
                 goto connect_err;
             }
 
-            dev = st_stream_.GetPalDevice(dev_id, pal_dev, false);
+            dev = st_stream_.GetPalDevice(&st_stream_, dev_id);
             if (!dev) {
                 PAL_ERR(LOG_TAG, "Dev creation failed");
                 status = -EINVAL;
@@ -3545,7 +3503,6 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
                 TransitTo(ST_STATE_ACTIVE);
             }
         connect_err:
-            delete pal_dev;
             break;
         }
         case ST_EV_CONCURRENT_STREAM: {
@@ -3790,7 +3747,6 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
             break;
         }
         case ST_EV_DEVICE_CONNECTED: {
-            struct pal_device *pal_dev = new struct pal_device;
             std::shared_ptr<Device> dev = nullptr;
             StDeviceConnectedEventConfigData *data =
                 (StDeviceConnectedEventConfigData *)ev_cfg->data_.get();
@@ -3803,7 +3759,7 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
                 goto connect_err;
             }
 
-            dev = st_stream_.GetPalDevice(dev_id, pal_dev, false);
+            dev = st_stream_.GetPalDevice(&st_stream_, dev_id);
             if (!dev) {
                 PAL_ERR(LOG_TAG, "Device creation failed");
                 status = -EINVAL;
@@ -3858,7 +3814,6 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
                 st_stream_.rm->registerDevice(dev, &st_stream_);
             }
         connect_err:
-            delete pal_dev;
             break;
         }
         case ST_EV_CONCURRENT_STREAM: {
@@ -4148,6 +4103,10 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
              * called, to avoid ADSP stuck if client takes some time to send
              * start after stop buffering.
              */
+            if (st_stream_.force_nlpi_vote) {
+                rm->voteSleepMonitor(&st_stream_, false, true);
+                st_stream_.force_nlpi_vote = false;
+            }
             if (st_stream_.reader_)
                 st_stream_.reader_->updateState(READER_DISABLED);
             break;
@@ -4157,6 +4116,10 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
              * Can happen if client requests next recognition without any config
              * change with/without reading buffers after sending detection event.
              */
+            if (st_stream_.force_nlpi_vote) {
+                rm->voteSleepMonitor(&st_stream_, false, true);
+                st_stream_.force_nlpi_vote = false;
+            }
             StStartRecognitionEventConfigData *data =
                 (StStartRecognitionEventConfigData *)ev_cfg->data_.get();
             PAL_DBG(LOG_TAG, "StBuffering: start recognition, is restart %d",
@@ -4188,6 +4151,10 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
              * event, but requests next recognition with config change.
              * Get to loaded state as START event will start the recognition.
              */
+             if (st_stream_.force_nlpi_vote) {
+                 rm->voteSleepMonitor(&st_stream_, false, true);
+                 st_stream_.force_nlpi_vote = false;
+            }
             st_stream_.CancelDelayedStop();
 
             for (auto& eng: st_stream_.engines_) {
@@ -4235,6 +4202,10 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
         case ST_EV_UNLOAD_SOUND_MODEL:
         case ST_EV_STOP_RECOGNITION:  {
             // Possible with deffered stop if client doesn't start next recognition.
+            if (st_stream_.force_nlpi_vote) {
+                rm->voteSleepMonitor(&st_stream_, false, true);
+                st_stream_.force_nlpi_vote = false;
+            }
             st_stream_.CancelDelayedStop();
 
             for (auto& eng: st_stream_.engines_) {
@@ -4363,6 +4334,10 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
         case ST_EV_CONCURRENT_STREAM:
         case ST_EV_DEVICE_DISCONNECTED:
         case ST_EV_DEVICE_CONNECTED: {
+            if (st_stream_.force_nlpi_vote) {
+                rm->voteSleepMonitor(&st_stream_, false, true);
+                st_stream_.force_nlpi_vote = false;
+            }
             st_stream_.CancelDelayedStop();
 
             for (auto& eng: st_stream_.engines_) {
@@ -4456,6 +4431,23 @@ int32_t StreamSoundTrigger::StSSR::ProcessEvent(
             if (!st_stream_.sm_config_) {
                 PAL_ERR(LOG_TAG, "sound model config is NULL");
                 break;
+            }
+            PAL_INFO(LOG_TAG, "stream state for restore %d", st_stream_.state_for_restore_);
+            /*
+             * For concurrent stream handling, ST state transition
+             * occurs from loaded/active to idle and then back to loaded/active.
+             * While transitioning back to loaded/active, in case of any failures
+             * because of ongoing SSR or other failures restore state remains in idle
+             * and sm cfg will be non NULL in this scenario.
+             * In this case, reset the state_for_restore based on actual stream state
+             * for recovery to happen properly after SSR.
+             */
+            if (st_stream_.state_for_restore_ == ST_STATE_IDLE) {
+                if (st_stream_.currentState == STREAM_STARTED)
+                    st_stream_.state_for_restore_ = ST_STATE_ACTIVE;
+                else if (st_stream_.currentState == STREAM_OPENED ||
+                         st_stream_.currentState == STREAM_STOPPED)
+                    st_stream_.state_for_restore_ = ST_STATE_LOADED;
             }
             if (st_stream_.state_for_restore_ == ST_STATE_LOADED ||
                 st_stream_.state_for_restore_ == ST_STATE_ACTIVE) {

@@ -1,6 +1,5 @@
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -27,6 +26,41 @@
  * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+
+/*
+Changes from Qualcomm Innovation Center are provided under the following license:
+Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted (subject to the limitations in the
+disclaimer below) provided that the following conditions are met:
+
+    * Redistributions of source code must retain the above copyright
+      notice, this list of conditions and the following disclaimer.
+
+    * Redistributions in binary form must reproduce the above
+      copyright notice, this list of conditions and the following
+      disclaimer in the documentation and/or other materials provided
+      with the distribution.
+
+    * Neither the name of Qualcomm Innovation Center, Inc. nor the names of its
+      contributors may be used to endorse or promote products derived
+      from this software without specific prior written permission.
+
+NO EXPRESS OR IMPLIED LICENSES TO ANY PARTY'S PATENT RIGHTS ARE
+GRANTED BY THIS LICENSE. THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT
+HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED
+WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE
+GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
+IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
+IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+*/
 
 
 #define LOG_TAG "PAL: SessionAlsaVoice"
@@ -342,7 +376,7 @@ int SessionAlsaVoice::getDeviceChannelInfo(Stream *s, uint16_t *channels)
         goto exit;
     }
 
-    if (dAttr.id == PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET)
+    if (dAttr.id == PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET || dAttr.id == PAL_DEVICE_IN_BLUETOOTH_BLE)
     {
         struct pal_media_config codecConfig;
         status = associatedDevices[idx]->getCodecConfig(&codecConfig);
@@ -351,7 +385,7 @@ int SessionAlsaVoice::getDeviceChannelInfo(Stream *s, uint16_t *channels)
             goto exit;
         }
         *channels = codecConfig.ch_info.channels;
-        PAL_DBG(LOG_TAG,"set devicePPMFC to match codec configuration for SCO\n");
+        PAL_DBG(LOG_TAG,"set devicePPMFC to match codec configuration for %d\n", dAttr.id);
     } else {
         *channels = dAttr.config.ch_info.channels;
     }
@@ -534,7 +568,7 @@ int SessionAlsaVoice::populate_rx_mfc_payload(Stream *s, uint32_t rx_mfc_tag)
         goto exit;
     }
 
-    if (dAttr.id == PAL_DEVICE_OUT_BLUETOOTH_SCO)
+    if (dAttr.id == PAL_DEVICE_OUT_BLUETOOTH_SCO || dAttr.id == PAL_DEVICE_OUT_BLUETOOTH_BLE)
     {
         struct pal_media_config codecConfig;
         status = associatedDevices[idx]->getCodecConfig(&codecConfig);
@@ -546,7 +580,7 @@ int SessionAlsaVoice::populate_rx_mfc_payload(Stream *s, uint32_t rx_mfc_tag)
         deviceData.sampleRate = codecConfig.sample_rate;
         deviceData.numChannel = codecConfig.ch_info.channels;
         deviceData.ch_info = nullptr;
-        PAL_DBG(LOG_TAG,"set devicePPMFC to match codec configuration for SCO\n");
+        PAL_DBG(LOG_TAG,"set devicePPMFC to match codec configuration for device %d\n", dAttr.id);
     } else {
         // update device pp configuration if virtual port is enabled
         if (rm->activeGroupDevConfig &&
@@ -798,14 +832,16 @@ int SessionAlsaVoice::start(Stream * s)
     isTxStarted = true;
 
     /*set sidetone*/
-    status = getTXDeviceId(s, &txDevId);
-    if (status){
-        PAL_ERR(LOG_TAG, "could not find TX device associated with this stream cannot set sidetone");
-        goto err_pcm_open;
-    } else {
-        status = setSidetone(txDevId,s,1);
-        if(0 != status) {
-           PAL_ERR(LOG_TAG,"enabling sidetone failed \n");
+    if (sideTone_cnt == 0) {
+        status = getTXDeviceId(s, &txDevId);
+        if (status){
+            PAL_ERR(LOG_TAG, "could not find TX device associated with this stream cannot set sidetone");
+            goto err_pcm_open;
+        } else {
+            status = setSidetone(txDevId,s,1);
+            if(0 != status) {
+               PAL_ERR(LOG_TAG,"enabling sidetone failed \n");
+            }
         }
     }
     status = 0;
@@ -850,13 +886,15 @@ int SessionAlsaVoice::stop(Stream * s)
 
     PAL_DBG(LOG_TAG,"Enter");
     /*disable sidetone*/
-    status = getTXDeviceId(s, &txDevId);
-    if (status){
-        PAL_ERR(LOG_TAG, "could not find TX device associated with this stream cannot set sidetone");
-    } else {
-        status = setSidetone(txDevId,s,0);
-        if(0 != status) {
-            PAL_ERR(LOG_TAG,"disabling sidetone failed");
+    if (sideTone_cnt > 0) {
+        status = getTXDeviceId(s, &txDevId);
+        if (status){
+            PAL_ERR(LOG_TAG, "could not find TX device associated with this stream cannot set sidetone");
+        } else {
+            status = setSidetone(txDevId,s,0);
+            if(0 != status) {
+               PAL_ERR(LOG_TAG,"disabling sidetone failed");
+            }
         }
     }
     if (pcmRx) {
@@ -1540,17 +1578,23 @@ int SessionAlsaVoice::setHWSidetone(Stream * s, bool enable){
     for(int i =0; i < associatedDevices.size(); i++) {
         switch(associatedDevices[i]->getSndDeviceId()){
             case PAL_DEVICE_IN_HANDSET_MIC:
-                if(enable)
+                if(enable) {
                     audio_route_apply_and_update_path(audioRoute, "sidetone-handset");
-                else
+                    sideTone_cnt++;
+                } else {
                     audio_route_reset_and_update_path(audioRoute, "sidetone-handset");
+                    sideTone_cnt--;
+                }
                 set = true;
                 break;
             case PAL_DEVICE_IN_WIRED_HEADSET:
-                if(enable)
+                if(enable) {
                     audio_route_apply_and_update_path(audioRoute, "sidetone-headphones");
-                else
+                    sideTone_cnt++;
+                } else {
                     audio_route_reset_and_update_path(audioRoute, "sidetone-headphones");
+                    sideTone_cnt--;
+                }
                 set = true;
                 break;
             default:
@@ -1593,13 +1637,15 @@ int SessionAlsaVoice::disconnectSessionDevice(Stream *streamHandle,
         }
     } else if (txAifBackEnds.size() > 0) {
         /*if HW sidetone is enable disable it */
-        status = getTXDeviceId(streamHandle, &txDevId);
-        if (status){
-            PAL_ERR(LOG_TAG, "could not find TX device associated with this stream cannot set sidetone");
-        } else {
-            status = setSidetone(txDevId,streamHandle,0);
-            if(0 != status) {
-                PAL_ERR(LOG_TAG,"disabling sidetone failed");
+        if (sideTone_cnt > 0) {
+            status = getTXDeviceId(streamHandle, &txDevId);
+            if (status){
+                PAL_ERR(LOG_TAG, "could not find TX device associated with this stream cannot set sidetone");
+            } else {
+                status = setSidetone(txDevId,streamHandle,0);
+                if(0 != status) {
+                   PAL_ERR(LOG_TAG,"disabling sidetone failed");
+                }
             }
         }
         status =  SessionAlsaUtils::disconnectSessionDevice(streamHandle,
@@ -1681,22 +1727,24 @@ int SessionAlsaVoice::connectSessionDevice(Stream* streamHandle,
             return status;
         }
 
-        if (deviceToConnect->getSndDeviceId() == PAL_DEVICE_OUT_HANDSET ||
-            deviceToConnect->getSndDeviceId() == PAL_DEVICE_OUT_WIRED_HEADSET ||
-            deviceToConnect->getSndDeviceId() == PAL_DEVICE_OUT_WIRED_HEADPHONE ||
-            deviceToConnect->getSndDeviceId() == PAL_DEVICE_OUT_USB_DEVICE ||
-            deviceToConnect->getSndDeviceId() == PAL_DEVICE_OUT_USB_HEADSET) {
-            // set sidetone on new tx device after pcm_start
-            status = getTXDeviceId(streamHandle, &txDevId);
-            if (status){
-                PAL_ERR(LOG_TAG,"could not find TX device associated with this stream\n");
-            }
-            if (txDevId != PAL_DEVICE_NONE) {
-                status = setSidetone(txDevId, streamHandle, 1);
-            }
-            if (0 != status) {
-                PAL_ERR(LOG_TAG,"enabling sidetone failed");
-            }
+        if(sideTone_cnt == 0) {
+           if (deviceToConnect->getSndDeviceId() == PAL_DEVICE_OUT_HANDSET ||
+               deviceToConnect->getSndDeviceId() == PAL_DEVICE_OUT_WIRED_HEADSET ||
+               deviceToConnect->getSndDeviceId() == PAL_DEVICE_OUT_WIRED_HEADPHONE ||
+               deviceToConnect->getSndDeviceId() == PAL_DEVICE_OUT_USB_DEVICE ||
+               deviceToConnect->getSndDeviceId() == PAL_DEVICE_OUT_USB_HEADSET) {
+               // set sidetone on new tx device after pcm_start
+               status = getTXDeviceId(streamHandle, &txDevId);
+               if (status){
+                   PAL_ERR(LOG_TAG,"could not find TX device associated with this stream\n");
+               }
+               if (txDevId != PAL_DEVICE_NONE) {
+                   status = setSidetone(txDevId, streamHandle, 1);
+               }
+               if (0 != status) {
+                   PAL_ERR(LOG_TAG,"enabling sidetone failed");
+               }
+           }
         }
     } else if (txAifBackEnds.size() > 0) {
         status =  SessionAlsaUtils::connectSessionDevice(this, streamHandle,
@@ -1707,19 +1755,21 @@ int SessionAlsaVoice::connectSessionDevice(Stream* streamHandle,
             PAL_ERR(LOG_TAG,"connectSessionDevice on TX Failed");
         }
 
-        if (deviceToConnect->getSndDeviceId() > PAL_DEVICE_IN_MIN &&
-            deviceToConnect->getSndDeviceId() < PAL_DEVICE_IN_MAX) {
-            txDevId = deviceToConnect->getSndDeviceId();
-        }
-        if (getRXDevice(streamHandle, rxDevice) != 0) {
-            PAL_DBG(LOG_TAG,"no active rx device, no need to setSidetone");
-            return status;
-        } else if (rxDevice && rxDevice->getDeviceCount() != 0 &&
-                   txDevId != PAL_DEVICE_NONE) {
-            status = setSidetone(txDevId, streamHandle, 1);
-        }
-        if (0 != status) {
-            PAL_ERR(LOG_TAG,"enabling sidetone failed");
+        if(sideTone_cnt == 0) {
+           if (deviceToConnect->getSndDeviceId() > PAL_DEVICE_IN_MIN &&
+               deviceToConnect->getSndDeviceId() < PAL_DEVICE_IN_MAX) {
+               txDevId = deviceToConnect->getSndDeviceId();
+           }
+           if (getRXDevice(streamHandle, rxDevice) != 0) {
+               PAL_DBG(LOG_TAG,"no active rx device, no need to setSidetone");
+               return status;
+           } else if (rxDevice && rxDevice->getDeviceCount() != 0 &&
+                      txDevId != PAL_DEVICE_NONE) {
+               status = setSidetone(txDevId, streamHandle, 1);
+           }
+           if (0 != status) {
+               PAL_ERR(LOG_TAG,"enabling sidetone failed");
+           }
         }
     }
     return status;
@@ -1810,7 +1860,7 @@ int SessionAlsaVoice::setExtECRef(Stream *s, std::shared_ptr<Device> rx_dev, boo
 
     rxDevInfo.isExternalECRefEnabledFlag = 0;
     if (rx_dev) {
-        status = rx_dev->getDeviceAttributes(&rxDevAttr);
+        status = rx_dev->getDeviceAttributes(&rxDevAttr, s);
         if (status != 0) {
             PAL_ERR(LOG_TAG," get device attributes failed");
             goto exit;

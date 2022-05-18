@@ -139,7 +139,6 @@ class StreamACD : public Stream {
     void TransitTo(int32_t state_id);
     void GetUUID(class SoundTriggerUUID *uuid,
                  const struct st_uuid *vendor_uuid);
-    std::shared_ptr<Device> GetPalDevice(pal_device_id_t dev_id, bool use_rm_profile);
     void SetEngineDetectionData(struct acd_context_event *event);
     struct acd_recognition_cfg *GetRecognitionConfig();
  private:

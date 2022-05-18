@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -140,8 +141,8 @@ class Stream
 {
 protected:
     uint32_t mNoOfDevices;
-    std::vector <std::shared_ptr<Device>> mDevices;
-    std::vector <struct pal_device> mPalDevice;
+    std::vector <std::shared_ptr<Device>> mDevices;  // current running devices
+    std::vector <std::shared_ptr<Device>> mPalDevices; // pal devices set from client, which may differ from mDevices
     Session* session;
     struct pal_stream_attributes* mStreamAttr;
     int mGainLevel;
@@ -166,15 +167,16 @@ protected:
     static std::mutex pauseMutex;
     bool mutexLockedbyRm = false;
     bool mDutyCycleEnable = false;
-    int connectToDefaultDevice(Stream* streamHandle, uint32_t dir);
 public:
     virtual ~Stream() {};
     struct pal_volume_data* mVolumeData = NULL;
     pal_stream_callback streamCb;
     uint64_t cookie;
     bool isPaused = false;
+    bool isDevRegistered = false;
     bool a2dpMuted = false;
     bool a2dpPaused = false;
+    bool force_nlpi_vote = false;
     std::vector<pal_device_id_t> suspendedDevIds;
     virtual int32_t open() = 0;
     virtual int32_t close() = 0;
@@ -217,8 +219,7 @@ public:
     uint32_t getRenderLatency();
     uint32_t getLatency();
     int32_t getAssociatedDevices(std::vector <std::shared_ptr<Device>> &adevices);
-    int32_t getAssociatedPalDevices(std::vector <struct pal_device> &palDevices);
-    int32_t updatePalDevice(struct pal_device *dattr, pal_device_id_t dev_id, bool replace = true);
+    int32_t getPalDevices(std::vector <std::shared_ptr<Device>> &PalDevices);
     int32_t getSoundCardId();
     int32_t getAssociatedSession(Session** session);
     int32_t setBufInfo(pal_buffer_config *in_buffer_config,
@@ -276,6 +277,8 @@ public:
         mStreamMutex.unlock();
     };
     bool isMutexLockedbyRm() { return mutexLockedbyRm; }
+    /* GetPalDevice only applies to Sound Trigger streams */
+    std::shared_ptr<Device> GetPalDevice(Stream *streamHandle, pal_device_id_t dev_id);
 };
 
 class StreamNonTunnel : public Stream

@@ -63,7 +63,6 @@ StreamPCM::StreamPCM(const struct pal_stream_attributes *sattr, struct pal_devic
     inBufCount = NO_OF_BUF;
     outBufCount = NO_OF_BUF;
     mDevices.clear();
-    mPalDevice.clear();
     currentState = STREAM_IDLE;
     //Modify cached values only at time of SSR down.
     cachedState = STREAM_IDLE;
@@ -138,6 +137,8 @@ StreamPCM::StreamPCM(const struct pal_stream_attributes *sattr, struct pal_devic
             mStreamMutex.unlock();
             throw std::runtime_error("failed to create device object");
         }
+        dev->insertStreamDeviceAttr(&dattr[i], this);
+        mPalDevices.push_back(dev);
         mStreamMutex.unlock();
         isDeviceConfigUpdated = rm->updateDeviceConfig(&dev, &dattr[i], sattr);
         mStreamMutex.lock();
@@ -149,7 +150,6 @@ StreamPCM::StreamPCM(const struct pal_stream_attributes *sattr, struct pal_devic
         /* this will have issues if same device is being currently used by different stream */
        // dev->setDeviceAttributes((struct pal_device)dattr[i]);
         mDevices.push_back(dev);
-        mPalDevice.push_back(dattr[i]);
         dev = nullptr;
     }
 
@@ -211,7 +211,7 @@ int32_t  StreamPCM::open()
 
             if (checkDeviceCustomKeyForDualMono) {
                 struct pal_device deviceAttribute;
-                ret = mDevices[i]->getDeviceAttributes(&deviceAttribute);
+                ret = mDevices[i]->getDeviceAttributes(&deviceAttribute, this);
                 if (ret) {
                     PAL_ERR(LOG_TAG, "getDeviceAttributes failed with status %d", ret);
                 }
@@ -277,6 +277,20 @@ int32_t  StreamPCM::close()
         if (0 != status)
             PAL_ERR(LOG_TAG, "stream stop failed. status %d",  status);
         mStreamMutex.lock();
+    } else if (currentState == STREAM_INIT) {
+        /* Special handling for aaudio usecase on A2DP/BLE.
+         * A2DP/BLE device starts even when stream is still in STREAM_INIT state,
+         * hence stop A2DP/BLE device to match device start&stop count.
+         */
+        for (int32_t i=0; i < mDevices.size(); i++) {
+            if (((mDevices[i]->getSndDeviceId() == PAL_DEVICE_OUT_BLUETOOTH_A2DP) ||
+                 (mDevices[i]->getSndDeviceId() == PAL_DEVICE_OUT_BLUETOOTH_BLE)) && isMMap) {
+                status = mDevices[i]->stop();
+                if (0 != status) {
+                    PAL_ERR(LOG_TAG, "BT A2DP/BLE device stop failed with status %d", status);
+                }
+            }
+        }
     }
 
     rm->lockGraph();
@@ -312,6 +326,9 @@ StreamPCM::~StreamPCM()
      * and active stream mutex from ResourceManager.
      */
     rm->deregisterStream(this);
+    /* remove the device-stream attribute entry for the stopped stream */
+    for (int32_t i=0; i < mPalDevices.size(); i++)
+        mPalDevices[i]->removeStreamDeviceAttr(this);
     if (mStreamAttr) {
         free(mStreamAttr);
         mStreamAttr = (struct pal_stream_attributes *)NULL;
@@ -327,7 +344,7 @@ StreamPCM::~StreamPCM()
         rm->restoreDevice(mDevices[i]);
 
     mDevices.clear();
-    mPalDevice.clear();
+    mPalDevices.clear();
     delete session;
     session = nullptr;
 }
@@ -367,6 +384,13 @@ int32_t StreamPCM::start()
              */
             status = -EINVAL;
             for (int32_t i=0; i < mDevices.size(); i++) {
+                if (((mDevices[i]->getSndDeviceId() == PAL_DEVICE_OUT_BLUETOOTH_A2DP) ||
+                     (mDevices[i]->getSndDeviceId() == PAL_DEVICE_OUT_BLUETOOTH_BLE)) && isMMap) {
+                    PAL_DBG(LOG_TAG, "skip BT A2DP/BLE device start as it's done already");
+                    status = 0;
+                    continue;
+                }
+
                 devStatus = mDevices[i]->start();
                 if (devStatus == 0) {
                     status = 0;
@@ -501,6 +525,25 @@ int32_t StreamPCM::start()
                 status = mDevices[i]->start();
                 if (0 != status) {
                     PAL_ERR(LOG_TAG, "Tx device start is failed with status %d", status);
+
+                    /* In case of a voice call, if OUT dev started successfully
+                     * but IN dev failed to start then stop OUT dev before closing it
+                     */
+                    for (int32_t i = 0; i < mDevices.size(); i++) {
+                      int32_t dev_id = mDevices[i]->getSndDeviceId();
+
+                      if (dev_id <= PAL_DEVICE_OUT_MIN || dev_id >= PAL_DEVICE_OUT_MAX)
+                          continue;
+
+                      status = mDevices[i]->stop();
+                      if (0 != status) {
+                          PAL_ERR(LOG_TAG, "Rx device stop is failed with status %d",
+                                                              status);
+                          goto exit;
+                      }
+
+                    }
+                    PAL_VERBOSE(LOG_TAG, "RX devices stop successful");
                     goto exit;
                 }
             }
@@ -540,6 +583,7 @@ int32_t StreamPCM::start()
         for (int i = 0; i < mDevices.size(); i++) {
             rm->registerDevice(mDevices[i], this);
         }
+        isDevRegistered = true;
         rm->unlockActiveStream();
         /*pcm_open and pcm_start done at once here,
          *so directly jump to STREAM_STARTED state.
@@ -580,9 +624,11 @@ int32_t StreamPCM::stop()
         mStreamMutex.unlock();
         rm->lockActiveStream();
         mStreamMutex.lock();
+        currentState = STREAM_STOPPED;
         for (int i = 0; i < mDevices.size(); i++) {
             rm->deregisterDevice(mDevices[i], this);
         }
+        isDevRegistered = false;
         rm->unlockActiveStream();
         switch (mStreamAttr->direction) {
         case PAL_AUDIO_OUTPUT:
@@ -604,6 +650,7 @@ int32_t StreamPCM::stop()
                     goto exit;
                 }
             }
+            isMMap = false;
             rm->unlockGraph();
             PAL_VERBOSE(LOG_TAG, "devices stop successful");
             break;
@@ -666,7 +713,6 @@ int32_t StreamPCM::stop()
             PAL_ERR(LOG_TAG, "Stream type is not supported with status %d", status);
             break;
         }
-        currentState = STREAM_STOPPED;
     } else if (currentState == STREAM_STOPPED || currentState == STREAM_IDLE) {
         PAL_INFO(LOG_TAG, "Stream is already in Stopped state %d", currentState);
         goto exit;
@@ -885,7 +931,9 @@ int32_t StreamPCM::write(struct pal_buffer* buf)
 
     mStreamMutex.lock();
     for (int i = 0; i < mDevices.size(); i++) {
-        if (mDevices[i]->getSndDeviceId() == PAL_DEVICE_OUT_BLUETOOTH_A2DP)
+        if (mDevices[i]->getSndDeviceId() == PAL_DEVICE_OUT_BLUETOOTH_A2DP ||
+            mDevices[i]->getSndDeviceId() == PAL_DEVICE_OUT_BLUETOOTH_BLE ||
+            mDevices[i]->getSndDeviceId() == PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST)
             isA2dp = true;
         if (mDevices[i]->getSndDeviceId() == PAL_DEVICE_OUT_SPEAKER)
             isSpkr = true;
@@ -960,8 +1008,11 @@ int32_t StreamPCM::write(struct pal_buffer* buf)
         } else if (currentState == STREAM_PAUSED && !isPaused) {
             rm->lockActiveStream();
             mStreamMutex.lock();
-            for (int i = 0; i < mDevices.size(); i++) {
-                rm->registerDevice(mDevices[i], this);
+            if (!isDevRegistered) {
+                for (int i = 0; i < mDevices.size(); i++) {
+                    rm->registerDevice(mDevices[i], this);
+                }
+                isDevRegistered = true;
             }
             mStreamMutex.unlock();
             rm->unlockActiveStream();
@@ -1251,6 +1302,7 @@ int32_t StreamPCM::flush()
     for (int i = 0; i < mDevices.size(); i++) {
         rm->deregisterDevice(mDevices[i], this);
     }
+    isDevRegistered = false;
     rm->unlockActiveStream();
 
     status = session->flush();
@@ -1506,17 +1558,36 @@ int32_t StreamPCM::createMmapBuffer(int32_t min_size_frames,
     int32_t status = 0;
 
     PAL_DBG(LOG_TAG, "Enter. session handle - %pK", session);
+    mStreamMutex.lock();
     if (currentState == STREAM_INIT) {
-        mStreamMutex.lock();
+        rm->lockGraph();
+        for (int32_t i=0; i < mDevices.size(); i++) {
+            if ((mDevices[i]->getSndDeviceId() == PAL_DEVICE_OUT_BLUETOOTH_A2DP) ||
+                (mDevices[i]->getSndDeviceId() == PAL_DEVICE_OUT_BLUETOOTH_BLE)) {
+                PAL_DBG(LOG_TAG, "start BT A2DP/BLE device as to populate the full GKVs");
+                status = mDevices[i]->start();
+                if ((0 != status) && mDevices.size() == 1) {
+                    PAL_ERR(LOG_TAG, "device start failed: %d", status);
+                    rm->unlockGraph();
+                    goto exit;
+                }
+            }
+        }
         status = session->createMmapBuffer(this, min_size_frames, info);
-        if (0 != status)
+        if (0 != status) {
             PAL_ERR(LOG_TAG, "session prepare failed with status = %d", status);
-        mStreamMutex.unlock();
+            rm->unlockGraph();
+            goto exit;
+        }
+        isMMap = true;
+        rm->unlockGraph();
     } else {
         status = -EINVAL;
     }
-    PAL_DBG(LOG_TAG, "Exit. status - %d", status);
 
+exit:
+    mStreamMutex.unlock();
+    PAL_DBG(LOG_TAG, "Exit. status - %d", status);
     return status;
 }
 

@@ -700,7 +700,9 @@ int Session::configureMFC(const std::shared_ptr<ResourceManager>& rm, struct pal
                 pcmDevIds.at(0), intf, dAttr.id);
 
         if (dAttr.id == PAL_DEVICE_OUT_BLUETOOTH_A2DP ||
-                dAttr.id == PAL_DEVICE_OUT_BLUETOOTH_SCO) {
+            dAttr.id == PAL_DEVICE_OUT_BLUETOOTH_SCO ||
+            dAttr.id == PAL_DEVICE_OUT_BLUETOOTH_BLE ||
+            dAttr.id == PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST) {
             dev = Device::getInstance((struct pal_device *)&dAttr , rm);
             if (!dev) {
                 PAL_ERR(LOG_TAG, "Device getInstance failed");
@@ -790,7 +792,7 @@ int Session::checkAndSetExtEC(const std::shared_ptr<ResourceManager>& rm,
     status = s->getStreamAttributes(&sAttr);
     if (status != 0) {
         PAL_ERR(LOG_TAG,"stream get attributes failed");
-        goto exit;
+        return -EINVAL;
     }
 
     device.id = PAL_DEVICE_IN_EXT_EC_REF;
@@ -831,6 +833,7 @@ int Session::checkAndSetExtEC(const std::shared_ptr<ResourceManager>& rm,
             pcmDevEcTxIds = rm->allocateFrontEndExtEcIds();
             if (pcmDevEcTxIds.size() == 0) {
                 PAL_ERR(LOG_TAG, "ResourceManger::getBackEndNames returned no EXT_EC device Ids");
+                status = -EINVAL;
                 goto exit;
             }
             status = dev->open();
@@ -896,6 +899,10 @@ int Session::checkAndSetExtEC(const std::shared_ptr<ResourceManager>& rm,
     }
 
 exit:
+    if (is_enable && status) {
+        PAL_DBG(LOG_TAG, "Reset extECRefCnt as EXT EC graph fails to setup");
+        extECRefCnt = 0;
+    }
     PAL_DBG(LOG_TAG, "Exit.");
     return status;
 }
