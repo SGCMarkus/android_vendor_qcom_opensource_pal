@@ -758,6 +758,7 @@ int32_t StreamACD::SetupDetectionEngine()
     int status = 0;
     pal_device_id_t dev_id;
     std::shared_ptr<Device> dev = nullptr;
+    std::unique_lock<std::mutex> lck(mutex_, std::defer_lock);
 
     PAL_DBG(LOG_TAG, "Enter");
     if (sm_cfg_ == NULL) {
@@ -785,7 +786,11 @@ int32_t StreamACD::SetupDetectionEngine()
     cap_prof_ = GetCurrentCaptureProfile();
     mDevPPSelector = cap_prof_->GetName();
 
+    /* lock here to prevent multiple ACD engine instances to be created */
+    lck.lock();
     engine_ = ContextDetectionEngine::Create(this, sm_cfg_);
+    lck.unlock();
+
     if (!engine_) {
         status = -ENOMEM;
         PAL_ERR(LOG_TAG, "Error:%d engine creation failed", status);
