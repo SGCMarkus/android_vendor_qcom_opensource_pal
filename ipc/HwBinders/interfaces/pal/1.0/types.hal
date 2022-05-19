@@ -390,3 +390,31 @@ struct PalMmapPosition {
     int32_t  position_frames;  /**< increasing 32 bit frame count reset when stop()
                                     is called */
 };
+
+/**
+  * The message queue flags used to synchronize reads and writes from
+  * message queues used by PAL
+  */
+enum PalMessageQueueFlagBits : uint32_t {
+    NOT_EMPTY = 1 << 0,
+    NOT_FULL = 1 << 1
+};
+
+enum PalReadWriteDoneResult : int32_t {
+    OK,
+    NOT_INITIALIZED,
+    INVALID_ARGUMENTS,
+    INVALID_STATE,
+    NOT_SUPPORTED
+};
+
+/**
+  * Commands that can be executed on the driver read/write done thread.
+  */
+enum PalReadWriteDoneCommand : int32_t {
+    WRITE_READY,
+    DRAIN_READY,
+    PARTIAL_DRAIN_READY,
+    READ_DONE,
+    ERROR
+};

@@ -165,6 +165,75 @@ static void printFdList(const std::vector<std::pair<int, int>> &list, const char
     }
 }
 
+int32_t SrvrClbk::callReadWriteTransferThread(
+        PalReadWriteDoneCommand cmd,
+        const uint8_t* data, size_t dataSize) {
+    if (!mCommandMQ->write(&cmd)) {
+        ALOGE("command message queue write failed for %d", cmd);
+        return -EAGAIN;
+    }
+    if (data != nullptr) {
+        size_t availableToWrite = mDataMQ->availableToWrite();
+        if (dataSize > availableToWrite) {
+            ALOGW("truncating write data from %lld to %lld due to insufficient data queue space",
+                    (long long)dataSize, (long long)availableToWrite);
+            dataSize = availableToWrite;
+        }
+        if (!mDataMQ->write(data, dataSize)) {
+            ALOGE("data message queue write failed");
+        }
+    }
+    mEfGroup->wake(static_cast<uint32_t>(PalMessageQueueFlagBits::NOT_EMPTY));
+
+    uint32_t efState = 0;
+retry:
+    status_t ret = mEfGroup->wait(static_cast<uint32_t>(PalMessageQueueFlagBits::NOT_FULL), &efState);
+    if (ret == -EAGAIN || ret == -EINTR) {
+        // Spurious wakeup. This normally retries no more than once.
+        ALOGE("%s: Wait returned error", __func__);
+        goto retry;
+    }
+    return 0;
+}
+
+int32_t SrvrClbk::prepare_mq_for_transfer(uint64_t streamHandle, uint64_t cookie) {
+    std::unique_ptr<DataMQ> tempDataMQ;
+    std::unique_ptr<CommandMQ> tempCommandMQ;
+    PalReadWriteDoneResult retval;
+    auto ret = clbk_binder->prepare_mq_for_transfer(streamHandle, cookie,
+            [&](PalReadWriteDoneResult r,
+                    const DataMQ::Descriptor& dataMQ,
+                    const CommandMQ::Descriptor& commandMQ) {
+                retval = r;
+                if (retval == PalReadWriteDoneResult::OK) {
+                    tempDataMQ.reset(new DataMQ(dataMQ));
+                    tempCommandMQ.reset(new CommandMQ(commandMQ));
+                    if (tempDataMQ->isValid() && tempDataMQ->getEventFlagWord()) {
+                        EventFlag::createEventFlag(tempDataMQ->getEventFlagWord(), &mEfGroup);
+                    }
+                }
+            });
+    if (retval != PalReadWriteDoneResult::OK) {
+        return NO_INIT;
+    }
+    if (!tempDataMQ || !tempDataMQ->isValid() ||
+            !tempCommandMQ || !tempCommandMQ->isValid() ||
+            !mEfGroup) {
+        ALOGE_IF(!tempDataMQ, "Failed to obtain data message queue for transfer");
+        ALOGE_IF(tempDataMQ && !tempDataMQ->isValid(),
+                 "Data message queue for transfer is invalid");
+        ALOGE_IF(!tempCommandMQ, "Failed to obtain command message queue for transfer");
+        ALOGE_IF(tempCommandMQ && !tempCommandMQ->isValid(),
+                 "Command message queue for transfer is invalid");
+        ALOGE_IF(!mEfGroup, "Event flag creation for transfer failed");
+        return NO_INIT;
+    }
+
+    mDataMQ = std::move(tempDataMQ);
+    mCommandMQ = std::move(tempCommandMQ);
+    return 0;
+}
+
 static int32_t pal_callback(pal_stream_handle_t *stream_handle,
                             uint32_t event_id, uint32_t *event_data,
                             uint32_t event_data_size,
@@ -233,7 +302,7 @@ static int32_t pal_callback(pal_stream_handle_t *stream_handle,
         }
 
         rwDonePayloadHidl.resize(sizeof(pal_callback_buffer));
-        rwDonePayload =(PalCallbackBuffer *)rwDonePayloadHidl.data();
+        rwDonePayload = (PalCallbackBuffer *)rwDonePayloadHidl.data();
         rwDonePayload->status = rw_done_payload->status;
         switch (rw_done_payload->md_status) {
             case ENOTRECOVERABLE: {
@@ -284,7 +353,7 @@ static int32_t pal_callback(pal_stream_handle_t *stream_handle,
 
         rwDonePayload->size = rw_done_payload->buff.size;
         if (rw_done_payload->buff.ts != NULL) {
-            rwDonePayload->timeStamp.tvSec = rw_done_payload->buff.ts->tv_sec;
+            rwDonePayload->timeStamp.tvSec =  rw_done_payload->buff.ts->tv_sec;
             rwDonePayload->timeStamp.tvNSec = rw_done_payload->buff.ts->tv_nsec;
         }
         if ((rw_done_payload->buff.buffer != NULL) &&
@@ -296,10 +365,15 @@ static int32_t pal_callback(pal_stream_handle_t *stream_handle,
 
         ALOGV("fd [input %d - dup %d]", input_fd, rw_done_payload->buff.alloc_info.alloc_handle);
         if (!sr_clbk_dat->client_died) {
-            clbk_bdr->event_callback_rw_done((uint64_t)stream_handle, event_id,
-                    sizeof(pal_callback_buffer),
-                    rwDonePayloadHidl,
-                    sr_clbk_dat->client_data_);
+            if (!sr_clbk_dat->mDataMQ && !sr_clbk_dat->mCommandMQ) {
+                if (sr_clbk_dat->prepare_mq_for_transfer(
+                        (uint64_t)stream_handle, sr_clbk_dat->client_data_)) {
+                    ALOGE("MQ prepare failed for stream %p", stream_handle);
+                }
+            }
+            sr_clbk_dat->callReadWriteTransferThread((PalReadWriteDoneCommand) event_id,
+                                        (uint8_t *)rwDonePayload,
+                                        sizeof(PalCallbackBuffer));
         } else
             ALOGE("Client died dropping this event %d", event_id);
 

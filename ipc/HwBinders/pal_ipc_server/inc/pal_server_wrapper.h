@@ -25,6 +25,10 @@
  * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
  * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Changes from Qualcomm Innovation Center are provided under the following license:
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause-Clear
  */
 
 #ifndef ANDROID_SYSTEM_pal_V1_0_pal_H
@@ -35,6 +39,9 @@
 #include <vendor/qti/hardware/pal/1.0/IPAL.h>
 #include <hidl/MQDescriptor.h>
 #include <hidl/Status.h>
+#include <fmq/EventFlag.h>
+#include <fmq/MessageQueue.h>
+#include <utils/Thread.h>
 #include <utils/RefBase.h>
 #include <mutex>
 #include "PalApi.h"
@@ -57,18 +64,27 @@ using ::android::hardware::Return;
 using ::android::hardware::Void;
 using IPALCallback = ::vendor::qti::hardware::pal::V1_0::IPALCallback;
 using ::android::sp;
+using ::android::hardware::MessageQueue;
+using ::android::hardware::EventFlag;
+using ::android::Thread;
+using ::android::status_t;
 
 class PalClientDeathRecipient;
 
 
 class SrvrClbk : public ::android::RefBase {
     public :
+    typedef MessageQueue<uint8_t, kSynchronizedReadWrite> DataMQ;
+    typedef MessageQueue<PalReadWriteDoneCommand, kSynchronizedReadWrite> CommandMQ;
     sp<IPALCallback> clbk_binder;
     uint64_t client_data_;
     struct pal_stream_attributes session_attr;
     int pid_;
     bool client_died;
     std::vector<std::pair<int, int>> sharedMemFdList;
+    std::unique_ptr<DataMQ> mDataMQ = nullptr;
+    std::unique_ptr<CommandMQ> mCommandMQ = nullptr;
+    EventFlag* mEfGroup = nullptr;
 
     SrvrClbk()
     {
@@ -88,9 +104,15 @@ class SrvrClbk : public ::android::RefBase {
     {
         memcpy(&session_attr, attr, sizeof(session_attr));
     }
+    int32_t callReadWriteTransferThread(PalReadWriteDoneCommand cmd,
+                            const uint8_t* data, size_t dataSize);
+    int32_t prepare_mq_for_transfer(uint64_t streamHandle, uint64_t cookie);
     ~SrvrClbk()
     {
-      ALOGV("%s:%d",__func__,__LINE__);
+        ALOGV("%s:%d",__func__,__LINE__);
+        if (mEfGroup) {
+            EventFlag::deleteEventFlag(&mEfGroup);
+        }
     }
 };
 

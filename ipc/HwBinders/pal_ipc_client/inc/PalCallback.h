@@ -36,6 +36,9 @@
 #include <vendor/qti/hardware/pal/1.0/IPALCallback.h>
 #include <hidl/MQDescriptor.h>
 #include <hidl/Status.h>
+#include <fmq/EventFlag.h>
+#include <fmq/MessageQueue.h>
+#include <utils/Thread.h>
 #include "PalApi.h"
 
 
@@ -61,6 +64,10 @@ using PalMmapPosition = ::vendor::qti::hardware::pal::V1_0::PalMmapPosition;
 using PalParamPayload = ::vendor::qti::hardware::pal::V1_0::PalParamPayload;
 using PalEventReadWriteDonePayload =
                      ::vendor::qti::hardware::pal::V1_0::PalEventReadWriteDonePayload;
+using PalMessageQueueFlagBits = ::vendor::qti::hardware::pal::V1_0::PalMessageQueueFlagBits;
+using PalReadWriteDoneResult = ::vendor::qti::hardware::pal::V1_0::PalReadWriteDoneResult;
+using PalReadWriteDoneCommand = ::vendor::qti::hardware::pal::V1_0::PalReadWriteDoneCommand;
+using PalCallbackBuffer = ::vendor::qti::hardware::pal::V1_0::PalCallbackBuffer;
 using IPALCallback = ::vendor::qti::hardware::pal::V1_0::IPALCallback;
 using android::hardware::hidl_handle;
 using android::hardware::hidl_memory;
@@ -95,8 +102,15 @@ using ::android::hardware::hidl_vec;
 using ::android::hardware::Return;
 using ::android::hardware::Void;
 using ::android::sp;
+using ::android::hardware::MessageQueue;
+using ::android::hardware::EventFlag;
+using ::android::Thread;
+using ::android::status_t;
 
 struct PalCallback : public IPALCallback {
+    typedef MessageQueue<uint8_t, kSynchronizedReadWrite> DataMQ;
+    typedef MessageQueue<PalReadWriteDoneCommand, kSynchronizedReadWrite> CommandMQ;
+
     Return<int32_t> event_callback(uint64_t stream_handle,
                                uint32_t event_id, uint32_t event_data_size,
                                const hidl_vec<uint8_t>& event_data,
@@ -105,13 +119,24 @@ struct PalCallback : public IPALCallback {
                                uint32_t event_id, uint32_t event_data_size,
                                const hidl_vec<PalCallbackBuffer>& event_data,
                                uint64_t cookie) override;
+    Return<void> prepare_mq_for_transfer(uint64_t stream_handle,
+                                    uint64_t cookie,
+                                    prepare_mq_for_transfer_cb _hidl_cb) override;
 
     PalCallback(pal_stream_callback callBack)
     {
         cb = callBack;
     }
+    ~PalCallback();
+
     protected:
        pal_stream_callback cb;
+       std::unique_ptr<DataMQ> mDataMQ = nullptr;
+       std::unique_ptr<CommandMQ> mCommandMQ = nullptr;
+       EventFlag* mEfGroup = nullptr;
+       std::atomic<bool> mStopDataTransferThread = false;
+       sp<Thread> mDataTransferThread = nullptr;
+       uint64_t mStreamCookie;
 };
 
 }  // namespace implementation

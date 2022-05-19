@@ -45,12 +45,114 @@ using vendor::qti::hardware::pal::V1_0::IPAL;
 
 using vendor::qti::hardware::pal::V1_0::implementation::PalCallback;
 using android::sp;
+using android::hardware::MessageQueue;
+using android::hardware::EventFlag;
+using android::Thread;
+using android::status_t;
 
 bool pal_server_died = false;
 android::sp<IPAL> pal_client = NULL;
 sp<server_death_notifier> Server_death_notifier = NULL;
 
+
 std::mutex gLock;
+
+class DataTransferThread : public Thread {
+   public:
+    DataTransferThread(std::atomic<bool>* stop, PalStreamHandle streamHandle,
+                pal_stream_callback clbkObject,
+                PalCallback::DataMQ* dataMQ,
+                PalCallback::CommandMQ* commandMQ,
+                EventFlag* efGroup,
+                uint64_t cookie)
+        : Thread(false),
+          mStop(stop),
+          mStreamHandle(streamHandle),
+          mStreamCallback(clbkObject),
+          mDataMQ(dataMQ),
+          mCommandMQ(commandMQ),
+          mEfGroup(efGroup),
+          mBuffer(nullptr),
+          mStreamCookie(cookie) {}
+    bool init() {
+        mBuffer.reset(new (std::nothrow) uint8_t[mDataMQ->getQuantumCount()]);
+        return mBuffer != nullptr;
+    }
+    virtual ~DataTransferThread() {}
+
+   private:
+    std::atomic<bool>* mStop;
+    PalStreamHandle mStreamHandle;
+    pal_stream_callback mStreamCallback;
+    PalCallback::DataMQ* mDataMQ;
+    PalCallback::CommandMQ* mCommandMQ;
+    EventFlag* mEfGroup;
+    std::unique_ptr<uint8_t[]> mBuffer;
+    uint64_t mStreamCookie;
+
+    bool threadLoop() override;
+
+    void startTransfer(int eventId);
+};
+
+void DataTransferThread::startTransfer(int eventId) {
+    size_t availToRead = mDataMQ->availableToRead();
+
+    if (mDataMQ->read(&mBuffer[0], availToRead)) {
+        ALOGV("%s: calling client callback, data size %zu", __func__, availToRead);
+
+        const ::vendor::qti::hardware::pal::V1_0::PalCallbackBuffer *rwDonePayload =
+                (::vendor::qti::hardware::pal::V1_0::PalCallbackBuffer *)&mBuffer[0];
+        auto cbBuffer = std::make_unique<pal_callback_buffer>();
+        if (!cbBuffer) {
+            ALOGE("%s: Failed to allocate memory for callback payload", __func__);
+            return;
+        }
+
+        cbBuffer->size = rwDonePayload->size;
+        std::vector<uint8_t> buffData = {};
+        if (rwDonePayload->buffer.size() == cbBuffer->size) {
+            buffData.resize(cbBuffer->size);
+            memcpy(buffData.data(), rwDonePayload->buffer.data(), cbBuffer->size);
+            cbBuffer->buffer = buffData.data();
+        }
+
+        auto bufTimeSpec = std::make_unique<timespec>();
+        if (!bufTimeSpec) {
+            ALOGE("%s: Failed to allocate memory for timespec", __func__);
+            return;
+        }
+        bufTimeSpec->tv_sec = rwDonePayload->timeStamp.tvSec;
+        bufTimeSpec->tv_nsec = rwDonePayload->timeStamp.tvNSec;
+        cbBuffer->ts = (timespec *) bufTimeSpec.get();
+        cbBuffer->status = rwDonePayload->status;
+        cbBuffer->cb_buf_info.frame_index = rwDonePayload->cbBufInfo.frame_index;
+        cbBuffer->cb_buf_info.sample_rate = rwDonePayload->cbBufInfo.sample_rate;
+        cbBuffer->cb_buf_info.bit_width = rwDonePayload->cbBufInfo.bit_width;
+        cbBuffer->cb_buf_info.channel_count = rwDonePayload->cbBufInfo.channel_count;
+        mStreamCallback((pal_stream_handle_t *)mStreamHandle, eventId,
+                        (uint32_t *)cbBuffer.get(), (uint32_t)availToRead,
+                        mStreamCookie);
+    }
+}
+
+bool DataTransferThread::threadLoop() {
+    while (!std::atomic_load_explicit(mStop, std::memory_order_acquire)) {
+        uint32_t efState = 0;
+        mEfGroup->wait(static_cast<uint32_t>(PalMessageQueueFlagBits::NOT_EMPTY), &efState);
+        if (!(efState & static_cast<uint32_t>(PalMessageQueueFlagBits::NOT_EMPTY))) {
+            continue;  // Nothing to do.
+        }
+        PalReadWriteDoneCommand eventId;
+        if (!mCommandMQ->read(&eventId)) {
+            continue;
+        }
+        startTransfer((int)eventId);
+        mEfGroup->wake(static_cast<uint32_t>(PalMessageQueueFlagBits::NOT_FULL));
+    }
+
+    return false;
+}
 
 void server_death_notifier::serviceDied(uint64_t cookie,
                    const android::wp<::android::hidl::base::V1_0::IBase>& who)
@@ -90,6 +192,21 @@ int32_t pal_init(void)
 void pal_deinit(void)
 {
    return;
+}
+
+PalCallback::~PalCallback() {
+    mStopDataTransferThread.store(true, std::memory_order_release);
+    if (mEfGroup) {
+        mEfGroup->wake(static_cast<uint32_t>(PalMessageQueueFlagBits::NOT_EMPTY));
+    }
+    if (mDataTransferThread.get()) {
+        status_t status = mDataTransferThread->join();
+        ALOGE_IF(status, "write thread exit error: %s", strerror(-status));
+    }
+    if (mEfGroup) {
+        status_t status = EventFlag::deleteEventFlag(&mEfGroup);
+        ALOGE_IF(status, "write MQ event flag deletion error: %s", strerror(-status));
+    }
 }
 
 Return<int32_t> PalCallback::event_callback(uint64_t strm_handle,
@@ -158,6 +275,66 @@ Return<void> PalCallback::event_callback_rw_done(uint64_t strm_handle,
     this->cb((pal_stream_handle_t *)strm_handle, event_id, (uint32_t *)cbBuffer.get(),
                                     event_data_size, cookie);
 
+    return Void();
+}
+
+Return<void> PalCallback::prepare_mq_for_transfer(PalStreamHandle streamHandle,
+                            uint64_t cookie, prepare_mq_for_transfer_cb _hidl_cb) {
+    status_t status;
+
+    // Wrap the _hidl_cb to return an error
+    auto sendError = [&_hidl_cb](PalReadWriteDoneResult result) {
+        _hidl_cb(result, DataMQ::Descriptor(), CommandMQ::Descriptor());
+    };
+
+    // Create message queues.
+    if (mDataMQ) {
+        ALOGE("the client attempts to call prepareForWriting twice");
+        sendError(PalReadWriteDoneResult::INVALID_STATE);
+        return Void();
+    }
+
+    std::unique_ptr<DataMQ> tempDataMQ(
+            new DataMQ(sizeof(PalCallbackBuffer) * 2, true /* EventFlag */));
+
+    std::unique_ptr<CommandMQ> tempCommandMQ(new CommandMQ(1));
+    if (!tempDataMQ->isValid() || !tempCommandMQ->isValid()) {
+        ALOGE_IF(!tempDataMQ->isValid(), "data MQ is invalid");
+        ALOGE_IF(!tempCommandMQ->isValid(), "command MQ is invalid");
+        sendError(PalReadWriteDoneResult::INVALID_ARGUMENTS);
+        return Void();
+    }
+    EventFlag* tempRawEfGroup{};
+    status = EventFlag::createEventFlag(tempDataMQ->getEventFlagWord(), &tempRawEfGroup);
+    std::unique_ptr<EventFlag, void (*)(EventFlag*)> tempElfGroup(
+        tempRawEfGroup, [](auto* ef) { EventFlag::deleteEventFlag(&ef); });
+    if (status != android::OK || !tempElfGroup) {
+        ALOGE("failed creating event flag for data MQ: %s", strerror(-status));
+        sendError(PalReadWriteDoneResult::INVALID_ARGUMENTS);
+        return Void();
+    }
+
+    // Create and launch the thread.
+    auto tempDataTransferThread =
+        sp<DataTransferThread>::make(&mStopDataTransferThread, streamHandle, cb, tempDataMQ.get(),
+                                  tempCommandMQ.get(), tempElfGroup.get(), cookie);
+    if (!tempDataTransferThread->init()) {
+        ALOGW("failed to start writer thread: %s", strerror(-status));
+        sendError(PalReadWriteDoneResult::INVALID_ARGUMENTS);
+        return Void();
+    }
+    status = tempDataTransferThread->run("read_write_cb", android::PRIORITY_URGENT_AUDIO);
+    if (status != android::OK) {
+        ALOGW("failed to start read_write_cb thread: %s", strerror(-status));
+        sendError(PalReadWriteDoneResult::INVALID_ARGUMENTS);
+        return Void();
+    }
+
+    mDataMQ = std::move(tempDataMQ);
+    mCommandMQ = std::move(tempCommandMQ);
+    mDataTransferThread = tempDataTransferThread;
+    mEfGroup = tempElfGroup.release();
+    _hidl_cb(PalReadWriteDoneResult::OK, *mDataMQ->getDesc(), *mCommandMQ->getDesc());
     return Void();
 }
 

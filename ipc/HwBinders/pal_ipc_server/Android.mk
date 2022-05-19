@@ -19,6 +19,7 @@ LOCAL_SHARED_LIBRARIES := \
     libutils \
     liblog \
     libcutils \
+    libfmq \
     libhardware \
     libbase \
     vendor.qti.hardware.pal@1.0 \

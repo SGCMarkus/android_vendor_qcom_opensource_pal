@@ -42,5 +42,10 @@ interface IPALCallback
                             uint32_t event_data_size,
                             vec<PalCallbackBuffer> rw_done_payload,
                             uint64_t cookie);
+    prepare_mq_for_transfer (PalStreamHandle streamHandle,
+                             uint64_t cookie)
+                             generates(PalReadWriteDoneResult ret,
+                                fmq_sync<uint8_t> dataMQ,
+                                fmq_sync<PalReadWriteDoneCommand> commandMQ);
 };
 
