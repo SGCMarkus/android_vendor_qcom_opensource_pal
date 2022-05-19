@@ -1202,6 +1202,15 @@
                             <context id="0x08001332" /> <!-- EVENT_DOOROPEN -->
                             <context id="0x08001333" /> <!-- EVENT_GLASSBREAKING -->
                             <context id="0x08001334" /> <!-- EVENT_SIREN -->
+                            <context id="0x080013CC" /> <!-- EVENT_CARHONK -->
+                            <context id="0x080013CD" /> <!-- EVENT_GUNSHOT -->
+                            <context id="0x080013CE" /> <!-- EVENT_PHONERING -->
+                            <context id="0x080013CF" /> <!-- EVENT_SLEEPAPNEA -->
+                            <context id="0x080013D0" /> <!-- EVENT_SNORING -->
+                            <context id="0x080013D1" /> <!-- EVENT_CATMEOW -->
+                            <context id="0x080013D2" /> <!-- EVENT_DOORKNOCK -->
+                            <context id="0x080013D3" /> <!-- EVENT_WATERFLOW -->
+                            <context id="0x080013D4" /> <!-- EVENT_FIREALARM -->
                         </contexts>
                     </sound_model>
                     <sound_model>
