@@ -7985,6 +7985,7 @@ int ResourceManager::getParameter(uint32_t param_id, void *param_payload,
         {
             bool match = false;
             std::list<Stream*>::iterator sIter;
+            mActiveStreamMutex.lock();
             for(sIter = mActiveStreams.begin(); sIter != mActiveStreams.end(); sIter++) {
                 match = (*sIter)->checkStreamMatch(pal_device_id, pal_stream_type);
                 if (match) {
@@ -7992,6 +7993,7 @@ int ResourceManager::getParameter(uint32_t param_id, void *param_payload,
                     break;
                 }
             }
+            mActiveStreamMutex.unlock();
             break;
         }
         default:
