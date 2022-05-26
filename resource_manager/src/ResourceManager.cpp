@@ -3442,7 +3442,7 @@ int ResourceManager::checkandEnableECForRXStream_l(std::shared_ptr<Device> rx_de
         }
         // TODO: add support for stream with multi Tx devices
         tx_dev = tx_devices[0];
-        status = getECEnableSetting(tx_dev, rx_stream, &ec_enable_setting);
+        status = getECEnableSetting(tx_dev, tx_stream, &ec_enable_setting);
         if (status != 0) {
             PAL_DBG(LOG_TAG, "getECEnableSetting failed.");
             continue;
