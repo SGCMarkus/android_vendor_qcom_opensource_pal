@@ -949,6 +949,7 @@ typedef enum {
     PAL_PARAM_ID_SET_SOURCE_METADATA = 60,
     PAL_PARAM_ID_SET_SINK_METADATA = 61,
     PAL_PARAM_ID_ULTRASOUND_RAMPDOWN = 62,
+    PAL_PARAM_ID_VOLUME_CTRL_RAMP = 63,
 } pal_param_id_type_t;
 
 /** HDMI/DP */
@@ -987,6 +988,10 @@ struct pal_amp_db_and_gain_table {
     float    amp;
     float    db;
     uint32_t level;
+};
+
+struct pal_vol_ctrl_ramp_param {
+   uint32_t ramp_period_ms;
 };
 
 /* Payload For ID: PAL_PARAM_ID_DEVICE_CONNECTION

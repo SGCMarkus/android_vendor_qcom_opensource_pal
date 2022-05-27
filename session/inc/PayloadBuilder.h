@@ -186,6 +186,8 @@ public:
     void payloadDpAudioConfig(uint8_t** payload, size_t* size,
                            uint32_t miid,
                            struct dpAudioConfig *data);
+    void payloadVolumeCtrlRamp(uint8_t** payload, size_t* size,
+         uint32_t miid, uint32_t ramp_period_ms);
     void payloadMFCConfig(uint8_t** payload, size_t* size,
                            uint32_t miid,
                            struct sessionToPayloadParam* data);

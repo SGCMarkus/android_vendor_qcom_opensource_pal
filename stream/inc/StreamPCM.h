@@ -79,6 +79,7 @@ public:
 
 private:
    bool isMMap = false;
+    uint32_t volRampPeriodms;
 };
 
 #endif//STREAMPCM_H_

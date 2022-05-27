@@ -1999,6 +1999,21 @@ int SessionAlsaCompress::setParameters(Stream *s __unused, int tagId, uint32_t p
             return 0;
         }
         break;
+        case PAL_PARAM_ID_VOLUME_CTRL_RAMP:
+        {
+            struct pal_vol_ctrl_ramp_param *rampParam = (struct pal_vol_ctrl_ramp_param *)payload;
+            status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
+                               rxAifBackEnds[0].second.data(), tagId, &miid);
+            builder->payloadVolumeCtrlRamp(&alsaParamData, &alsaPayloadSize,
+                 miid, rampParam->ramp_period_ms);
+            if (alsaPayloadSize) {
+                status = SessionAlsaUtils::setMixerParameter(mixer, device,
+                                               alsaParamData, alsaPayloadSize);
+                PAL_INFO(LOG_TAG, "mixer set vol ctrl ramp status=%d\n", status);
+                freeCustomPayload(&alsaParamData, &alsaPayloadSize);
+            }
+            break;
+        }
         default:
             PAL_INFO(LOG_TAG, "Unsupported param id %u", param_id);
         break;
