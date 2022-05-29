@@ -166,7 +166,7 @@
 #define MAX_SESSIONS_ULTRASOUND 1
 #define MAX_SESSIONS_SENSOR_PCM_DATA 1
 #define MAX_SESSIONS_VOICE_RECOGNITION 1
-#define MAX_SESSIONS_SPATIAL_AUDIO 2
+#define MAX_SESSIONS_SPATIAL_AUDIO 1
 
 #define WAKE_LOCK_NAME "audio_pal_wl"
 #define WAKE_LOCK_PATH "/sys/power/wake_lock"
@@ -403,6 +403,7 @@ const std::map<uint32_t, uint32_t> streamPriorityLUT {
     {PAL_STREAM_CONTEXT_PROXY,      3},
     {PAL_STREAM_SENSOR_PCM_DATA,    3},
     {PAL_STREAM_ULTRASOUND,         4},
+    {PAL_STREAM_SPATIAL_AUDIO,      3},
 };
 
 const std::map<std::string, sidetone_mode_t> sidetoneModetoId {
@@ -6119,6 +6120,7 @@ void ResourceManager::freeFrontEndIds(const std::vector<int> frontend,
         case PAL_STREAM_GENERIC:
         case PAL_STREAM_PROXY:
         case PAL_STREAM_DEEP_BUFFER:
+        case PAL_STREAM_SPATIAL_AUDIO:
         case PAL_STREAM_VOIP:
         case PAL_STREAM_VOIP_RX:
         case PAL_STREAM_VOIP_TX:
