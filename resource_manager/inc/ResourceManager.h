@@ -79,6 +79,7 @@
 #include <queue>
 #include <deque>
 #include <unordered_map>
+#include <vui_dmgr_audio_intf.h>
 #include "PalDefs.h"
 #include "ChargerListener.h"
 #include "SndCardMonitor.h"
@@ -115,14 +116,18 @@ typedef enum {
 #if LINUX_ENABLED
 #if defined(__LP64__)
 #define ADM_LIBRARY_PATH "/usr/lib64/libadm.so"
+#define VUI_DMGR_LIB_PATH "/usr/lib64/libvui_dmgr.so"
 #else
 #define ADM_LIBRARY_PATH "/usr/lib/libadm.so"
+#define VUI_DMGR_MANAGER_LIB_PATH "/usr/lib/libvui_dmgr.so"
 #endif
 #else
 #ifdef __LP64__
 #define ADM_LIBRARY_PATH "/vendor/lib64/libadm.so"
+#define VUI_DMGR_LIB_PATH "/vendor/lib64/libvui_dmgr.so"
 #else
 #define ADM_LIBRARY_PATH "/vendor/lib/libadm.so"
+#define VUI_DMGR_LIB_PATH "/vendor/lib/libvui_dmgr.so"
 #endif
 #endif
 
@@ -691,6 +696,14 @@ public:
     static cl_set_boost_state_t cl_set_boost_state;
     static std::shared_ptr<group_dev_config_t> activeGroupDevConfig;
     static std::shared_ptr<group_dev_config_t> currentGroupDevConfig;
+
+    static void *vui_dmgr_lib_handle;
+    static vui_dmgr_init_t vui_dmgr_init;
+    static vui_dmgr_deinit_t vui_dmgr_deinit;
+    static void voiceuiDmgrManagerInit();
+    static void voiceuiDmgrManagerDeInit();
+    static int32_t voiceuiDmgrPalCallback(int32_t param_id, void *payload, size_t payload_size);
+    int32_t voiceuiDmgrRestartUseCases(vui_dmgr_param_restart_usecases_t *uc_info);
 
     /* checks config for both stream and device */
     bool isStreamSupported(struct pal_stream_attributes *attributes,

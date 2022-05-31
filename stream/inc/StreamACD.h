@@ -25,6 +25,10 @@
  * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
  * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Changes from Qualcomm Innovation Center are provided under the following license:
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause-Clear
  */
 
 
@@ -141,6 +145,8 @@ class StreamACD : public Stream {
                  const struct st_uuid *vendor_uuid);
     void SetEngineDetectionData(struct acd_context_event *event);
     struct acd_recognition_cfg *GetRecognitionConfig();
+    struct st_uuid GetVendorUuid();
+
  private:
     class ACDEventConfigData {
      public:

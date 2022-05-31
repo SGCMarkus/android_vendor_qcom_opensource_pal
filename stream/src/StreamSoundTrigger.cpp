@@ -3402,3 +3402,13 @@ int32_t StreamSoundTrigger::ssrUpHandler() {
 
     return status;
 }
+
+struct st_uuid StreamSoundTrigger::GetVendorUuid()
+{
+    struct st_uuid uuid;
+    if (sm_config_) {
+        return sm_config_->vendor_uuid;
+    }
+    memset(&uuid, 0, sizeof(uuid));
+    return uuid;
+}
