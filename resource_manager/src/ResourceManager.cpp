@@ -3284,7 +3284,6 @@ int ResourceManager::checkandEnableECForRXStream_l(std::shared_ptr<Device> rx_de
 {
     int status = 0;
     struct pal_stream_attributes sAttr;
-    std::vector<std::shared_ptr<Device>> rx_devices;
     std::vector<Stream*> tx_streams_list;
     std::shared_ptr<Device> tx_dev = nullptr;
     std::vector<std::shared_ptr<Device>> tx_devices;
@@ -3305,67 +3304,55 @@ int ResourceManager::checkandEnableECForRXStream_l(std::shared_ptr<Device> rx_de
 
     PAL_DBG(LOG_TAG, "Enter: setting EC[%s] for usecase %d of device %d.",
                       ec_on ? "ON" : "OFF", sAttr.type, rx_dev->getSndDeviceId());
-    if (sAttr.direction == PAL_AUDIO_OUTPUT) {
-        status = rx_stream->getAssociatedDevices(rx_devices);
-        if ((0 != status) || rx_devices.empty()) {
-            PAL_ERR(LOG_TAG, "rx_devices Failed or Empty\n");
-            status = -EINVAL;
-            goto exit;
-        }
-    } else { // voice call stream
-        rx_devices.push_back(rx_dev);
-    }
 
-    for (auto& device: rx_devices) {
-        tx_streams_list = getConcurrentTxStream_l(rx_stream, device);
-        for (auto tx_stream: tx_streams_list) {
-            tx_devices.clear();
-            if (!tx_stream || !isStreamActive(tx_stream, mActiveStreams)) {
-                PAL_ERR(LOG_TAG, "TX Stream Empty or is not active\n");
-                continue;
+    tx_streams_list = getConcurrentTxStream_l(rx_stream, rx_dev);
+    for (auto tx_stream: tx_streams_list) {
+        tx_devices.clear();
+        if (!tx_stream || !isStreamActive(tx_stream, mActiveStreams)) {
+            PAL_ERR(LOG_TAG, "TX Stream Empty or is not active\n");
+            continue;
+        }
+        tx_stream->getAssociatedDevices(tx_devices);
+        if (tx_devices.empty()) {
+            PAL_ERR(LOG_TAG, "TX devices Empty\n");
+            continue;
+        }
+        status = tx_stream->getStreamAttributes(&sAttr);
+        if (status) {
+            PAL_ERR(LOG_TAG, "stream get attributes failed");
+            status = -EINVAL;
+            continue;
+        }
+        // TODO: add support for stream with multi Tx devices
+        tx_dev = tx_devices[0];
+        status = getECEnableSetting(tx_dev, rx_stream, &ec_enable_setting);
+        if (status != 0) {
+            PAL_DBG(LOG_TAG, "getECEnableSetting failed.");
+            continue;
+        } else if (!ec_enable_setting) {
+            PAL_ERR(LOG_TAG, "EC is disabled for usecase %d of device %d",
+                              sAttr.type, tx_dev->getSndDeviceId());
+            continue;
+        }
+        ec_map_rx_dev_count = ec_on ? 1 : 0;
+        rxdevcount = updateECDeviceMap(rx_dev, tx_dev, tx_stream, ec_map_rx_dev_count, false);
+        if (rxdevcount != ec_map_rx_dev_count) {
+            PAL_DBG(LOG_TAG, "Invalid device pair or no need, rxdevcount =%d", rxdevcount);
+            continue;
+        }
+        mResourceManagerMutex.unlock();
+        if (isDeviceSwitch && tx_stream->isMutexLockedbyRm())
+            status = tx_stream->setECRef_l(rx_dev, ec_on);
+        else
+            status = tx_stream->setECRef(rx_dev, ec_on);
+        mResourceManagerMutex.lock();
+        if (status != 0 && ec_on) {
+            if (status == -ENODEV) {
+                status = 0;
+                PAL_VERBOSE(LOG_TAG, "operation is not supported by device, error: %d", status);
             }
-            tx_stream->getAssociatedDevices(tx_devices);
-            if (tx_devices.empty()) {
-                PAL_ERR(LOG_TAG, "TX devices Empty\n");
-                continue;
-            }
-            status = tx_stream->getStreamAttributes(&sAttr);
-            if(status) {
-                PAL_ERR(LOG_TAG, "stream get attributes failed");
-                status = -EINVAL;
-                continue;
-            }
-            // TODO: add support for stream with multi Tx devices
-            tx_dev = tx_devices[0];
-            status = getECEnableSetting(tx_dev, rx_stream, &ec_enable_setting);
-            if (status != 0) {
-                PAL_DBG(LOG_TAG, "getECEnableSetting failed.");
-                continue;
-            } else if (!ec_enable_setting) {
-                PAL_ERR(LOG_TAG, "EC is disabled for usecase %d of device %d",
-                                  sAttr.type, tx_dev->getSndDeviceId());
-                continue;
-            }
-            ec_map_rx_dev_count = ec_on ? 1 : 0;
-            rxdevcount = updateECDeviceMap(rx_dev, tx_dev, tx_stream, ec_map_rx_dev_count, false);
-            if (rxdevcount != ec_map_rx_dev_count) {
-                PAL_DBG(LOG_TAG, "Invalid device pair or no need, rxdevcount =%d", rxdevcount);
-                continue;
-            }
-            mResourceManagerMutex.unlock();
-            if (isDeviceSwitch && tx_stream->isMutexLockedbyRm())
-                status = tx_stream->setECRef_l(device, ec_on);
-            else
-                status = tx_stream->setECRef(device, ec_on);
-            mResourceManagerMutex.lock();
-            if (status != 0 && ec_on) {
-                if (status == -ENODEV) {
-                    status = 0;
-                    PAL_VERBOSE(LOG_TAG, "operation is not supported by device, error: %d", status);
-                }
-                // decrease ec ref count if ec ref set failure
-                updateECDeviceMap(rx_dev, tx_devices[0], tx_stream, 0, false);
-            }
+            // decrease ec ref count if ec ref set failure
+            updateECDeviceMap(rx_dev, tx_devices[0], tx_stream, 0, false);
         }
     }
 
