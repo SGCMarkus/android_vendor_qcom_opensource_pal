@@ -3050,6 +3050,10 @@ int PayloadBuilder::populateCalKeyVector(Stream *s, std::vector <std::pair<int,i
         if (level != -1)
             ckv.push_back(std::make_pair(GAIN, level));
         break;
+    case HANDSET_PROT_ENABLE:
+         PAL_DBG(LOG_TAG, "Handset Mono channel speaker");
+         ckv.push_back(std::make_pair(SPK_PRO_DEV_MAP, LEFT_MONO));
+         break;
     case SPKR_PROT_ENABLE :
         status = s->getAssociatedDevices(associatedDevices);
         if (0 != status) {

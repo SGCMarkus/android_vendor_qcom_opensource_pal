@@ -641,6 +641,7 @@
             <samplerate>48000</samplerate>
             <fractional_sr>0</fractional_sr>
             <snd_device_name>handset</snd_device_name>
+            <handset_protection_enabled>0</handset_protection_enabled>
           <usecase>
               <name>PAL_STREAM_VOICE_CALL</name>
               <priority>1</priority>

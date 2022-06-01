@@ -44,6 +44,7 @@
 #ifndef PAL_SP_TEMP_PATH
 #define PAL_SP_TEMP_PATH "/data/misc/audio/audio.cal"
 #endif
+#define FEEDBACK_MONO_1 "-mono-1"
 
 #define MIN_SPKR_IDLE_SEC (60 * 30)
 #define WAKEUP_MIN_IDLE_CHECK (1000 * 30)
@@ -1127,7 +1128,7 @@ void SpeakerProtection::spkrCalibrationThread()
 }
 
 SpeakerProtection::SpeakerProtection(struct pal_device *device,
-                        std::shared_ptr<ResourceManager> Rm):Speaker(device, Rm)
+                        std::shared_ptr<ResourceManager> Rm):Device(device, Rm)
 {
     int status = 0;
     struct pal_device_info devinfo = {};
@@ -1143,6 +1144,14 @@ SpeakerProtection::SpeakerProtection(struct pal_device *device,
 
     memset(&mDeviceAttr, 0, sizeof(struct pal_device));
     memcpy(&mDeviceAttr, device, sizeof(struct pal_device));
+    if (device->id == PAL_DEVICE_OUT_HANDSET) {
+        vi_device.channels = 1;
+        cps_device.channels = 1;
+        numberOfChannels = 1;
+        PAL_DBG(LOG_TAG, "Device id: %d vi channels: %d numberOfChannels: %d cps channels %d",
+                     device->id, vi_device.channels, numberOfChannels, cps_device.channels);
+        goto exit;
+    }
 
     threadExit = false;
     calThrdCreated = false;
@@ -1191,6 +1200,8 @@ SpeakerProtection::SpeakerProtection(struct pal_device *device,
                             this);
         calThrdCreated = true;
     }
+exit:
+    PAL_DBG(LOG_TAG, "exit. calThrdCreated :%d", calThrdCreated);
 }
 
 SpeakerProtection::~SpeakerProtection()
@@ -1450,6 +1461,10 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
         }
 
         rm->getChannelMap(&(ch_info.ch_map[0]), vi_device.channels);
+        ch_info.channels = vi_device.channels;
+
+        if (mDeviceAttr.id == PAL_DEVICE_OUT_HANDSET)
+                 ch_info.ch_map[0] = PAL_CHMAP_CHANNEL_FL;
 
         switch (vi_device.channels) {
             case 1 :
@@ -1484,6 +1499,9 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
             goto exit;
         }
 
+         if (mDeviceAttr.id == PAL_DEVICE_OUT_HANDSET) {
+           strlcat(mSndDeviceName_vi, FEEDBACK_MONO_1, DEVICE_NAME_MAX_SIZE);
+        }
         PAL_DBG(LOG_TAG, "get the audio route %s", mSndDeviceName_vi);
 
         rm->getBackendName(device.id, backEndName);
@@ -1501,7 +1519,10 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
         // Enable the VI module
         switch (numberOfChannels) {
             case 1 :
-                calVector.push_back(std::make_pair(SPK_PRO_VI_MAP, RIGHT_SPKR));
+                 if (mDeviceAttr.id == PAL_DEVICE_OUT_HANDSET)
+                      calVector.push_back(std::make_pair(SPK_PRO_VI_MAP, LEFT_SPKR));
+                 else
+                      calVector.push_back(std::make_pair(SPK_PRO_VI_MAP, RIGHT_SPKR));
             break;
             case 2 :
                 calVector.push_back(std::make_pair(SPK_PRO_VI_MAP, STEREO_SPKR));
@@ -1891,6 +1912,9 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
         }
 
         rm->getChannelMap(&(ch_info.ch_map[0]), cps_device.channels);
+        ch_info.channels = vi_device.channels;
+        if (mDeviceAttr.id == PAL_DEVICE_OUT_HANDSET)
+                 ch_info.ch_map[0] = PAL_CHMAP_CHANNEL_FL;
 
         switch (cps_device.channels) {
             case 1 :
@@ -1925,6 +1949,10 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
             goto err_pcm_open;
         }
 
+        if (mDeviceAttr.id == PAL_DEVICE_OUT_HANDSET) {
+          strlcat(mSndDeviceName_cps, FEEDBACK_MONO_1, DEVICE_NAME_MAX_SIZE);
+        }
+
         PAL_DBG(LOG_TAG, "get the audio route %s", mSndDeviceName_cps);
 
         rm->getBackendName(deviceCPS.id, backEndNameCPS);
@@ -1942,7 +1970,10 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
         // Enable the CPS module
         switch (numberOfChannels) {
             case 1 :
-                calVector.push_back(std::make_pair(SPK_PRO_CPS_MAP, R_SPKR));
+                if (mDeviceAttr.id == PAL_DEVICE_OUT_HANDSET)
+                    calVector.push_back(std::make_pair(SPK_PRO_CPS_MAP, L_SPKR));
+                else
+                    calVector.push_back(std::make_pair(SPK_PRO_CPS_MAP, R_SPKR));
             break;
             case 2 :
                 calVector.push_back(std::make_pair(SPK_PRO_CPS_MAP, ST_SPKR));
@@ -2698,7 +2729,7 @@ exit:
 }
 
 SpeakerFeedback::SpeakerFeedback(struct pal_device *device,
-                                std::shared_ptr<ResourceManager> Rm):Speaker(device, Rm)
+                                std::shared_ptr<ResourceManager> Rm):Device(device, Rm)
 {
     struct pal_device_info devinfo = {};
 
