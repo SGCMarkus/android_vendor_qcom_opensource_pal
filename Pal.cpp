@@ -337,7 +337,11 @@ int32_t pal_stream_set_param(pal_stream_handle_t *stream_handle, uint32_t param_
     PAL_DBG(LOG_TAG, "Enter. Stream handle :%pK param_id %d", stream_handle,
             param_id);
     s =  reinterpret_cast<Stream *>(stream_handle);
-    status = s->setParameters(param_id, (void *)param_payload);
+    if (PAL_PARAM_ID_UIEFFECT == param_id) {
+        status = s->setEffectParameters((void *)param_payload);
+    } else {
+        status = s->setParameters(param_id, (void *)param_payload);
+    }
     if (0 != status) {
         PAL_ERR(LOG_TAG, "set parameters failed status %d param_id %u", status, param_id);
         return status;

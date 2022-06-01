@@ -227,8 +227,7 @@ int32_t  StreamPCM::open()
                         continue;
                     }
 
-                    ret = session->setParameters(this, PER_STREAM_PER_DEVICE_MFC,
-                        PAL_PARAM_ID_UIEFFECT, paramData);
+                    ret = setEffectParameters(paramData);
                     if (ret) {
                         PAL_ERR(LOG_TAG, "failed to set dual mono param.");
                     } else {
@@ -1075,21 +1074,6 @@ int32_t  StreamPCM::setParameters(uint32_t param_id, void *payload)
     }
     // Stream may not know about tags, so use setParameters instead of setConfig
     switch (param_id) {
-        case PAL_PARAM_ID_UIEFFECT:
-        {
-            param_payload = (pal_param_payload *)payload;
-
-            effectPalPayload = (effect_pal_payload_t *)(param_payload->payload);
-            if (effectPalPayload->isTKV) {
-                status = session->setTKV(this, MODULE, effectPalPayload);
-            } else {
-                status = session->setParameters(this, effectPalPayload->tag, param_id, payload);
-            }
-            if (status) {
-               PAL_ERR(LOG_TAG, "setParameters %d failed with %d", param_id, status);
-            }
-            break;
-        }
         case PAL_PARAM_ID_TTY_MODE:
         {
             param_payload = (pal_param_payload *)payload;

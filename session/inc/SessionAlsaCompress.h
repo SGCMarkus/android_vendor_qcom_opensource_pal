@@ -157,7 +157,7 @@ public:
     int disconnectSessionDevice(Stream* streamHandle, pal_stream_type_t streamType,
         std::shared_ptr<Device> deviceToDisconnect) override;
     uint32_t getMIID(const char *backendName, uint32_t tagId, uint32_t *miid) override;
-    struct mixer_ctl* getFEMixerCtl(const char *controlName, int *device) override;
+    struct mixer_ctl* getFEMixerCtl(const char *controlName, int *device, pal_stream_direction_t dir __unused) override;
 };
 
 #endif //SESSION_ALSACOMPRESS_H

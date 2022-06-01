@@ -369,6 +369,33 @@ int32_t Stream::getEffectParameters(void *effect_query)
     return status;
 }
 
+int32_t Stream::setEffectParameters(void *effect_param)
+{
+    int32_t status = 0;
+
+    if (!effect_param) {
+        PAL_ERR(LOG_TAG, "invalid query");
+        return -EINVAL;
+    }
+
+    mStreamMutex.lock();
+    if (currentState == STREAM_IDLE) {
+        PAL_ERR(LOG_TAG, "Invalid stream state: IDLE");
+        mStreamMutex.unlock();
+        return -EINVAL;
+    }
+
+    pal_param_payload *pal_param = (pal_param_payload *)effect_param;
+    effect_pal_payload_t *effectPayload = (effect_pal_payload_t *)pal_param->payload;
+    status = session->setEffectParameters(this, effectPayload);
+    if (status) {
+       PAL_ERR(LOG_TAG, "setEffectParameters failed with %d", status);
+    }
+
+    mStreamMutex.unlock();
+
+    return status;
+}
 int32_t Stream::rwACDBParameters(void *payload, uint32_t sampleRate,
                                     bool isParamWrite)
 {
