@@ -541,7 +541,7 @@ int32_t StreamNonTunnel::suspend()
     }
 
     if (currentState == STREAM_STARTED) {
-        status = session->suspend();
+        status = session->suspend(this);
         if (status) {
             PAL_ERR(LOG_TAG, "Rx session suspend failed with status %d", status);
             goto exit;

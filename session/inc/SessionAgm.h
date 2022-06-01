@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -99,7 +100,7 @@ public:
     int registerCallBack(session_callback cb, uint64_t cookie);
     int drain(pal_drain_type_t type);
     int flush();
-    int suspend();
+    int suspend(Stream * s);
     int getTagsWithModuleInfo(Stream *s, size_t *size, uint8_t *payload) override;
     int getTimestamp(struct pal_session_time *stime __unused) {return 0;};
     int setupSessionDevice(Stream* streamHandle __unused, pal_stream_type_t streamType __unused,
