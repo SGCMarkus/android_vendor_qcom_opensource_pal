@@ -789,6 +789,18 @@
     <path name="bt-sco-mic-swb">
     </path>
 
+    <path name="bt-a2dp">
+    </path>
+
+    <path name="bt-a2dp-mic">
+    </path>
+
+    <path name="bt-ble">
+    </path>
+
+    <path name="bt-ble-mic">
+    </path>
+
     <path name="usb-headset-mic">
     </path>
 
