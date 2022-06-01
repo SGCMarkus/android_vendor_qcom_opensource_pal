@@ -149,6 +149,13 @@ int32_t pal_stream_open(struct pal_stream_attributes *attributes,
     }
 
     PAL_INFO(LOG_TAG, "Enter, stream type:%d", attributes->type);
+#ifdef SOC_PERIPHERAL_PROT
+    if (ResourceManager::isTZSecureZone) {
+        PAL_DBG(LOG_TAG, "In secure zone, so stop the usecase");
+        status = -ENODEV;
+        goto exit;
+    }
+#endif
 
     try {
         s = Stream::create(attributes, devices, no_of_devices, modifiers,
@@ -223,6 +230,14 @@ int32_t pal_stream_start(pal_stream_handle_t *stream_handle)
         return status;
     }
     PAL_INFO(LOG_TAG, "Enter. Stream handle %pK", stream_handle);
+
+#ifdef SOC_PERIPHERAL_PROT
+    if (ResourceManager::isTZSecureZone) {
+        PAL_DBG(LOG_TAG, "In secure zone, so stop the usecase");
+        status = -ENODEV;
+        goto exit;
+    }
+#endif
 
     s = reinterpret_cast<Stream *>(stream_handle);
 

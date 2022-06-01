@@ -527,8 +527,13 @@ bool ResourceManager::isDeviceMuxConfigEnabled = false;
 bool ResourceManager::isUpdDutyCycleEnabled = false;
 bool ResourceManager::isUPDVirtualPortEnabled = false;
 int ResourceManager::max_voice_vol = -1;     /* Variable to store max volume index for voice call */
-bool ResourceManager::isSignalHandlerEnabled = false;
 
+bool ResourceManager::isSignalHandlerEnabled = false;
+#ifdef SOC_PERIPHERAL_PROT
+bool ResourceManager::isTZSecureZone = false;
+void * ResourceManager::tz_handle = NULL;
+#define PRPHRL_REGSTR_RETRY_COUNT 10
+#endif
 //TODO:Needs to define below APIs so that functionality won't break
 #ifdef FEATURE_IPQ_OPENWRT
 int str_parms_get_str(struct str_parms *str_parms, const char *key,
@@ -652,6 +657,44 @@ pal_stream_type_t ResourceManager::getStreamType(std::string stream_name)
     return type;
 }
 
+#ifdef SOC_PERIPHERAL_PROT
+int32_t ResourceManager::secureZoneEventCb(const uint32_t peripheral,
+                                           const uint8_t secureState) {
+    struct mixer_ctl *ctl;
+
+   PAL_INFO(LOG_TAG,"Received Notification from TZ... secureState: %d", secureState);
+
+    ctl = mixer_get_ctl_by_name(audio_hw_mixer, "VOTE Against Sleep");
+    if (!ctl) {
+       PAL_ERR(LOG_TAG, "Invalid mixer control");
+       return -ENOENT;
+    }
+
+    switch (secureState) {
+        case STATE_SECURE:
+            ResourceManager::isTZSecureZone = true;
+            PAL_DBG(LOG_TAG, "Entry Secure zone successful");
+            mixer_ctl_set_enum_by_string(ctl, "Enable");
+            break;
+        case STATE_NONSECURE:
+            ResourceManager::isTZSecureZone = false;
+            PAL_DBG(LOG_TAG, "Exit Secure zone successful");
+            mixer_ctl_set_enum_by_string(ctl, "Disable");
+            break;
+        case STATE_RESET_CONNECTION:
+             /* Handling the state where connection got broken to get
+                state change notification */
+             PAL_INFO(LOG_TAG, "ssgtzd link got broken..re-registering to TZ");
+             registertoPeripheral(CPeripheralAccessControl_AUDIO_UID);
+             break;
+        default :
+            PAL_ERR(LOG_TAG, "Invalid secureState = %d", secureState);
+            return -EINVAL;
+    }
+    return 0;
+}
+#endif
+
 uint32_t ResourceManager::getNTPathForStreamAttr(
                               const pal_stream_attributes attr)
 {
@@ -740,7 +783,6 @@ ResourceManager::ResourceManager()
     na_props.rm_na_prop_enabled = false;
     na_props.ui_na_prop_enabled = false;
     na_props.na_mode = NATIVE_AUDIO_MODE_INVALID;
-
     max_session_num = DEFAULT_MAX_SESSIONS;
     max_nt_sessions = DEFAULT_NT_SESSION_TYPE_COUNT;
     //TODO: parse the tag and populate in the tags
@@ -902,8 +944,10 @@ ResourceManager::ResourceManager()
     use_lpi_ = IsLPISupported(PAL_STREAM_VOICE_UI) ||
         IsLPISupported(PAL_STREAM_ACD) ||
         IsLPISupported(PAL_STREAM_SENSOR_PCM_DATA);
+#ifdef SOC_PERIPHERAL_PROT
+    registertoPeripheral(CPeripheralAccessControl_AUDIO_UID);
+#endif
 }
-
 ResourceManager::~ResourceManager()
 {
     streamTag.clear();
@@ -949,7 +993,64 @@ ResourceManager::~ResourceManager()
 
     if (sleepmon_fd_ >= 0)
         close(sleepmon_fd_);
+#ifdef SOC_PERIPHERAL_PROT
+     deregPeripheralCb(tz_handle);
+#endif
 }
+
+#ifdef SOC_PERIPHERAL_PROT
+int ResourceManager::registertoPeripheral(uint32_t pUID)
+{
+    int retry = PRPHRL_REGSTR_RETRY_COUNT;
+    int state = PRPHRL_SUCCESS;
+
+    do {
+        /* register callback function with TZ service to get notifications of state change */
+        tz_handle = registerPeripheralCB(pUID, secureZoneEventCb);
+        if (tz_handle != NULL) {
+            PAL_INFO(LOG_TAG, "registered call back for audio peripheral[0x%x] to TZ", pUID);
+            break;
+        }
+        retry--;
+        usleep(1000);
+    } while(retry);
+
+    if (retry == 0)
+    {
+        PAL_INFO(LOG_TAG, "Failed to register call back for audio peripheral to TZ");
+        state = PRPHRL_ERROR;
+        return state;
+    }
+
+    /** Getting current peripheral state after connection */
+    state = getPeripheralState(tz_handle);
+    if (state == PRPHRL_ERROR) {
+         PAL_ERR(LOG_TAG, "Failed to get Peripheral state from TZ");
+         state = PRPHRL_ERROR;
+         return state;
+    } else if (state == STATE_SECURE) {
+
+            struct mixer_ctl *ctl;
+            ctl = mixer_get_ctl_by_name(audio_hw_mixer, "VOTE Against Sleep");
+            if (ctl != NULL) {
+                ResourceManager::isTZSecureZone = true;
+                mixer_ctl_set_enum_by_string(ctl, "Enable");
+            } else {
+                PAL_ERR(LOG_TAG, "Invalid mixer control");
+                state = PRPHRL_ERROR;
+                return state;
+            }
+    }
+    return state;
+}
+
+int ResourceManager::deregPeripheralCb(void *tz_handle)
+{
+    if (tz_handle)
+        return deregisterPeripheralCB(tz_handle);
+    return -1;
+}
+#endif
 
 void ResourceManager::loadAdmLib()
 {

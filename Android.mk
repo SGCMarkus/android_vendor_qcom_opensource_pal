@@ -18,6 +18,9 @@ LOCAL_CFLAGS        += -DCONFIG_GSL
 LOCAL_CFLAGS        += -D_GNU_SOURCE
 LOCAL_CFLAGS        += -DPAL_SP_TEMP_PATH=\"/data/vendor/audio/audio.cal\"
 LOCAL_CFLAGS        += -DACD_SM_FILEPATH=\"/vendor/etc/models/acd/\"
+ifeq ($(TARGET_BOARD_PLATFORM), kalama)
+LOCAL_CFLAGS        += -DSOC_PERIPHERAL_PROT
+endif
 LOCAL_CPPFLAGS      += -fexceptions -frtti
 
 LOCAL_C_INCLUDES := \
@@ -122,6 +125,13 @@ LOCAL_SHARED_LIBRARIES := \
     libaudioroute\
     libcutils \
     libagmclient
+
+ifeq ($(TARGET_BOARD_PLATFORM), kalama)
+LOCAL_SHARED_LIBRARIES += libPeripheralStateUtils
+LOCAL_HEADER_LIBRARIES += peripheralstate_headers \
+    vendor_common_inc\
+    mink_headers
+endif
 
 #if android version is R, use qtitinyxxx headers & libs, otherwise use upstream ones
 #This assumes we would be using AR code only for Android R and subsequent versions.
