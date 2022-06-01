@@ -743,6 +743,7 @@ public:
     int getDeviceEpName(int deviceId, std::string &epName);
     int getBackendName(int deviceId, std::string &backendName);
     void updateVirtualBackendName();
+    void updateVirtualBESndName();
     int getStreamTag(std::vector <int> &tag);
     int getDeviceTag(std::vector <int> &tag);
     int getMixerTag(std::vector <int> &tag);
