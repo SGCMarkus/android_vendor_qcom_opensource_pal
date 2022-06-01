@@ -44,7 +44,6 @@
 #include <regex>
 
 #define PARAM_ID_RESET_PLACEHOLDER_MODULE 0x08001173
-#define BLE_STRAEMMAP_OUT_DIRECTION 0
 #define BT_IPC_SOURCE_LIB                 "btaudio_offload_if.so"
 #define BT_IPC_SINK_LIB                   "libbthost_if_sink.so"
 #define MIXER_SET_FEEDBACK_CHANNEL        "BT set feedback channel"
@@ -671,7 +670,6 @@ void Bluetooth::startAbr()
     PayloadBuilder* builder = NULL;
     bool isDeviceLocked = false;
     audio_lc3_codec_cfg_t* bt_ble_codec = NULL;
-    lc3_stream_map_t* bt_ble_streamMap = NULL;
 
     memset(&fbDevice, 0, sizeof(fbDevice));
     memset(&sAttr, 0, sizeof(sAttr));
@@ -936,33 +934,10 @@ void Bluetooth::startAbr()
                 /* In case of BLE stereorecording/voice_call_decode_session, only decoder
                  * path configs are present so use the same config for RX feeedback path too
                  */
-                bt_ble_codec = (audio_lc3_codec_cfg_t*)calloc(1, sizeof(audio_lc3_codec_cfg_t));
-                if (bt_ble_codec == NULL) {
-                    PAL_ERR(LOG_TAG, "fail to allocate memory");
-                    goto free_fe;
-                }
-                memcpy(bt_ble_codec, codecInfo, sizeof(audio_lc3_codec_cfg_t));
+                bt_ble_codec = (audio_lc3_codec_cfg_t*)codecInfo;
+
                 memcpy(&bt_ble_codec->enc_cfg.toAirConfig, &bt_ble_codec->dec_cfg.fromAirConfig,
                        sizeof(lc3_cfg_t));
-
-                bt_ble_codec->enc_cfg.stream_map_size = bt_ble_codec->dec_cfg.stream_map_size;
-
-                bt_ble_streamMap = (lc3_stream_map_t*)calloc(1,
-                    sizeof(lc3_stream_map_t) * bt_ble_codec->enc_cfg.stream_map_size);
-                if (bt_ble_streamMap == NULL) {
-                    PAL_ERR(LOG_TAG, "fail to allocate memory");
-                    goto free_fe;
-                }
-
-                memcpy(bt_ble_streamMap, bt_ble_codec->dec_cfg.streamMapIn,
-                    sizeof(lc3_stream_map_t) * bt_ble_codec->enc_cfg.stream_map_size);
-                bt_ble_codec->enc_cfg.streamMapOut = (lc3_stream_map_t*)bt_ble_streamMap;
-
-                for (int i = 0; i < bt_ble_codec->enc_cfg.stream_map_size; i++) {
-                    bt_ble_codec->enc_cfg.streamMapOut[i].direction = BLE_STRAEMMAP_OUT_DIRECTION;
-                }
-
-                codecInfo = (void*)bt_ble_codec;
 
                 ret = getPluginPayload(&pluginLibHandle, &codec, &out_buf,
                                        (codecType == DEC ? ENC : DEC));
@@ -1182,14 +1157,6 @@ free_fe:
     rm->freeFrontEndIds(fbpcmDevIds, sAttr, dir);
     fbpcmDevIds.clear();
 done:
-    if (bt_ble_codec) {
-        free(bt_ble_codec);
-        bt_ble_codec = NULL;
-    }
-    if (bt_ble_streamMap) {
-        free(bt_ble_streamMap);
-        bt_ble_streamMap = NULL;
-    }
     if (isDeviceLocked) {
         isDeviceLocked = false;
         fbDev->unlockDeviceMutex();
