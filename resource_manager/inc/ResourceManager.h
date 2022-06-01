@@ -156,6 +156,7 @@ typedef enum {
     TAG_INSTREAM,
     TAG_POLICIES,
     TAG_ECREF,
+    TAG_VI_CHMAP,
     TAG_CUSTOMCONFIG,
     TAG_LPI_VOTE_STREAM,
     TAG_SLEEP_MONITOR_LPI_STREAM,
@@ -588,6 +589,7 @@ protected:
     int32_t scoOutConnectCount = 0;
     int32_t scoInConnectCount = 0;
     std::shared_ptr<SignalHandler> mSigHandler;
+    static std::vector<int> spViChannelMapCfg;
 public:
     ~ResourceManager();
     static bool mixerClosed;
@@ -749,6 +751,7 @@ public:
     int getStreamPpTag(std::vector <int> &tag);
     int getDevicePpTag(std::vector <int> &tag);
     int getDeviceDirection(uint32_t beDevId);
+    void getSpViChannelMapCfg(int32_t *channelMap, uint32_t numOfChannels);
     const std::vector<int> allocateFrontEndIds (const struct pal_stream_attributes,
                                                 int lDirection);
     const std::vector<int> allocateFrontEndExtEcIds ();
