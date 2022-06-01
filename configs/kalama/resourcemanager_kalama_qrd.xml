@@ -1276,8 +1276,9 @@
                 <!-- do update acdb and usecaseKvManager.xml files by adding more instances    -->
                 <param pdk_first_stage_max_engine_count="1"/>
                 <!-- Profile specific data which the algorithm can support -->
-                <param capture_keyword="2000" />
-                <param client_capture_read_delay="2000" />
+                <param capture_keyword="2000" /> <!-- Default history buffer length -->
+                <param client_capture_read_delay="2000" /> <!-- reserved buffer duration for rt data -->
+                <param pre_roll_duration="500" /> <!-- Default preroll duration -->
                 <!-- durations in us -->
                 <param kw_start_tolerance="360000" />
                 <param kw_end_tolerance="240000" />
