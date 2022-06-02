@@ -1144,14 +1144,6 @@ SpeakerProtection::SpeakerProtection(struct pal_device *device,
 
     memset(&mDeviceAttr, 0, sizeof(struct pal_device));
     memcpy(&mDeviceAttr, device, sizeof(struct pal_device));
-    if (device->id == PAL_DEVICE_OUT_HANDSET) {
-        vi_device.channels = 1;
-        cps_device.channels = 1;
-        numberOfChannels = 1;
-        PAL_DBG(LOG_TAG, "Device id: %d vi channels: %d numberOfChannels: %d cps channels %d",
-                     device->id, vi_device.channels, numberOfChannels, cps_device.channels);
-        goto exit;
-    }
 
     threadExit = false;
     calThrdCreated = false;
@@ -1161,6 +1153,14 @@ SpeakerProtection::SpeakerProtection(struct pal_device *device,
     spkrProcessingState = SPKR_PROCESSING_IN_IDLE;
 
     isSpkrInUse = false;
+
+    if (device->id == PAL_DEVICE_OUT_HANDSET) {
+        vi_device.channels = 1;
+        numberOfChannels = 1;
+        PAL_DBG(LOG_TAG, "Device id: %d vi_device.channels: %d numberOfChannels: %d",
+                              device->id, vi_device.channels, numberOfChannels);
+        goto exit;
+    }
 
     rm->getDeviceInfo(PAL_DEVICE_OUT_SPEAKER, PAL_STREAM_PROXY, "", &devinfo);
     numberOfChannels = devinfo.channels;
