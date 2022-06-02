@@ -678,10 +678,16 @@ bool Device::compareStreamDevAttr(const struct pal_device *inDevAttr,
             insert = true;
             goto exit;
         } else if (inDevAttr->config.sample_rate > curDevAttr->config.sample_rate) {
-            PAL_DBG(LOG_TAG, "incoming dev has higher sr: %d, cur sr: %d",
+            if (curDevAttr->config.sample_rate % SAMPLINGRATE_44K == 0 &&
+                inDevAttr->config.sample_rate % SAMPLINGRATE_48K == 0) {
+                PAL_DBG(LOG_TAG, "current stream is running at 44.1KHz");
+                insert = false;
+            } else {
+                PAL_DBG(LOG_TAG, "incoming dev has higher sr: %d, cur sr: %d",
                             inDevAttr->config.sample_rate, curDevAttr->config.sample_rate);
-            insert = true;
-            goto exit;
+                insert = true;
+                goto exit;
+            }
         }
     }
 
