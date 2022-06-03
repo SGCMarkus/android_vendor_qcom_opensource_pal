@@ -1347,7 +1347,7 @@
         <ctl name="ADC4_MIXER Switch" value="1"/>
         <ctl name="ADC2_MIXER Switch" value="1"/>
         <ctl name="AMIC1_MIXER Switch" value="1"/>
-        <ctl name="AMIC3_MIXER Switch" value="1"/>
+        <ctl name="AMIC5_MIXER Switch" value="1"/>
         <ctl name="TX_DEC1 Volume" value="84"/>
         <ctl name="TX_DEC2 Volume" value="84"/>
         <ctl name="TX_DEC3 Volume" value="84"/>
@@ -1404,7 +1404,7 @@
         <ctl name="ADC4_MIXER Switch" value="1"/>
         <ctl name="ADC2_MIXER Switch" value="1"/>
         <ctl name="AMIC1_MIXER Switch" value="1"/>
-        <ctl name="AMIC3_MIXER Switch" value="1"/>
+        <ctl name="AMIC5_MIXER Switch" value="1"/>
         <ctl name="TX_DEC1 Volume" value="84"/>
         <ctl name="TX_DEC2 Volume" value="84"/>
         <ctl name="TX_DEC3 Volume" value="84"/>
