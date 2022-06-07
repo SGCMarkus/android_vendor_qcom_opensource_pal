@@ -523,13 +523,9 @@ int32_t StreamSoundTrigger::setParameters(uint32_t param_id, void *payload) {
         case PAL_PARAM_ID_RECOGNITION_CONFIG: {
             new_rec_config =
                 (struct pal_st_recognition_config *)param_payload->payload;
-            if (!compareRecognitionConfig(rec_config_, new_rec_config)) {
-                std::shared_ptr<StEventConfig> ev_cfg(
-                    new StRecognitionCfgEventConfig((void *)new_rec_config));
-                status = cur_state_->ProcessEvent(ev_cfg);
-            } else {
-                PAL_DBG(LOG_TAG, "Same recognition config, no need to update");
-            }
+            std::shared_ptr<StEventConfig> ev_cfg(
+                new StRecognitionCfgEventConfig((void *)new_rec_config));
+            status = cur_state_->ProcessEvent(ev_cfg);
             break;
         }
         case PAL_PARAM_ID_STOP_BUFFERING: {
@@ -3975,6 +3971,13 @@ int32_t StreamSoundTrigger::StDetected::ProcessEvent(
             break;
         }
         case ST_EV_RECOGNITION_CONFIG: {
+            StRecognitionCfgEventConfigData *data =
+                (StRecognitionCfgEventConfigData *)ev_cfg->data_.get();
+            if (st_stream_.compareRecognitionConfig(st_stream_.rec_config_,
+                    (struct pal_st_recognition_config *)data->data_)) {
+                PAL_DBG(LOG_TAG, "Same recognition config, skip update");
+                break;
+            }
             if (st_stream_.mDevices.size() > 0) {
                 auto& dev = st_stream_.mDevices[0];
                 PAL_VERBOSE(LOG_TAG, "Deregister device %d-%s", dev->getSndDeviceId(),
@@ -4169,6 +4172,13 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
             break;
         }
         case ST_EV_RECOGNITION_CONFIG: {
+            StRecognitionCfgEventConfigData *data =
+                (StRecognitionCfgEventConfigData *)ev_cfg->data_.get();
+            if (st_stream_.compareRecognitionConfig(st_stream_.rec_config_,
+                    (struct pal_st_recognition_config *)data->data_)) {
+                PAL_DBG(LOG_TAG, "Same recognition config, skip update");
+                break;
+            }
             if (st_stream_.mDevices.size() > 0) {
                 auto& dev = st_stream_.mDevices[0];
                 PAL_VERBOSE(LOG_TAG, "Deregister device %d-%s", dev->getSndDeviceId(),
