@@ -228,6 +228,7 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
     uint64_t kw_transfer_latency_;
     ChronoSteadyClock_t detection_time_;
     std::mutex state_mutex_;
+    std::mutex eos_mutex_;
     static std::mutex eng_create_mutex_;
     static int32_t engine_count_;
 };

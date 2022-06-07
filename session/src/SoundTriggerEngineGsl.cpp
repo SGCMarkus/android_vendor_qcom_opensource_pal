@@ -40,6 +40,7 @@
 #include "StreamSoundTrigger.h"
 #include "ResourceManager.h"
 #include "SoundTriggerPlatformInfo.h"
+#include "sh_mem_pull_push_mode_api.h"
 
 // TODO: find another way to print debug logs by default
 #define ST_DBG_LOGS
@@ -47,12 +48,7 @@
 #define PAL_DBG(LOG_TAG,...)  PAL_INFO(LOG_TAG,__VA_ARGS__)
 #endif
 
-/*
- * Workaround for crash issue in buffering
- * TODO: remove this when ADSP fix is ready
- */
-#define MAX_RETRY_CNT 4
-#define SLEEP_TIME_MS 10
+#define TIMEOUT_FOR_EOS 100000
 
 ST_DBG_DECLARE(static int dsp_output_cnt = 0);
 
@@ -62,6 +58,7 @@ std::map<Stream*, std::shared_ptr<SoundTriggerEngineGsl>>
                  SoundTriggerEngineGsl::str_eng_map_;
 std::mutex SoundTriggerEngineGsl::eng_create_mutex_;
 int32_t SoundTriggerEngineGsl::engine_count_ = 0;
+std::condition_variable cvEOS;
 
 void SoundTriggerEngineGsl::EventProcessingThread(
     SoundTriggerEngineGsl *gsl_engine) {
@@ -2011,13 +2008,11 @@ int32_t SoundTriggerEngineGsl::StartRecognition(Stream *s) {
 int32_t SoundTriggerEngineGsl::RestartRecognition(Stream *s) {
     int32_t status = 0;
     struct pal_mmap_position mmap_pos;
-    uint32_t total_retry_cnt = 0;
-    uint32_t retry_count = MAX_RETRY_CNT;
-    uint32_t sleep_ms = SLEEP_TIME_MS;
 
     PAL_DBG(LOG_TAG, "Enter");
     exit_buffering_ = true;
     std::lock_guard<std::mutex> lck(mutex_);
+    std::unique_lock<std::mutex> lck_eos(eos_mutex_);
 
     /* If engine is not active, do not restart recognition again */
     if (!IsEngineActive()) {
@@ -2040,26 +2035,18 @@ int32_t SoundTriggerEngineGsl::RestartRecognition(Stream *s) {
     if (status)
         PAL_ERR(LOG_TAG, "Failed to reset engine, status = %d", status);
 
+    PAL_DBG(LOG_TAG, "Waiting for EOS event");
+    cvEOS.wait_for(lck_eos, std::chrono::microseconds(TIMEOUT_FOR_EOS));
+    PAL_DBG(LOG_TAG, "Waiting done for EOS event");
+
     // Update mmap write position after engine reset
     if (mmap_buffer_size_) {
-        while (retry_count) {
-            status = session_->GetMmapPosition(s, &mmap_pos);
-            if (!status) {
-                if (mmap_write_position_ == mmap_pos.position_frames) {
-                    retry_count--;
-                } else {
-                    mmap_write_position_ = mmap_pos.position_frames;
-                    retry_count = MAX_RETRY_CNT;
-                }
-            } else {
-                PAL_ERR(LOG_TAG, "Failed to get mmap position, status %d", status);
-                break;
-            }
-            if (++total_retry_cnt >= 2 * MAX_RETRY_CNT)
-                break;
+        status = session_->GetMmapPosition(s, &mmap_pos);
+        if (!status)
+            mmap_write_position_ = mmap_pos.position_frames;
+        else
+            PAL_ERR(LOG_TAG, "Failed to get mmap position, status %d", status);
 
-            std::this_thread::sleep_for(std::chrono::milliseconds(sleep_ms));
-        }
         // reset wall clk in agm pcm plugin
         status = session_->ResetMmapBuffer(s);
         if (status)
@@ -2558,8 +2545,14 @@ void SoundTriggerEngineGsl::HandleSessionCallBack(uint64_t hdl, uint32_t event_i
 
     // Possible that AGM_EVENT_EOS_RENDERED could be sent during spf stop.
     // Check and handle only required detection event.
-    if (event_id != EVENT_ID_DETECTION_ENGINE_GENERIC_INFO)
+    if (event_id != EVENT_ID_DETECTION_ENGINE_GENERIC_INFO) {
+        if (event_id == EVENT_ID_SH_MEM_PUSH_MODE_EOS_MARKER) {
+            PAL_DBG(LOG_TAG,
+            "Received event for EVENT_ID_SH_MEM_PUSH_MODE_EOS_MARKER");
+            cvEOS.notify_all();
+        }
         return;
+    }
 
     engine = (SoundTriggerEngineGsl *)hdl;
     std::unique_lock<std::mutex> lck(engine->mutex_);
