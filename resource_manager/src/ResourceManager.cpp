@@ -675,20 +675,28 @@ int32_t ResourceManager::secureZoneEventCb(const uint32_t peripheral,
     switch (secureState) {
         case STATE_SECURE:
             ResourceManager::isTZSecureZone = true;
-            PAL_DBG(LOG_TAG, "Entry Secure zone successful");
+            PAL_DBG(LOG_TAG, "Enter Secure zone successfully, vote for LPASS core");
+            mixer_ctl_set_enum_by_string(ctl, "Enable");
+            break;
+        case STATE_POST_CHANGE:
+            PAL_DBG(LOG_TAG, "Entered Secure zone successfully, unvote for LPASS core");
+            mixer_ctl_set_enum_by_string(ctl, "Disable");
+            break;
+        case STATE_PRE_CHANGE:
+            PAL_DBG(LOG_TAG, "Before the exit from secure zone, vote for LPASS core");
             mixer_ctl_set_enum_by_string(ctl, "Enable");
             break;
         case STATE_NONSECURE:
             ResourceManager::isTZSecureZone = false;
-            PAL_DBG(LOG_TAG, "Exit Secure zone successful");
+            PAL_DBG(LOG_TAG, "Exited Secure zone successfully, unvote for LPASS core");
             mixer_ctl_set_enum_by_string(ctl, "Disable");
             break;
         case STATE_RESET_CONNECTION:
-             /* Handling the state where connection got broken to get
+            /* Handling the state where connection got broken to get
                 state change notification */
-             PAL_INFO(LOG_TAG, "ssgtzd link got broken..re-registering to TZ");
-             registertoPeripheral(CPeripheralAccessControl_AUDIO_UID);
-             break;
+            PAL_INFO(LOG_TAG, "ssgtzd link got broken..re-registering to TZ");
+            registertoPeripheral(CPeripheralAccessControl_AUDIO_UID);
+            break;
         default :
             PAL_ERR(LOG_TAG, "Invalid secureState = %d", secureState);
             return -EINVAL;
@@ -1033,17 +1041,7 @@ int ResourceManager::registertoPeripheral(uint32_t pUID)
          state = PRPHRL_ERROR;
          return state;
     } else if (state == STATE_SECURE) {
-
-            struct mixer_ctl *ctl;
-            ctl = mixer_get_ctl_by_name(audio_hw_mixer, "VOTE Against Sleep");
-            if (ctl != NULL) {
                 ResourceManager::isTZSecureZone = true;
-                mixer_ctl_set_enum_by_string(ctl, "Enable");
-            } else {
-                PAL_ERR(LOG_TAG, "Invalid mixer control");
-                state = PRPHRL_ERROR;
-                return state;
-            }
     }
     return state;
 }
