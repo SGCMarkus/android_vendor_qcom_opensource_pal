@@ -86,8 +86,6 @@
 #define CUSTOM_STEREO_NUM_OUT_CH 0x0002
 #define CUSTOM_STEREO_NUM_IN_CH 0x0002
 #define Q14_GAIN_ZERO_POINT_FIVE 0x2000
-#define PCM_CHANNEL_FL 1
-#define PCM_CHANNEL_FR 2
 #define CUSTOM_STEREO_CMD_PARAM_SIZE 24
 
 #define PARAM_ID_DISPLAY_PORT_INTF_CFG   0x8001154
@@ -216,8 +214,6 @@ struct param_id_mfc_output_media_fmt_t
 #include "spf_end_pragma.h"
 #include "spf_end_pack.h"
 ;
-/* Structure type def for above payload. */
-typedef struct param_id_mfc_output_media_fmt_t param_id_mfc_output_media_fmt_t;
 
 struct param_id_usb_audio_intf_cfg_t
 {
@@ -1552,11 +1548,11 @@ int PayloadBuilder::payloadDualMono(uint8_t **payloadInfo)
     /*for stereo mixing num in ch*/
     *update_params_value16++ = CUSTOM_STEREO_NUM_IN_CH;
     /* Out ch map FL/FR*/
-    *update_params_value16++ = PCM_CHANNEL_FL;
-    *update_params_value16++ = PCM_CHANNEL_FR;
+    *update_params_value16++ = PCM_CHANNEL_L;
+    *update_params_value16++ = PCM_CHANNEL_R;
     /* In ch map FL/FR*/
-    *update_params_value16++ = PCM_CHANNEL_FL;
-    *update_params_value16++ = PCM_CHANNEL_FR;
+    *update_params_value16++ = PCM_CHANNEL_L;
+    *update_params_value16++ = PCM_CHANNEL_R;
     /* weight */
     *update_params_value16++ = Q14_GAIN_ZERO_POINT_FIVE;
     *update_params_value16++ = Q14_GAIN_ZERO_POINT_FIVE;
