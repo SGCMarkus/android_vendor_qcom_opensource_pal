@@ -25,6 +25,11 @@
  * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
  * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Changes from Qualcomm Innovation Center are provided under the following license
+ *
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause-Clear
  */
 
 
@@ -82,13 +87,10 @@ public:
     void GetUpdatedBufConfig(uint32_t *hist_buffer_duration __unused,
                             uint32_t *pre_roll_duration __unused) {}
     void SetCaptureRequested(bool is_requested __unused) {}
-    void* GetDetectionEventInfo() { return nullptr; }
     int32_t setECRef(
         Stream *s __unused,
         std::shared_ptr<Device> dev __unused,
         bool is_enable __unused) { return 0; }
-    int32_t GetDetectedConfScore() { return det_conf_score_; }
-    int32_t GetDetectionState() { return detection_state_; }
     ChronoSteadyClock_t GetDetectedTime() {
         return std::chrono::steady_clock::time_point::min();
     }

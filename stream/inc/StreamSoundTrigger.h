@@ -25,6 +25,11 @@
  * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
  * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Changes from Qualcomm Innovation Center are provided under the following license
+ *
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause-Clear
  */
 
 
@@ -95,6 +100,7 @@ enum {
 
 class ResourceManager;
 class SoundModelInfo;
+class VoiceUIInterface;
 
 class StreamSoundTrigger : public Stream
 {
@@ -143,18 +149,14 @@ public:
         return -ENOSYS;
     }
 
-    struct detection_event_info* GetDetectionEventInfo();
-    int32_t ParseDetectionPayload(uint32_t *event_data);
     void SetDetectedToEngines(bool detected);
     int32_t SetEngineDetectionState(int32_t state);
-    int32_t notifyClient(bool detection);
 
     static int32_t isSampleRateSupported(uint32_t sampleRate);
     static int32_t isChannelSupported(uint32_t numChannels);
     static int32_t isBitWidthSupported(uint32_t bitWidth);
 
     std::shared_ptr<CaptureProfile> GetCurrentCaptureProfile();
-    SoundModelInfo* GetSoundModelInfo() { return sm_info_; };
     int32_t DisconnectDevice(pal_device_id_t device_id) override;
     int32_t ConnectDevice(pal_device_id_t device_id) override;
     int32_t Resume() override;
@@ -173,8 +175,6 @@ public:
     uint32_t GetPreRollDuration() { return pre_roll_duration_; }
     uint32_t GetModelId(){ return model_id_; }
     void SetModelId(uint32_t model_id) { model_id_ = model_id; }
-    void SetModelType(st_module_type_t model_type) { model_type_ = model_type; }
-    st_module_type_t GetModelType() { return model_type_; }
     bool GetLPIEnabled() { return use_lpi_; }
     uint32_t GetInstanceId();
     bool IsStreamInBuffering() {
@@ -505,26 +505,7 @@ private:
        const struct pal_st_recognition_config *current_config,
        struct pal_st_recognition_config *new_config);
 
-    int32_t ParseOpaqueConfLevels(void *opaque_conf_levels,
-                                  uint32_t version,
-                                  uint8_t **out_conf_levels,
-                                  uint32_t *out_num_conf_levels);
-    int32_t FillConfLevels(struct pal_st_recognition_config *config,
-                           uint8_t **out_conf_levels,
-                           uint32_t *out_num_conf_levels);
-    int32_t FillOpaqueConfLevels(const void *sm_levels_generic,
-                                 uint8_t **out_payload,
-                                 uint32_t *out_payload_size,
-                                 uint32_t version);
-    void PackEventConfLevels(uint8_t *opaque_data);
-    void FillCallbackConfLevels(uint8_t *opaque_data, uint32_t det_keyword_id,
-                             uint32_t best_conf_level);
-    int32_t GenerateCallbackEvent(struct pal_st_recognition_event **event,
-                                  uint32_t *event_size, bool detection);
-    static int32_t HandleDetectionEvent(pal_stream_handle_t *stream_handle,
-                                        uint32_t event_id,
-                                        uint32_t *event_data,
-                                        uint64_t cookie __unused);
+    int32_t notifyClient(bool detection);
 
     static void TimerThread(StreamSoundTrigger& st_stream);
     void PostDelayedStop();
@@ -550,9 +531,10 @@ private:
     SoundModelInfo* sm_info_;
     std::vector<std::shared_ptr<EngineCfg>> engines_;
     std::shared_ptr<SoundTriggerEngine> gsl_engine_;
+    std::shared_ptr<VoiceUIInterface> vui_intf_;
 
     pal_st_sound_model_type_t sound_model_type_;
-    struct pal_st_phrase_sound_model *sm_config_;
+    struct pal_st_sound_model *sm_config_;
     struct pal_st_recognition_config *rec_config_;
     uint32_t recognition_mode_;
     uint32_t detection_state_;

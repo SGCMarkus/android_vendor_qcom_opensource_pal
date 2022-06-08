@@ -25,6 +25,11 @@
  * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
  * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Changes from Qualcomm Innovation Center are provided under the following license
+ *
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause-Clear
  */
 
 
@@ -43,19 +48,18 @@
 #include "Device.h"
 #include "SoundTriggerUtils.h"
 #include "VoiceUIPlatformInfo.h"
+#include "VoiceUIInterface.h"
 
-using ChronoSteadyClock_t = std::chrono::time_point<std::chrono::steady_clock>;
-
+#define MAX_MODELS_SUPPORTED 8
 #define BITS_PER_BYTE 8
 #define US_PER_SEC 1000000
 #define MS_PER_SEC 1000
-#define CNN_BUFFER_LENGTH 10000
-#define CNN_FRAME_SIZE 320
-#define CUSTOM_CONFIG_OPAQUE_DATA_SIZE 12
-#define CONF_LEVELS_INTF_VERSION_0002 0x02
-#define MAX_MODELS_SUPPORTED 8
+
+
+using ChronoSteadyClock_t = std::chrono::time_point<std::chrono::steady_clock>;
 
 class Stream;
+class VoiceUIInterface;
 
 struct model_stats
 {
@@ -133,16 +137,11 @@ public:
     virtual void DetachStream(Stream *s, bool erase_engine) {}
     virtual void SetCaptureRequested(bool is_requested) = 0;
     virtual void UpdateStateToActive() {};
-    virtual void* GetDetectionEventInfo() = 0;
     virtual int32_t ReconfigureDetectionGraph(Stream *s) { return 0; }
     virtual int32_t setECRef(
         Stream *s,
         std::shared_ptr<Device> dev,
         bool is_enable) = 0;
-    virtual int32_t GetCustomDetectionEvent(uint8_t **event __unused,
-        size_t *size __unused) { return 0; }
-    virtual int32_t GetDetectedConfScore() = 0;
-    virtual int32_t GetDetectionState() = 0;
     virtual ChronoSteadyClock_t GetDetectedTime() = 0;
 
     int32_t CreateBuffer(uint32_t buffer_size, uint32_t engine_size,
@@ -152,12 +151,17 @@ public:
     uint32_t UsToBytes(uint64_t input_us);
     uint32_t FrameToBytes(uint32_t frames);
     uint32_t BytesToFrames(uint32_t bytes);
-    listen_model_indicator_enum GetEngineType() { return engine_type_; }
+
+    std::shared_ptr<VoiceUIInterface> GetVoiceUIInterface() { return vui_intf_; }
+    void SetVoiceUIInterface(std::shared_ptr<VoiceUIInterface> intf) {
+        vui_intf_ = intf;
+    }
 
 protected:
     listen_model_indicator_enum engine_type_;
     std::shared_ptr<VoiceUIPlatformInfo> vui_ptfm_info_;
     std::shared_ptr<VUIStreamConfig> sm_cfg_;
+    std::shared_ptr<VoiceUIInterface> vui_intf_;
     uint8_t *sm_data_;
     uint32_t sm_data_size_;
     bool capture_requested_;
