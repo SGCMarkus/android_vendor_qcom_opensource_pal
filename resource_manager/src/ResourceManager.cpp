@@ -2237,16 +2237,18 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
     else {
         deviceattr->config.bit_width = ((sAttr == NULL) ?  BITWIDTH_16 :
                     (sAttr->direction == PAL_AUDIO_INPUT) ? sAttr->in_media_config.bit_width : sAttr->out_media_config.bit_width);
+        if (deviceattr->config.bit_width == BITWIDTH_32 && deviceattr->id == PAL_DEVICE_OUT_SPEAKER) {
+            if (devinfo.bitFormatSupported != PAL_AUDIO_FMT_PCM_S32_LE) {
+                PAL_DBG(LOG_TAG, "32 bit is not supported, hence update with supported bit format");
+                deviceattr->config.aud_fmt_id = devinfo.bitFormatSupported;
+                deviceattr->config.bit_width = palFormatToBitwidthLookup(devinfo.bitFormatSupported);
+            }
+        }
     }
     if (!isBitWidthSupported(deviceattr->config.bit_width))
         deviceattr->config.bit_width = BITWIDTH_16;
 
     deviceattr->config.aud_fmt_id = bitWidthToFormat.at(deviceattr->config.bit_width);
-    /*special case if bitFormatSupported is requested*/
-    if (devinfo.bitFormatSupported != PAL_AUDIO_FMT_DEFAULT_PCM) {
-        deviceattr->config.aud_fmt_id = devinfo.bitFormatSupported;
-        deviceattr->config.bit_width = palFormatToBitwidthLookup(devinfo.bitFormatSupported);
-    }
 
     if ((sAttr != NULL) && (sAttr->direction == PAL_AUDIO_INPUT) &&
             (deviceattr->config.bit_width == BITWIDTH_32)) {
