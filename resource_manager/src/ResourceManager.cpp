@@ -815,8 +815,10 @@ ResourceManager::ResourceManager()
         throw std::runtime_error("error in resource xml parsing");
     }
 
-    if (IsVirtualPortForUPDEnabled())
+    if (IsVirtualPortForUPDEnabled()) {
         updateVirtualBackendName();
+        updateVirtualBESndName();
+    }
 
     if (isHifiFilterEnabled)
         audio_route_apply_and_update_path(audio_route, "hifi-filter-coefficients");
@@ -6997,6 +6999,28 @@ void ResourceManager::updateVirtualBackendName()
         }
 
         listAllBackEndIds[virtual_dev[i]].second.assign(backendName);
+    }
+}
+
+void ResourceManager::updateVirtualBESndName()
+{
+    std::map<group_dev_config_idx_t, std::shared_ptr<group_dev_config_t>>::iterator it;
+    std::shared_ptr<group_dev_config_t> group_device_config = NULL;
+    group_dev_config_idx_t grp_dev_cfgs[] = {GRP_UPD_RX_HANDSET, GRP_UPD_RX_SPEAKER};
+
+    if (!isVbatEnabled)
+        return;
+
+    for (int i = 0; i < sizeof(grp_dev_cfgs) / sizeof(grp_dev_cfgs[0]); i++) {
+        it = groupDevConfigMap.find(grp_dev_cfgs[i]);
+        if (it == groupDevConfigMap.end())
+            continue;
+
+        group_device_config = it->second;
+        if (group_device_config) {
+            if (!strcmp(group_device_config->snd_dev_name.c_str(), "speaker"))
+                group_device_config->snd_dev_name.assign("speaker-vbat");
+        }
     }
 }
 
