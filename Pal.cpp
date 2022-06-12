@@ -47,7 +47,7 @@ class Stream;
  *  @return the version string in the form of Major and Minor
  *  e.g '1.0'
  */
-char* pal_get_version( ){
+const char* pal_get_version( ){
     return PAL_VERSION;
 }
 
