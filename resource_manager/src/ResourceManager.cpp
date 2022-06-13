@@ -835,6 +835,8 @@ ResourceManager::ResourceManager()
     }
 
 #if defined(ADSP_SLEEP_MONITOR)
+    lpi_counter_ = 0;
+    nlpi_counter_ = 0;
     sleepmon_fd_ = open(ADSPSLEEPMON_DEVICE_NAME, O_RDWR);
     if (sleepmon_fd_ == -1)
         PAL_ERR(LOG_TAG, "Failed to open ADSP sleep monitor file");
