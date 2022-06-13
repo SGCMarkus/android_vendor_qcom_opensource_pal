@@ -301,8 +301,9 @@ int32_t SoundTriggerEngineGsl::StartBuffering(Stream *s) {
             if (!status) {
                 bytes_written = FrameToBytes(mmap_pos.position_frames -
                     mmap_write_position_);
-                if (bytes_written == UINT32_MAX) {
-                    PAL_ERR(LOG_TAG, "invalid frame value");
+
+                if (bytes_written > (mmap_buffer_size_ - read_offset)) {
+                    PAL_ERR(LOG_TAG, "Bytes written is exceeding mmap buffer size");
                     status = -EINVAL;
                     goto exit;
                 }
