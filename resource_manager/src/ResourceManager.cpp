@@ -435,7 +435,7 @@ bool isPalPCMFormat(uint32_t fmt_id)
 bool ResourceManager::isBitWidthSupported(uint32_t bitWidth)
 {
     bool rc = false;
-    PAL_DBG(LOG_TAG, "bitWidth %u", bitWidth);
+    PAL_VERBOSE(LOG_TAG, "bitWidth %u", bitWidth);
     switch (bitWidth) {
         case BITWIDTH_16:
         case BITWIDTH_24:
@@ -779,6 +779,7 @@ void ResourceManager::sendCrashSignal(int signal, pid_t pid, uid_t uid)
 
 ResourceManager::ResourceManager()
 {
+    PAL_INFO(LOG_TAG, "Enter: %p", this);
     int ret = 0;
     // Init audio_route and audio_mixer
     sleepmon_fd_ = -1;
@@ -951,6 +952,7 @@ ResourceManager::ResourceManager()
 #ifdef SOC_PERIPHERAL_PROT
     registertoPeripheral(CPeripheralAccessControl_AUDIO_UID);
 #endif
+    PAL_INFO(LOG_TAG, "Exit: %p", this);
 }
 ResourceManager::~ResourceManager()
 {
@@ -1061,9 +1063,9 @@ void ResourceManager::loadAdmLib()
     if (access(ADM_LIBRARY_PATH, R_OK) == 0) {
         admLibHdl = dlopen(ADM_LIBRARY_PATH, RTLD_NOW);
         if (admLibHdl == NULL) {
-            PAL_INFO(LOG_TAG, "DLOPEN failed for %s", ADM_LIBRARY_PATH);
+            PAL_ERR(LOG_TAG, "DLOPEN failed for %s %s", ADM_LIBRARY_PATH, dlerror());
         } else {
-            PAL_INFO(LOG_TAG, "DLOPEN successful for %s", ADM_LIBRARY_PATH);
+            PAL_VERBOSE(LOG_TAG, "DLOPEN successful for %s", ADM_LIBRARY_PATH);
             admInitFn = (adm_init_t)
                 dlsym(admLibHdl, "adm_init");
             admDeInitFn = (adm_deinit_t)
@@ -1087,7 +1089,7 @@ void ResourceManager::loadAdmLib()
             admRequestFocus_v2_1Fn = (adm_request_focus_v2_1_t)
                 dlsym(admLibHdl, "adm_request_focus_v2_1");
 
-
+            dlerror(); // clear error during dlsym, if any.
             if (admInitFn)
                 admData = admInitFn();
         }
@@ -1182,7 +1184,7 @@ void ResourceManager::ssrHandlingLoop(std::shared_ptr<ResourceManager> rm)
     pal_global_callback_event_t event;
     pal_stream_type_t type;
 
-    PAL_INFO(LOG_TAG,"ssr Handling thread started");
+    PAL_VERBOSE(LOG_TAG,"ssr Handling thread started");
 
     while(1) {
         if (rm->msgQ.empty())
@@ -1292,7 +1294,7 @@ int ResourceManager::initSndMonitor()
         return ret;
     } else {
         cardState = CARD_STATUS_ONLINE;
-        PAL_INFO(LOG_TAG, "Sound monitor initialized");
+        PAL_VERBOSE(LOG_TAG, "Sound monitor initialized");
         return ret;
     }
 }
@@ -1443,7 +1445,7 @@ int ResourceManager::initContextManager()
 {
     int ret = 0;
 
-    PAL_INFO(LOG_TAG," isContextManagerEnabled: %s", isContextManagerEnabled? "true":"false");
+    PAL_VERBOSE(LOG_TAG," isContextManagerEnabled: %s", isContextManagerEnabled? "true":"false");
     if (isContextManagerEnabled) {
         ret = ctxMgr->Init();
         if (ret != 0) {
@@ -1481,7 +1483,7 @@ int ResourceManager::init()
         PAL_DBG(LOG_TAG, "Speaker instance created");
     }
     else
-        PAL_INFO(LOG_TAG, "Speaker instance not created");
+        PAL_DBG(LOG_TAG, "Speaker instance not created");
 
     return 0;
 }
@@ -1521,7 +1523,7 @@ int32_t ResourceManager::voteSleepMonitor(Stream *str, bool vote, bool force_nlp
         PAL_ERR(LOG_TAG, "getStreamType failed with status : %d", ret);
         return ret;
     }
-    PAL_INFO(LOG_TAG, "Enter for stream type %d", type);
+    PAL_VERBOSE(LOG_TAG, "Enter for stream type %d", type);
     lpi_stream = ((find(lpi_vote_streams_.begin(), lpi_vote_streams_.end(), type) !=
                   lpi_vote_streams_.end()) && !IsTransitToNonLPIOnChargingSupported()
                   && (!force_nlpi_vote));
@@ -2725,7 +2727,7 @@ bool ResourceManager::isStreamSupported(struct pal_stream_attributes *attributes
                PAL_ERR(LOG_TAG, "config not supported rc %d", rc);
                return result;
             }
-            PAL_INFO(LOG_TAG, "config suppported");
+            PAL_VERBOSE(LOG_TAG, "config suppported");
             result = true;
             break;
         case PAL_STREAM_RAW:
@@ -2745,7 +2747,7 @@ bool ResourceManager::isStreamSupported(struct pal_stream_attributes *attributes
                PAL_ERR(LOG_TAG, "config not supported rc %d", rc);
                return result;
             }
-            PAL_INFO(LOG_TAG, "config suppported");
+            PAL_VERBOSE(LOG_TAG, "config suppported");
             result = true;
             break;
         case PAL_STREAM_COMPRESSED:
@@ -2784,7 +2786,7 @@ bool ResourceManager::isStreamSupported(struct pal_stream_attributes *attributes
                PAL_ERR(LOG_TAG, "config not supported rc %d", rc);
                return result;
             }
-            PAL_INFO(LOG_TAG, "config suppported");
+            PAL_VERBOSE(LOG_TAG, "config suppported");
             result = true;
             break;
         case PAL_STREAM_VOICE_CALL:
@@ -2798,7 +2800,7 @@ bool ResourceManager::isStreamSupported(struct pal_stream_attributes *attributes
                PAL_ERR(LOG_TAG, "config not supported rc %d", rc);
                return result;
             }
-            PAL_INFO(LOG_TAG, "config suppported");
+            PAL_VERBOSE(LOG_TAG, "config suppported");
             result = true;
             break;
         case PAL_STREAM_NON_TUNNEL:
@@ -2806,7 +2808,7 @@ bool ResourceManager::isStreamSupported(struct pal_stream_attributes *attributes
                PAL_ERR(LOG_TAG, "config dir %d not supported", attributes->direction);
                return result;
             }
-            PAL_INFO(LOG_TAG, "config suppported");
+            PAL_VERBOSE(LOG_TAG, "config suppported");
             result = true;
             break;
         case PAL_STREAM_ACD:
@@ -4246,7 +4248,7 @@ void ResourceManager::mixerEventWaitThreadLoop(
         return;
     }
 
-    PAL_INFO(LOG_TAG, "subscribing for event");
+    PAL_VERBOSE(LOG_TAG, "subscribing for event");
     mixer_subscribe_events(mixer, 1);
 
     while (1) {
@@ -4274,7 +4276,7 @@ void ResourceManager::mixerEventWaitThreadLoop(
             return;
         }
     }
-    PAL_INFO(LOG_TAG, "unsubscribing for event");
+    PAL_VERBOSE(LOG_TAG, "unsubscribing for event");
     mixer_subscribe_events(mixer, 0);
 }
 
@@ -6539,7 +6541,7 @@ const std::vector<std::string> ResourceManager::getBackEndNames(
 
     for (int i = 0; i < deviceList.size(); i++) {
         dev_id = deviceList[i]->getSndDeviceId();
-        PAL_ERR(LOG_TAG, "device id %d", dev_id);
+        PAL_VERBOSE(LOG_TAG, "device id %d", dev_id);
         if (isValidDevId(dev_id)) {
             epname.assign(listAllBackEndIds[dev_id].second);
             backEndNames.push_back(epname);
@@ -6549,7 +6551,7 @@ const std::vector<std::string> ResourceManager::getBackEndNames(
     }
 
     for (int i = 0; i < backEndNames.size(); i++) {
-        PAL_ERR(LOG_TAG, "getBackEndNames: going to return %s", backEndNames[i].c_str());
+        PAL_DBG(LOG_TAG, "getBackEndNames: going to return %s", backEndNames[i].c_str());
     }
 
     return backEndNames;
@@ -7252,7 +7254,7 @@ int ResourceManager::setLoggingLevelParams(struct str_parms *parms,
                                 value, len);
     if (ret >= 0) {
         pal_log_lvl = std::stoi(value,0,16);
-        PAL_INFO(LOG_TAG, "pal logging level is set to 0x%x",
+        PAL_VERBOSE(LOG_TAG, "pal logging level is set to 0x%x",
                  pal_log_lvl);
         ret = 0;
     }
@@ -7378,10 +7380,10 @@ int ResourceManager::setDualMonoEnableParam(struct str_parms *parms,
     if (!value || !parms)
         return ret;
 
-    PAL_INFO(LOG_TAG, "dual mono enabled was=%x", isDualMonoEnabled);
+    PAL_VERBOSE(LOG_TAG, "dual mono enabled was=%x", isDualMonoEnabled);
     ret = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_DUAL_MONO,
                                 value, len);
-    PAL_INFO(LOG_TAG," value %s", value);
+    PAL_VERBOSE(LOG_TAG," value %s", value);
     if (ret >= 0) {
         if (value && !strncmp(value, "true", sizeof("true")))
             isDualMonoEnabled= true;
@@ -7389,7 +7391,7 @@ int ResourceManager::setDualMonoEnableParam(struct str_parms *parms,
         str_parms_del(parms, AUDIO_PARAMETER_KEY_DUAL_MONO);
     }
 
-    PAL_INFO(LOG_TAG, "dual mono enabled is=%x", isDualMonoEnabled);
+    PAL_VERBOSE(LOG_TAG, "dual mono enabled is=%x", isDualMonoEnabled);
 
     return ret;
 }
@@ -7404,7 +7406,7 @@ int ResourceManager::setSignalHandlerEnableParam(struct str_parms *parms,
 
     ret = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_SIGNAL_HANDLER,
                                 value, len);
-    PAL_INFO(LOG_TAG," value %s", value);
+    PAL_VERBOSE(LOG_TAG," value %s", value);
     if (ret >= 0) {
         if (value && !strncmp(value, "true", sizeof("true")))
             isSignalHandlerEnabled = true;
@@ -7412,7 +7414,7 @@ int ResourceManager::setSignalHandlerEnableParam(struct str_parms *parms,
         str_parms_del(parms, AUDIO_PARAMETER_KEY_SIGNAL_HANDLER);
     }
 
-    PAL_INFO(LOG_TAG, "Signal handler enabled is=%x", isSignalHandlerEnabled);
+    PAL_VERBOSE(LOG_TAG, "Signal handler enabled is=%x", isSignalHandlerEnabled);
 
     return ret;
 }
@@ -7430,7 +7432,7 @@ int ResourceManager::setNativeAudioParams(struct str_parms *parms,
                                 value, len);
     if (ret >= 0) {
         max_session_num = std::stoi(value);
-        PAL_INFO(LOG_TAG, "Max sessions supported for each stream type are %d",
+        PAL_VERBOSE(LOG_TAG, "Max sessions supported for each stream type are %d",
                  max_session_num);
 
     }
@@ -7439,7 +7441,7 @@ int ResourceManager::setNativeAudioParams(struct str_parms *parms,
                                 value, len);
     if (ret >= 0) {
         max_nt_sessions = std::stoi(value);
-        PAL_INFO(LOG_TAG, "Max sessions supported for NON_TUNNEL stream type are %d",
+        PAL_VERBOSE(LOG_TAG, "Max sessions supported for NON_TUNNEL stream type are %d",
                  max_nt_sessions);
 
     }
@@ -8095,7 +8097,7 @@ int ResourceManager::getParameter(uint32_t param_id, void **param_payload,
         case PAL_PARAM_ID_DEVICE_CAPABILITY:
         {
             pal_param_device_capability_t *param_device_capability = (pal_param_device_capability_t *)(*param_payload);
-            PAL_INFO(LOG_TAG, "Device %d card = %d palid=%x",
+            PAL_DBG(LOG_TAG, "Device %d card = %d palid=%x",
                         param_device_capability->addr.device_num,
                         param_device_capability->addr.card_id,
                         param_device_capability->id);
@@ -8104,7 +8106,7 @@ int ResourceManager::getParameter(uint32_t param_id, void **param_payload,
         }
         case PAL_PARAM_ID_GET_SOUND_TRIGGER_PROPERTIES:
         {
-            PAL_INFO(LOG_TAG, "get sound trigge properties, status %d", status);
+            PAL_DBG(LOG_TAG, "get sound trigge properties, status %d", status);
             struct pal_st_properties *qstp =
                 (struct pal_st_properties *)calloc(1, sizeof(struct pal_st_properties));
 
@@ -8116,7 +8118,7 @@ int ResourceManager::getParameter(uint32_t param_id, void **param_payload,
         }
         case PAL_PARAM_ID_SP_MODE:
         {
-            PAL_INFO(LOG_TAG, "get parameter for FTM mode");
+            PAL_VERBOSE(LOG_TAG, "get parameter for FTM mode");
             std::shared_ptr<Device> dev = nullptr;
             struct pal_device dattr;
             dattr.id = PAL_DEVICE_OUT_SPEAKER;
@@ -8129,7 +8131,7 @@ int ResourceManager::getParameter(uint32_t param_id, void **param_payload,
         break;
         case PAL_PARAM_ID_SP_GET_CAL:
         {
-            PAL_INFO(LOG_TAG, "get parameter for Calibration value");
+            PAL_VERBOSE(LOG_TAG, "get parameter for Calibration value");
             std::shared_ptr<Device> dev = nullptr;
             struct pal_device dattr;
             dattr.id = PAL_DEVICE_OUT_SPEAKER;
@@ -8142,14 +8144,14 @@ int ResourceManager::getParameter(uint32_t param_id, void **param_payload,
         break;
         case PAL_PARAM_ID_SNDCARD_STATE:
         {
-            PAL_INFO(LOG_TAG, "get parameter for sndcard state");
+            PAL_VERBOSE(LOG_TAG, "get parameter for sndcard state");
             *param_payload = (uint8_t*)&rm->cardState;
             *payload_size = sizeof(rm->cardState);
             break;
         }
         case PAL_PARAM_ID_HIFI_PCM_FILTER:
         {
-            PAL_INFO(LOG_TAG, "get parameter for HIFI PCM Filter");
+            PAL_VERBOSE(LOG_TAG, "get parameter for HIFI PCM Filter");
 
             *payload_size = sizeof(isHifiFilterEnabled);
             **(bool **)param_payload = isHifiFilterEnabled;
@@ -8173,7 +8175,7 @@ int ResourceManager::getParameter(uint32_t param_id, void *param_payload,
 {
     int status = -EINVAL;
 
-    PAL_INFO(LOG_TAG, "param_id=%d", param_id);
+    PAL_DBG(LOG_TAG, "param_id=%d", param_id);
     switch (param_id) {
         case PAL_PARAM_ID_UIEFFECT:
         {
@@ -10169,7 +10171,7 @@ void ResourceManager::process_voicemode_info(const XML_Char **attr)
         return;
     }
     modepair.value = convertCharToHex(tagvalue);
-    PAL_INFO(LOG_TAG, "key  %x value  %x", modepair.key, modepair.value);
+    PAL_VERBOSE(LOG_TAG, "key  %x value  %x", modepair.key, modepair.value);
     vsidInfo.modepair.push_back(modepair);
 }
 
