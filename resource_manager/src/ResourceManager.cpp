@@ -6511,11 +6511,26 @@ bool ResourceManager::compareSharedBEStreamDevAttr(std::vector <std::tuple<Strea
          */
         if (!streamDevAttr.empty()) {
             auto it = streamDevAttr.begin();
+            bool skipDevAttrDiffer = false;
             ar_mem_cpy(newDevAttr, sizeof(struct pal_device),
                     (*it).second, sizeof(struct pal_device));
 
             curDev->getDeviceAttributes(&curDevAttr);
-            if (doDevAttrDiffer(newDevAttr, &curDevAttr))
+            /*
+             * special case for speaker, avoid restoredevice if only bit-width is different and
+             * the closed stream has higher bit-width.
+             * TODO: remove it when we confirm there is no any impact to add 24bit limit in RM.xml.
+             */
+            if (curDevAttr.id == newDevAttr->id &&
+                curDevAttr.id == PAL_DEVICE_OUT_SPEAKER &&
+                newDevAttr->config.bit_width < curDevAttr.config.bit_width &&
+                newDevAttr->config.sample_rate == curDevAttr.config.sample_rate &&
+                newDevAttr->config.ch_info.channels == curDevAttr.config.ch_info.channels) {
+                switchStreams = false;
+                skipDevAttrDiffer = true;
+            }
+
+            if (!skipDevAttrDiffer && doDevAttrDiffer(newDevAttr, &curDevAttr))
                 switchStreams = true;
 
             for (auto it = streamDevAttr.begin(); it != streamDevAttr.end(); it++)
