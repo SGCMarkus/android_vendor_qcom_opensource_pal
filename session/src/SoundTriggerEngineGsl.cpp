@@ -2098,7 +2098,7 @@ void SoundTriggerEngineGsl::HandleSessionEvent(uint32_t event_id __unused,
 }
 
 void SoundTriggerEngineGsl::HandleSessionCallBack(uint64_t hdl, uint32_t event_id,
-                                                  void *data, uint32_t event_size) {
+                                                  void *data, uint32_t event_size, uint32_t miid __unused) {
     SoundTriggerEngineGsl *engine = nullptr;
     std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
 

@@ -4667,7 +4667,7 @@ int ResourceManager::handleMixerEvent(struct mixer *mixer, char *mixer_str) {
 
     // callback
     session_cb(cookie, params->event_id, (void *)params->event_payload,
-                 params->event_payload_size);
+                 params->event_payload_size, params->source_module_id);
 
 exit:
     if (buf)

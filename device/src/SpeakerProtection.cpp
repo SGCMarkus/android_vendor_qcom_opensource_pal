@@ -213,7 +213,7 @@ void SpeakerProtection::spkrCalibrateWait()
 
 // Callback from DSP for Ressistance value
 void SpeakerProtection::handleSPCallback (uint64_t hdl __unused, uint32_t event_id,
-                                            void *event_data, uint32_t event_size)
+                                            void *event_data, uint32_t event_size, uint32_t __unused)
 {
     param_id_sp_th_vi_calib_res_cfg_t *param_data = nullptr;
     param_id_sp_vi_spkr_diag_getpkt_param_t *diag_data = nullptr;

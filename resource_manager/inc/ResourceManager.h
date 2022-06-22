@@ -384,7 +384,7 @@ enum NTStreamTypes_t : uint32_t {
 };
 
 typedef void (*session_callback)(uint64_t hdl, uint32_t event_id, void *event_data,
-                uint32_t event_size);
+                uint32_t event_size, uint32_t miid);
 bool isPalPCMFormat(uint32_t fmt_id);
 
 typedef void* (*adm_init_t)();

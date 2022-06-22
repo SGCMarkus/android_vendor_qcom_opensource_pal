@@ -137,7 +137,7 @@ void eventCallback(uint32_t session_id, struct agm_event_cb_params *event_params
     }
 
     if (sessAgm->sessionCb) {
-        sessAgm->sessionCb(sessAgm->cbCookie, event_id, event_data, event_size);
+        sessAgm->sessionCb(sessAgm->cbCookie, event_id, event_data, event_size, 0);
     } else {
        PAL_INFO(LOG_TAG, "no session cb registerd");
     }

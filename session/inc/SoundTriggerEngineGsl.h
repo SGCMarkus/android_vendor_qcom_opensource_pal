@@ -152,7 +152,7 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
 
     static void EventProcessingThread(SoundTriggerEngineGsl *gsl_engine);
     static void HandleSessionCallBack(uint64_t hdl, uint32_t event_id, void *data,
-                                      uint32_t event_size);
+                                      uint32_t event_size, uint32_t miid);
     bool CheckIfOtherStreamsAttached(Stream *s);
     bool CheckIfOtherStreamsActive(Stream *s);
     int32_t HandleMultiStreamLoad(Stream *s, uint8_t *data, uint32_t data_size);

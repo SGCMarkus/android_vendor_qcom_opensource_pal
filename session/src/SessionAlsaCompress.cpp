@@ -701,7 +701,7 @@ void SessionAlsaCompress::offloadThreadLoop(SessionAlsaCompress* compressObj)
                 event_id = PAL_STREAM_CBK_EVENT_ERROR;
             }
             if (compressObj->sessionCb)
-                compressObj->sessionCb(compressObj->cbCookie, event_id, (void*)NULL, 0);
+                compressObj->sessionCb(compressObj->cbCookie, event_id, (void*)NULL, 0, 0);
 
             lock.lock();
         }

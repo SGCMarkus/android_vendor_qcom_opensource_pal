@@ -86,7 +86,7 @@ std::condition_variable Stream::pauseCV;
 
 void Stream::handleSoftPauseCallBack(uint64_t hdl, uint32_t event_id,
                                         void *data __unused,
-                                        uint32_t event_size __unused) {
+                                        uint32_t event_size __unused, uint32_t miid __unused) {
 
     PAL_DBG(LOG_TAG,"Event id %x ", event_id);
 

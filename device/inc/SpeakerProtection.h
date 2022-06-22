@@ -182,7 +182,7 @@ public:
     void updateSPcustomPayload();
     static int32_t spkrProtSetR0T0Value(vi_r0t0_cfg_t r0t0Array[]);
     static void handleSPCallback (uint64_t hdl, uint32_t event_id, void *event_data,
-                                  uint32_t event_size);
+                                  uint32_t event_size, uint32_t miid);
     void updateCpsCustomPayload(int miid);
     int getCpsDevNumber(std::string mixer);
     int32_t getCalibrationData(void **param);
