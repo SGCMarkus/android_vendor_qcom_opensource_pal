@@ -3131,15 +3131,39 @@ int PayloadBuilder::populateCalKeyVector(Stream *s, std::vector <std::pair<int,i
                 goto error_1;
             }
             if (dAttr.id == PAL_DEVICE_OUT_SPEAKER) {
-                if (dAttr.config.ch_info.channels > 1) {
-                    PAL_DBG(LOG_TAG, "Multi channel speaker");
-                    ckv.push_back(std::make_pair(SPK_PRO_DEV_MAP, LEFT_RIGHT));
+               if (dAttr.config.ch_info.channels == CHANNELS_4) {
+                   switch (dAttr.config.ch_info.channels) {
+                   case 1:
+                       PAL_DBG(LOG_TAG, "Mono channel speaker");
+                       ckv.push_back(std::make_pair(SPK_PRO_DEV_MAP, RIGHT_MONO_WITH_DISABLED_2SP));
+                   break;
+                   case 2:
+                       PAL_DBG(LOG_TAG, "Multi channel speaker");
+                       ckv.push_back(std::make_pair(SPK_PRO_DEV_MAP, LEFT_RIGHT_WITH_DISABLED_2SP));
+                   break;
+                   case 4:
+                       PAL_DBG(LOG_TAG, "four channel speaker");
+                       ckv.push_back(std::make_pair(SPK_PRO_DEV_MAP, LEFT_RIGHT));
+                   break;
+                   default :
+                       PAL_ERR(LOG_TAG, "unsupported no of channels");
+                       return status;
+                   }
+                } else if (dAttr.config.ch_info.channels <= CHANNELS_2) {
+                    switch (dAttr.config.ch_info.channels) {
+                    case 1:
+                        PAL_DBG(LOG_TAG, "Mono channel speaker");
+                        ckv.push_back(std::make_pair(SPK_PRO_DEV_MAP, RIGHT_MONO));
+                    break;
+                    case 2:
+                        PAL_DBG(LOG_TAG, "Multi channel speaker");
+                        ckv.push_back(std::make_pair(SPK_PRO_DEV_MAP, LEFT_RIGHT));
+                    break;
+                    default :
+                        PAL_ERR(LOG_TAG, "unsupported no of channels");
+                        return status;
+                    }
                 }
-                else {
-                    PAL_DBG(LOG_TAG, "Mono channel speaker");
-                    ckv.push_back(std::make_pair(SPK_PRO_DEV_MAP, RIGHT_MONO));
-                }
-                break;
             }
         }
         break;
@@ -3157,15 +3181,73 @@ int PayloadBuilder::populateCalKeyVector(Stream *s, std::vector <std::pair<int,i
                 goto error_1;
             }
             if (dAttr.id == PAL_DEVICE_IN_VI_FEEDBACK) {
-                if (dAttr.config.ch_info.channels > 1) {
-                    PAL_DBG(LOG_TAG, "Multi channel speaker");
-                    ckv.push_back(std::make_pair(SPK_PRO_VI_MAP, STEREO_SPKR));
+                if (dAttr.config.ch_info.channels == CHANNELS_4) {
+                    switch (dAttr.config.ch_info.channels) {
+                    case 1:
+                        PAL_DBG(LOG_TAG, "Mono channel speaker");
+                        ckv.push_back(std::make_pair(SPK_PRO_VI_MAP, RIGHT_SPKR_WITH_DISABLED_2SP));
+                    break;
+                    case 2:
+                        PAL_DBG(LOG_TAG, "Multi channel speaker");
+                        ckv.push_back(std::make_pair(SPK_PRO_VI_MAP, STEREO_SPKR_WITH_DISABLED_2SP));
+                    break;
+                    case 4:
+                        PAL_DBG(LOG_TAG, "four channel speaker");
+                        ckv.push_back(std::make_pair(SPK_PRO_VI_MAP, STEREO_SPKR));
+                    break;
+                    default :
+                        PAL_ERR(LOG_TAG, "unsupported no of channels");
+                        return status;
+                    }
+                } else if (dAttr.config.ch_info.channels <= CHANNELS_2) {
+                    switch (dAttr.config.ch_info.channels) {
+                    case 1:
+                        PAL_DBG(LOG_TAG, "Mono channel speaker");
+                        ckv.push_back(std::make_pair(SPK_PRO_VI_MAP, RIGHT_SPKR));
+                    break;
+                    case 2:
+                        PAL_DBG(LOG_TAG, "Multi channel speaker");
+                        ckv.push_back(std::make_pair(SPK_PRO_VI_MAP, STEREO_SPKR));
+                    break;
+                    default :
+                        PAL_ERR(LOG_TAG, "unsupported no of channels");
+                        return status;
+                    }
                 }
-                else {
+            }
+        }
+    break;
+    case MUX_DEMUX_CHANNELS :
+        status = s->getAssociatedDevices(associatedDevices);
+        if (0 != status) {
+            PAL_ERR(LOG_TAG,"getAssociatedDevices Failed \n");
+            return status;
+        }
+
+        for (int i = 0; i < associatedDevices.size(); i++) {
+            status = associatedDevices[i]->getDeviceAttributes(&dAttr);
+            if (0 != status) {
+                PAL_ERR(LOG_TAG,"getAssociatedDevices Failed \n");
+                return status;
+            }
+            if (dAttr.id == PAL_DEVICE_OUT_SPEAKER) {
+                switch (dAttr.config.ch_info.channels) {
+                case 1:
                     PAL_DBG(LOG_TAG, "Mono channel speaker");
-                    ckv.push_back(std::make_pair(SPK_PRO_VI_MAP, RIGHT_SPKR));
-                }
+                    ckv.push_back(std::make_pair(CHANNELS, CHANNELS_1));
                 break;
+                case 2:
+                    PAL_DBG(LOG_TAG, "Multi channel speaker");
+                    ckv.push_back(std::make_pair(CHANNELS, CHANNELS_2));
+                break;
+                case 4:
+                    PAL_DBG(LOG_TAG, "four channel speaker");
+                    ckv.push_back(std::make_pair(CHANNELS, CHANNELS_4));
+                break;
+                default :
+                    PAL_ERR(LOG_TAG, "unsupported no of channels");
+                    return status;
+                }
             }
         }
     break;

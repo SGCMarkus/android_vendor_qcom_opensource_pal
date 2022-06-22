@@ -432,8 +432,9 @@ typedef enum {
     PAL_DEVICE_IN_HAPTICS_VI_FEEDBACK = PAL_DEVICE_IN_MIN + 22,
     PAL_DEVICE_IN_BLUETOOTH_BLE = PAL_DEVICE_IN_MIN + 23,
     PAL_DEVICE_IN_CPS_FEEDBACK = PAL_DEVICE_IN_MIN + 24,
+    PAL_DEVICE_IN_CPS2_FEEDBACK = PAL_DEVICE_IN_MIN + 25,
     // Add new IN devices here, increment MAX and MIN below when you do so
-    PAL_DEVICE_IN_MAX = PAL_DEVICE_IN_MIN + 25,
+    PAL_DEVICE_IN_MAX = PAL_DEVICE_IN_MIN + 26,
 } pal_device_id_t;
 
 typedef enum {
@@ -516,6 +517,7 @@ static const std::map<std::string, pal_device_id_t> deviceIdLUT {
     {std::string{ "PAL_DEVICE_IN_ECHO_REF" },              PAL_DEVICE_IN_ECHO_REF},
     {std::string{ "PAL_DEVICE_IN_HAPTICS_VI_FEEDBACK" },   PAL_DEVICE_IN_HAPTICS_VI_FEEDBACK},
     {std::string{ "PAL_DEVICE_IN_CPS_FEEDBACK" },          PAL_DEVICE_IN_CPS_FEEDBACK},
+    {std::string{ "PAL_DEVICE_IN_CPS2_FEEDBACK" },          PAL_DEVICE_IN_CPS2_FEEDBACK},
 };
 
 //reverse mapping
@@ -568,7 +570,8 @@ static const std::map<uint32_t, std::string> deviceNameLUT {
     {PAL_DEVICE_IN_EXT_EC_REF,            std::string{"PAL_DEVICE_IN_EXT_EC_REF"}},
     {PAL_DEVICE_IN_ECHO_REF,              std::string{"PAL_DEVICE_IN_ECHO_REF"}},
     {PAL_DEVICE_IN_HAPTICS_VI_FEEDBACK,   std::string{"PAL_DEVICE_IN_HAPTICS_VI_FEEDBACK"}},
-    {PAL_DEVICE_IN_CPS_FEEDBACK,          std::string{"PAL_DEVICE_IN_CPS_FEEDBACK"}}
+    {PAL_DEVICE_IN_CPS_FEEDBACK,          std::string{"PAL_DEVICE_IN_CPS_FEEDBACK"}},
+    {PAL_DEVICE_IN_CPS2_FEEDBACK,          std::string{"PAL_DEVICE_IN_CPS2_FEEDBACK"}}
 };
 
 const std::map<std::string, uint32_t> usecaseIdLUT {

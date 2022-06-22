@@ -100,6 +100,8 @@ typedef enum speaker_prot_proc_state {
 enum {
     SPKR_RIGHT,    /* Right Speaker */
     SPKR_LEFT,     /* Left Speaker */
+    SPKR_REAR_RIGHT, /*Rear Right Speaker */
+    SPKR_REAR_LEFT,  /*Rear Left Speaker */
 };
 
 /* enum that indicates speaker condition. */
@@ -136,13 +138,17 @@ protected :
     static struct mixer *hwMixer;
     static struct pcm *rxPcm;
     static struct pcm *txPcm;
-    static struct pcm *cpsPcm;
+    static struct pcm *cps1Pcm;
+    static struct pcm *cps2Pcm;
     static int numberOfChannels;
+    static int MaxCH;
+    static uint32_t source_miid, vi_miid_I, vi_miid_II;
     static bool mDspCallbackRcvd;
     static param_id_sp_th_vi_calib_res_cfg_t *callback_data;
     struct pal_device mDeviceAttr;
     std::vector<int> pcmDevIdTx;
     std::vector<int> pcmDevIdCPS;
+    std::vector<int> pcmDevIdCPS2;
     static int calibrationCallbackStatus;
     static int numberOfRequest;
     static struct pal_device_info vi_device;
@@ -181,6 +187,7 @@ public:
     int speakerProtectionDynamicCal();
     void updateSPcustomPayload();
     static int32_t spkrProtSetR0T0Value(vi_r0t0_cfg_t r0t0Array[]);
+    static std::string getDCDetSpkrCtrl(uint8_t spkr_pos, uint32_t miid);
     static void handleSPCallback (uint64_t hdl, uint32_t event_id, void *event_data,
                                   uint32_t event_size, uint32_t miid);
     void updateCpsCustomPayload(int miid);
