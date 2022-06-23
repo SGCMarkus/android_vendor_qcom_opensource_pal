@@ -484,7 +484,7 @@ int32_t DisplayPort::setExtDisplayDevice(struct audio_mixer *mixer, int controll
     const char *ctlNamePrefix = "External Display";
     const char *ctlNameSuffix = "Audio Device";
     char mixerCtlName[MIXER_PATH_MAX_LENGTH] = {0};
-    int deviceValues[2] = {-1, -1};
+    long deviceValues[2] = {-1, -1};
 
     ctlIndex = getDisplayPortCtlIndex(controller, stream);
     if (-EINVAL == ctlIndex) {
