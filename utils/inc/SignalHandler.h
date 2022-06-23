@@ -58,11 +58,14 @@ struct SignalHandler {
     static void customSignalHandler(int code, struct siginfo *si, void *sc);
     static std::vector<int> getRegisteredSignals();
     void registerSignalHandler(std::vector<int> signalsToRegister);
+    static void setBuildDebuggable(bool debuggable) { sBuildDebuggable = debuggable;}
+    static bool isBuildDebuggable() { return sBuildDebuggable;}
     static std::mutex sDefaultSigMapLock;
     static std::unordered_map<int, std::shared_ptr<struct sigaction>> sDefaultSigMap;
     static std::function<void(int, pid_t, uid_t)> sClientCb;
     static std::mutex sAsyncRegisterLock;
     static std::future<void> sAsyncHandle;
+    static bool sBuildDebuggable;
 };
 
 #endif

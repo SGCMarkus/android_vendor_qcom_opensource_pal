@@ -831,11 +831,19 @@ ResourceManager::ResourceManager()
     if (isHifiFilterEnabled)
         audio_route_apply_and_update_path(audio_route, "hifi-filter-coefficients");
 
+    char propValue[PROPERTY_VALUE_MAX];
+    bool isBuildDebuggable = false;
+    property_get("ro.debuggable", propValue, "0");
+    if(atoi(propValue) == 1) {
+        isBuildDebuggable = true;
+    }
+
     if (isSignalHandlerEnabled) {
         mSigHandler = SignalHandler::getInstance();
         if (mSigHandler) {
             std::function<void(int, pid_t, uid_t)> crashSignalCb = sendCrashSignal;
             SignalHandler::setClientCallback(crashSignalCb);
+            SignalHandler::setBuildDebuggable(isBuildDebuggable);
             mSigHandler->registerSignalHandler(gSignalsOfInterest);
         } else {
             PAL_INFO(LOG_TAG, "Failed to create signal handler");
