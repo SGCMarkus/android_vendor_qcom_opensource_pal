@@ -184,6 +184,16 @@ int32_t  StreamPCM::open()
         goto exit;
     }
 
+    /* Check for BT device connected state */
+    for (int32_t i = 0; i < mDevices.size(); i++) {
+        pal_device_id_t dev_id = (pal_device_id_t) mDevices[i]->getSndDeviceId();
+        if (rm->isBtDevice(dev_id) && !(rm->isDeviceAvailable(dev_id))) {
+            PAL_ERR(LOG_TAG, "BT device %d not connected, cannot open stream", dev_id);
+            status = -ENODEV;
+            goto exit;
+        }
+    }
+
     if (currentState == STREAM_IDLE) {
         status = session->open(this);
         if (0 != status) {
@@ -227,8 +237,7 @@ int32_t  StreamPCM::open()
                         continue;
                     }
 
-                    ret = session->setParameters(this, PER_STREAM_PER_DEVICE_MFC,
-                        PAL_PARAM_ID_UIEFFECT, paramData);
+                    ret = setEffectParameters(paramData);
                     if (ret) {
                         PAL_ERR(LOG_TAG, "failed to set dual mono param.");
                     } else {
@@ -577,18 +586,20 @@ int32_t StreamPCM::start()
             PAL_ERR(LOG_TAG, "Stream type is not supported, status %d", status);
             break;
         }
-        mStreamMutex.unlock();
-        rm->lockActiveStream();
-        mStreamMutex.lock();
-        for (int i = 0; i < mDevices.size(); i++) {
-            rm->registerDevice(mDevices[i], this);
-        }
-        isDevRegistered = true;
-        rm->unlockActiveStream();
         /*pcm_open and pcm_start done at once here,
          *so directly jump to STREAM_STARTED state.
          */
         currentState = STREAM_STARTED;
+        mStreamMutex.unlock();
+        rm->lockActiveStream();
+        mStreamMutex.lock();
+        if (!isDevRegistered) {
+            for (int i = 0; i < mDevices.size(); i++) {
+                rm->registerDevice(mDevices[i], this);
+            }
+            isDevRegistered = true;
+        }
+        rm->unlockActiveStream();
         rm->checkAndSetDutyCycleParam();
     } else if (currentState == STREAM_STARTED) {
         PAL_INFO(LOG_TAG, "Stream already started, state %d", currentState);
@@ -625,10 +636,12 @@ int32_t StreamPCM::stop()
         rm->lockActiveStream();
         mStreamMutex.lock();
         currentState = STREAM_STOPPED;
-        for (int i = 0; i < mDevices.size(); i++) {
-            rm->deregisterDevice(mDevices[i], this);
+        if (isDevRegistered) {
+            for (int i = 0; i < mDevices.size(); i++) {
+                rm->deregisterDevice(mDevices[i], this);
+            }
+            isDevRegistered = false;
         }
-        isDevRegistered = false;
         rm->unlockActiveStream();
         switch (mStreamAttr->direction) {
         case PAL_AUDIO_OUTPUT:
@@ -1075,21 +1088,6 @@ int32_t  StreamPCM::setParameters(uint32_t param_id, void *payload)
     }
     // Stream may not know about tags, so use setParameters instead of setConfig
     switch (param_id) {
-        case PAL_PARAM_ID_UIEFFECT:
-        {
-            param_payload = (pal_param_payload *)payload;
-
-            effectPalPayload = (effect_pal_payload_t *)(param_payload->payload);
-            if (effectPalPayload->isTKV) {
-                status = session->setTKV(this, MODULE, effectPalPayload);
-            } else {
-                status = session->setParameters(this, effectPalPayload->tag, param_id, payload);
-            }
-            if (status) {
-               PAL_ERR(LOG_TAG, "setParameters %d failed with %d", param_id, status);
-            }
-            break;
-        }
         case PAL_PARAM_ID_TTY_MODE:
         {
             param_payload = (pal_param_payload *)payload;
@@ -1299,10 +1297,12 @@ int32_t StreamPCM::flush()
     mStreamMutex.unlock();
     rm->lockActiveStream();
     mStreamMutex.lock();
-    for (int i = 0; i < mDevices.size(); i++) {
-        rm->deregisterDevice(mDevices[i], this);
+    if (isDevRegistered) {
+        for (int i = 0; i < mDevices.size(); i++) {
+            rm->deregisterDevice(mDevices[i], this);
+        }
+        isDevRegistered = false;
     }
-    isDevRegistered = false;
     rm->unlockActiveStream();
 
     status = session->flush();

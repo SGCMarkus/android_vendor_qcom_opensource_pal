@@ -113,6 +113,7 @@ typedef enum {
 #define DEVICEPP_MUTE 45
 #define DEVICEPP_UNMUTE 46
 #define ORIENTATION_TAG 47
+#define HANDSET_PROT_ENABLE 48
 
 /* This sleep is added to give time to kernel and
  * spf to recover from SSR so that audio-hal will
@@ -252,11 +253,13 @@ public:
     bool checkStreamMatch(pal_device_id_t pal_device_id,
                                 pal_stream_type_t pal_stream_type);
     int32_t getEffectParameters(void *effect_query);
+    int32_t setEffectParameters(void *effect_param);
     int32_t rwACDBParameters(void *payload, uint32_t sampleRate,
                                 bool isParamWrite);
     bool isActive() { return currentState == STREAM_STARTED; }
     bool isAlive() { return currentState != STREAM_IDLE; }
     bool isA2dpMuted() { return a2dpMuted; }
+    bool isStopped() { return currentState == STREAM_STOPPED; }
     /* Detection stream related APIs */
     virtual int32_t Resume() { return 0; }
     virtual int32_t Pause() { return 0; }

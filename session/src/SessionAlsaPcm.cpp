@@ -166,6 +166,7 @@ int SessionAlsaPcm::open(Stream * s)
             }
             else if ((sAttr.type == PAL_STREAM_PCM_OFFLOAD) ||
                      (sAttr.type == PAL_STREAM_DEEP_BUFFER) ||
+                     (sAttr.type == PAL_STREAM_SPATIAL_AUDIO) ||
                      (sAttr.type == PAL_STREAM_LOW_LATENCY)) {
                      // Register for SoftPause callback for
                      // only playback related streams
@@ -291,22 +292,36 @@ exit:
     return status;
 }
 
-struct mixer_ctl* SessionAlsaPcm::getFEMixerCtl(const char *controlName, int *device)
+struct mixer_ctl* SessionAlsaPcm::getFEMixerCtl(const char *controlName, int *device, pal_stream_direction_t dir)
 {
     std::ostringstream CntrlName;
     struct mixer_ctl *ctl;
 
-    if (pcmDevIds.size() == 0) {
-        PAL_ERR(LOG_TAG, "frontendIDs is not available.");
-        return nullptr;
+    if (dir == PAL_AUDIO_OUTPUT) {
+        if (pcmDevIds.size()) {
+            *device = pcmDevIds.at(0);
+        } else if (pcmDevRxIds.size()) {
+            *device = pcmDevRxIds.at(0);
+        } else {
+            PAL_ERR(LOG_TAG, "frontendIDs is not available.");
+            return NULL;
+        }
+    } else if (dir == PAL_AUDIO_INPUT) {
+        if (pcmDevIds.size()) {
+            *device = pcmDevIds.at(0);
+        } else if (pcmDevTxIds.size()) {
+            *device = pcmDevTxIds.at(0);
+        } else {
+            PAL_ERR(LOG_TAG, "frontendIDs is not available.");
+            return NULL;
+        }
     }
 
-    *device = pcmDevIds.at(0);
-    CntrlName << "PCM" <<pcmDevIds.at(0) << " " << controlName;
+    CntrlName << "PCM" << *device << " " << controlName;
     ctl = mixer_get_ctl_by_name(mixer, CntrlName.str().data());
     if (!ctl) {
         PAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", CntrlName.str().data());
-        return nullptr;
+        return NULL;
     }
 
     return ctl;
@@ -2031,63 +2046,6 @@ int SessionAlsaPcm::setParameters(Stream *streamHandle, int tagId, uint32_t para
             }
             break;
         }
-        case PAL_PARAM_ID_UIEFFECT:
-        {
-            pal_effect_custom_payload_t *customPayload;
-            pal_param_payload *param_payload = (pal_param_payload *)payload;
-            effectPalPayload = (effect_pal_payload_t *)(param_payload->payload);
-            status = streamHandle->getStreamAttributes(&sAttr);
-            if (status != 0) {
-                PAL_ERR(LOG_TAG, "stream get attributes failed");
-                goto exit;
-            }
-
-            if (PAL_AUDIO_INPUT == sAttr.direction)
-                status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
-                                                               txAifBackEnds[0].second.data(),
-                                                               tagId, &miid);
-            else if (PAL_AUDIO_OUTPUT == sAttr.direction)
-                status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
-                                                               rxAifBackEnds[0].second.data(),
-                                                               tagId, &miid);
-            else {
-                status = -EINVAL;
-                if (pcmDevRxIds.size() > 0) {
-                    device = pcmDevRxIds.at(0);
-                    status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
-                                                                   rxAifBackEnds[0].second.data(),
-                                                                   tagId, &miid);
-                    if (status) {
-                        if (pcmDevTxIds.size() > 0)
-                            device = pcmDevTxIds.at(0);
-                        status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
-                                                                       txAifBackEnds[0].second.data(),
-                                                                       tagId, &miid);
-                    }
-                }
-            }
-            if (0 != status) {
-                PAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", tagId, status);
-                break;
-            } else {
-                customPayload = (pal_effect_custom_payload_t *)effectPalPayload->payload;
-                status = builder->payloadCustomParam(&paramData, &paramSize,
-                            customPayload->data,
-                            effectPalPayload->payloadSize - sizeof(uint32_t),
-                            miid, customPayload->paramId);
-                if (status != 0) {
-                    PAL_ERR(LOG_TAG, "payloadCustomParam failed. status = %d",
-                                status);
-                    break;
-                }
-                status = SessionAlsaUtils::setMixerParameter(mixer,
-                                                             device,
-                                                             paramData,
-                                                             paramSize);
-                PAL_INFO(LOG_TAG, "mixer set param status=%d\n", status);
-            }
-            break;
-        }
         case PAL_PARAM_ID_BT_A2DP_TWS_CONFIG:
         {
             pal_bt_tws_payload *tws_payload = (pal_bt_tws_payload *)payload;
@@ -2155,8 +2113,7 @@ int SessionAlsaPcm::setParameters(Stream *streamHandle, int tagId, uint32_t para
             if (sAttr.direction == PAL_AUDIO_OUTPUT) {
                 status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
                         rxAifBackEnds[0].second.data(), TAG_STREAM_VOLUME, &miid);
-            } else if (sAttr.direction == PAL_AUDIO_INPUT &&
-                       sAttr.type != PAL_STREAM_ULTRA_LOW_LATENCY) {
+            } else if (sAttr.direction == PAL_AUDIO_INPUT) {
                 status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
                         txAifBackEnds[0].second.data(), TAG_STREAM_VOLUME, &miid);
             } else if (sAttr.direction == (PAL_AUDIO_INPUT | PAL_AUDIO_OUTPUT)) {
@@ -2180,6 +2137,7 @@ int SessionAlsaPcm::setParameters(Stream *streamHandle, int tagId, uint32_t para
             if (0 != status) {
                 PAL_ERR(LOG_TAG, "Failed to get tag info %x, dir: %d (%d)", tagId,
                        sAttr.direction, status);
+                status = 0;
                 goto exit;
             }
 

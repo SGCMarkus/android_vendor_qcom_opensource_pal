@@ -99,7 +99,6 @@ private:
 
     std::condition_variable cv_; /* used to wait for incoming requests */
     std::mutex cv_mutex_; /* mutex used in conjunction with above cv */
-    struct mixer_ctl *disconnectCtrl;
     void getSndCodecParam(struct snd_codec &codec, struct pal_stream_attributes &sAttr);
     int getSndCodecId(pal_audio_fmt_t fmt);
     int setCustomFormatParam(pal_audio_fmt_t audio_fmt);
@@ -157,7 +156,7 @@ public:
     int disconnectSessionDevice(Stream* streamHandle, pal_stream_type_t streamType,
         std::shared_ptr<Device> deviceToDisconnect) override;
     uint32_t getMIID(const char *backendName, uint32_t tagId, uint32_t *miid) override;
-    struct mixer_ctl* getFEMixerCtl(const char *controlName, int *device) override;
+    struct mixer_ctl* getFEMixerCtl(const char *controlName, int *device, pal_stream_direction_t dir __unused) override;
 };
 
 #endif //SESSION_ALSACOMPRESS_H

@@ -130,6 +130,13 @@ typedef enum {
 using InstanceListNode_t = std::vector<std::pair<int32_t, bool>> ;
 using nonTunnelInstMap_t = std::unordered_map<uint32_t, bool>;
 
+#ifdef SOC_PERIPHERAL_PROT
+extern "C" {
+#include "CPeripheralAccessControl.h"
+#include "peripheralStateUtils.h"
+}
+#endif
+
 typedef enum {
     TAG_ROOT,
     TAG_CARD,
@@ -156,6 +163,7 @@ typedef enum {
     TAG_INSTREAM,
     TAG_POLICIES,
     TAG_ECREF,
+    TAG_VI_CHMAP,
     TAG_CUSTOMCONFIG,
     TAG_LPI_VOTE_STREAM,
     TAG_SLEEP_MONITOR_LPI_STREAM,
@@ -459,7 +467,8 @@ private:
     int updateECDeviceMap(std::shared_ptr<Device> rx_dev,
                         std::shared_ptr<Device> tx_dev,
                         Stream *tx_str, int count, bool is_txstop);
-    int clearInternalECRefCounts(Stream *tx_str, std::shared_ptr<Device> tx_dev);
+    std::shared_ptr<Device> clearInternalECRefCounts(Stream *tx_str,
+                        std::shared_ptr<Device> tx_dev);
     static bool isBitWidthSupported(uint32_t bitWidth);
     uint32_t getNTPathForStreamAttr(const pal_stream_attributes attr);
     ssize_t getAvailableNTStreamInstance(const pal_stream_attributes attr);
@@ -476,6 +485,7 @@ protected:
     std::list <StreamPCM*> active_streams_ulla;
     std::list <StreamPCM*> active_streams_ull;
     std::list <StreamPCM*> active_streams_db;
+    std::list <StreamPCM*> active_streams_sa;
     std::list <StreamPCM*> active_streams_po;
     std::list <StreamPCM*> active_streams_proxy;
     std::list <StreamPCM*> active_streams_haptics;
@@ -588,6 +598,7 @@ protected:
     int32_t scoOutConnectCount = 0;
     int32_t scoInConnectCount = 0;
     std::shared_ptr<SignalHandler> mSigHandler;
+    static std::vector<int> spViChannelMapCfg;
 public:
     ~ResourceManager();
     static bool mixerClosed;
@@ -595,6 +606,7 @@ public:
     bool ssrStarted = false;
     /* Variable to store whether Speaker protection is enabled or not */
     static bool isSpeakerProtectionEnabled;
+    static bool isHandsetProtectionEnabled;
     static bool isChargeConcurrencyEnabled;
     static bool isCpsEnabled;
     static bool isVbatEnabled;
@@ -631,6 +643,14 @@ public:
     static int max_voice_vol;
     /*variable to store MSPP linear gain*/
     pal_param_mspp_linear_gain_t linear_gain;
+#ifdef SOC_PERIPHERAL_PROT
+    static bool isTZSecureZone;
+    static void *tz_handle;
+    static int deregPeripheralCb(void *cntxt);
+    static int registertoPeripheral(uint32_t pUID);
+    static int32_t secureZoneEventCb(const uint32_t peripheral,
+                                           const uint8_t secureState);
+#endif
     uint64_t cookie;
     int initSndMonitor();
     int initContextManager();
@@ -743,12 +763,14 @@ public:
     int getDeviceEpName(int deviceId, std::string &epName);
     int getBackendName(int deviceId, std::string &backendName);
     void updateVirtualBackendName();
+    void updateVirtualBESndName();
     int getStreamTag(std::vector <int> &tag);
     int getDeviceTag(std::vector <int> &tag);
     int getMixerTag(std::vector <int> &tag);
     int getStreamPpTag(std::vector <int> &tag);
     int getDevicePpTag(std::vector <int> &tag);
     int getDeviceDirection(uint32_t beDevId);
+    void getSpViChannelMapCfg(int32_t *channelMap, uint32_t numOfChannels);
     const std::vector<int> allocateFrontEndIds (const struct pal_stream_attributes,
                                                 int lDirection);
     const std::vector<int> allocateFrontEndExtEcIds ();

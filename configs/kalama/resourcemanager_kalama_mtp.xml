@@ -1,71 +1,65 @@
 <?xml version="1.0" encoding="ISO-8859-1"?>
-<!-- Copyright (c) 2020-2022, Qualcomm Innovation Center, Inc.All rights reserved -->
-<!--                                                                             -->
-<!--  Redistribution and use in source and binary forms, with or without         -->
-<!--  modification, are permitted provided that the following conditions are     -->
-<!--  met:                                                                       -->
-<!--      * Redistributions of source code must retain the above copyright       -->
-<!--        notice, this list of conditions and the following disclaimer.        -->
-<!--      * Redistributions in binary form must reproduce the above              -->
-<!--        copyright notice, this list of conditions and the following          -->
-<!--        disclaimer in the documentation and/or other materials provided      -->
-<!--        with the distribution.                                               -->
-<!--      * Neither the name of The Linux Foundation nor the names of its        -->
-<!--        contributors may be used to endorse or promote products derived      -->
-<!--        from this software without specific prior written permission.        -->
-<!--                                                                             -->
-<!--  NO EXPRESS OR IMPLIED LICENSES TO ANY PARTY'S PATENT RIGHTS ARE GRANTED    -->
-<!--  BY THIS LICENSE. THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND    -->
-<!--  CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING,     -->
-<!--  BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND          -->
-<!--  FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE     -->
-<!--  COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,       -->
-<!--  INCIDENTAL, SPECIAL, EXEMPLARY,OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT    -->
-<!--  NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF,      -->
-<!--  USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON     -->
-<!--  ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT    -->
-<!--  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE      -->
-<!--  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.ANY    -->
-<!--  DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL         -->
-<!--  DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS    -->
-<!--  OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)      -->
-<!--  HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,        -->
-<!--  STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING      -->
-<!--  IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISEDOF THE          -->
-<!--  POSSIBILITY OF SUCH DAMAGE.                                                -->
-<!--                                                                                      -->
-<!-- Changes from Qualcomm Innovation Center are provided under the following license:    -->
-<!-- Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.             -->
-<!--                                                                                      -->
-<!-- Redistribution and use in source and binary forms, with or without                   -->
-<!-- modification, are permitted (subject to the limitations in the                       -->
-<!-- disclaimer below) provided that the following conditions are met:                    -->
-<!--                                                                                      -->
-<!--     * Redistributions of source code must retain the above copyright                 -->
-<!--       notice, this list of conditions and the following disclaimer.                  -->
-<!--                                                                                      -->
-<!--     * Redistributions in binary form must reproduce the above                        -->
-<!--       copyright notice, this list of conditions and the following                    -->
-<!--       disclaimer in the documentation and/or other materials provided                -->
-<!--       with the distribution.                                                         -->
-<!--                                                                                      -->
-<!--     * Neither the name of Qualcomm Innovation Center, Inc. nor the names of its      -->
-<!--       contributors may be used to endorse or promote products derived                -->
-<!--       from this software without specific prior written permission.                  -->
-<!--                                                                                      -->
-<!-- NO EXPRESS OR IMPLIED LICENSES TO ANY PARTY'S PATENT RIGHTS ARE                      -->
-<!-- GRANTED BY THIS LICENSE. THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT                  -->
-<!-- HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED                          -->
-<!-- WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF                 -->
-<!-- MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.                 -->
-<!-- IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR                 -->
-<!-- ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL               -->
-<!-- DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE                    -->
-<!-- GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS                        -->
-<!-- INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER                 -->
-<!-- IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR                      -->
-<!-- OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN                  -->
-<!-- IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.                                        -->
+<!-- Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+
+* Redistribution and use in source and binary forms, with or without
+* modification, are permitted provided that the following conditions are
+* met:
+*     * Redistributions of source code must retain the above copyright
+*       notice, this list of conditions and the following disclaimer.
+*     * Redistributions in binary form must reproduce the above
+*       copyright notice, this list of conditions and the following
+*       disclaimer in the documentation and/or other materials provided
+*       with the distribution.
+*     * Neither the name of The Linux Foundation nor the names of its
+*       contributors may be used to endorse or promote products derived
+*       from this software without specific prior written permission.
+
+* THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
+* WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+* MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
+* ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
+* BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+* CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+* SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
+* BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+* WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
+* OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
+* IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+* Changes from Qualcomm Innovation Center are provided under the following license:
+*
+* Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+*
+* Redistribution and use in source and binary forms, with or without
+* modification, are permitted (subject to the limitations in the
+* disclaimer below) provided that the following conditions are met:
+*
+* * Redistributions of source code must retain the above copyright
+* notice, this list of conditions and the following disclaimer.
+*
+* * Redistributions in binary form must reproduce the above
+* copyright notice, this list of conditions and the following
+* disclaimer in the documentation and/or other materials provided
+* with the distribution.
+*
+* * Neither the name of Qualcomm Innovation Center, Inc. nor the names of its
+* contributors may be used to endorse or promote products derived
+* from this software without specific prior written permission.
+*
+* NO EXPRESS OR IMPLIED LICENSES TO ANY PARTY'S PATENT RIGHTS ARE
+* GRANTED BY THIS LICENSE. THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT
+* HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED
+* WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+* MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+* IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
+* ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+* DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE
+* GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+* INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
+* IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+* OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
+* IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. -->
+
 <resource_manager_info>
     <version>2.0</version>
     <config_params>
@@ -81,7 +75,7 @@
         <param key="upd_duty_cycle_enable" value="false" />
         <param key="dual_mono" value ="false" />
         <param key="signal_handler" value ="false" />
-        <param key="device_mux_config" value ="true" />
+        <param key="device_mux_config" value ="false" />
         <param key="upd_virtual_port" value ="false" />
     </config_params>
     <config_volume>
@@ -203,6 +197,22 @@
             <usecase>
                 <name>PAL_STREAM_COMPRESSED</name>
                 <ec_enable>1</ec_enable>
+                <custom-config key="unprocessed-hdr-mic-landscape">
+                    <channels>4</channels>
+                    <snd_device_name>unprocessed-hdr-mic-landscape</snd_device_name>
+                </custom-config>
+                <custom-config key="unprocessed-hdr-mic-portrait">
+                    <channels>4</channels>
+                    <snd_device_name>unprocessed-hdr-mic-portrait</snd_device_name>
+                </custom-config>
+                <custom-config key="unprocessed-hdr-mic-inverted-landscape">
+                    <channels>4</channels>
+                    <snd_device_name>unprocessed-hdr-mic-inverted-landscape</snd_device_name>
+                </custom-config>
+                <custom-config key="unprocessed-hdr-mic-inverted-portrait">
+                    <channels>4</channels>
+                    <snd_device_name>unprocessed-hdr-mic-inverted-portrait</snd_device_name>
+                </custom-config>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_VOIP_TX</name>
@@ -293,6 +303,22 @@
             <usecase>
                 <name>PAL_STREAM_COMPRESSED</name>
                 <ec_enable>1</ec_enable>
+                <custom-config key="unprocessed-hdr-mic-landscape">
+                    <channels>4</channels>
+                    <snd_device_name>unprocessed-hdr-mic-landscape</snd_device_name>
+                </custom-config>
+                <custom-config key="unprocessed-hdr-mic-portrait">
+                    <channels>4</channels>
+                    <snd_device_name>unprocessed-hdr-mic-portrait</snd_device_name>
+                </custom-config>
+                <custom-config key="unprocessed-hdr-mic-inverted-landscape">
+                    <channels>4</channels>
+                    <snd_device_name>unprocessed-hdr-mic-inverted-landscape</snd_device_name>
+                </custom-config>
+                <custom-config key="unprocessed-hdr-mic-inverted-portrait">
+                    <channels>4</channels>
+                    <snd_device_name>unprocessed-hdr-mic-inverted-portrait</snd_device_name>
+                </custom-config>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_VOIP_TX</name>
@@ -510,6 +536,15 @@
             <snd_device_name>vi-feedback</snd_device_name>
         </in-device>
         <in-device>
+            <id>PAL_DEVICE_IN_CPS_FEEDBACK</id>
+            <back_end_name>CODEC_DMA-LPAIF_WSA-TX-2</back_end_name>
+            <max_channels>2</max_channels>
+            <channels>2</channels>
+            <samplerate>24000</samplerate>
+            <bit_width>32</bit_width>
+            <snd_device_name>cps-feedback</snd_device_name>
+        </in-device>
+        <in-device>
             <id>PAL_DEVICE_IN_BLUETOOTH_A2DP</id>
             <back_end_name>SLIM-DEV1-TX-7</back_end_name>
             <max_channels>1</max_channels>
@@ -605,7 +640,7 @@
             <channels>2</channels>
             <samplerate>48000</samplerate>
             <snd_device_name>speaker</snd_device_name>
-            <speaker_protection_enabled>0</speaker_protection_enabled>
+            <speaker_protection_enabled>1</speaker_protection_enabled>
             <fractional_sr>0</fractional_sr>
             <!-- To enable external EC reference the flag extec_ref_enabled must be added as 1 -->
             <ext_ec_ref_enabled>0</ext_ec_ref_enabled>
@@ -614,7 +649,9 @@
             <!--specify the supported bit format on speaker end point -->
             <!--this should be in the form of pal_audio_fmt_id-->
             <!--e.g <supported_bit_format >PAL_AUDIO_FMT_PCM_S24_LE</supported_bit_format>-->
-            <supported_bit_format>PAL_AUDIO_FMT_PCM_S16_LE</supported_bit_format>
+            <!--We support 24 bit for speaker as of now, as some module in ADSP does not support Q31 format-->
+            <!--This can be changed to PAL_AUDIO_FMT_PCM_S32_LE if 32 bit e2e support is required-->
+            <supported_bit_format>PAL_AUDIO_FMT_PCM_S24_LE</supported_bit_format>
             <!-- RAS should be enabled with speaker protection always -->
             <ras_enabled>0</ras_enabled>
             <!-- Flag to specify speaker in case Voice call is switched from
@@ -652,6 +689,7 @@
             <samplerate>48000</samplerate>
             <fractional_sr>0</fractional_sr>
             <snd_device_name>handset</snd_device_name>
+            <handset_protection_enabled>0</handset_protection_enabled>
           <usecase>
               <name>PAL_STREAM_VOICE_CALL</name>
               <priority>1</priority>
@@ -1198,6 +1236,15 @@
                             <context id="0x08001332" /> <!-- EVENT_DOOROPEN -->
                             <context id="0x08001333" /> <!-- EVENT_GLASSBREAKING -->
                             <context id="0x08001334" /> <!-- EVENT_SIREN -->
+                            <context id="0x080013CC" /> <!-- EVENT_CARHONK -->
+                            <context id="0x080013CD" /> <!-- EVENT_GUNSHOT -->
+                            <context id="0x080013CE" /> <!-- EVENT_PHONERING -->
+                            <context id="0x080013CF" /> <!-- EVENT_SLEEPAPNEA -->
+                            <context id="0x080013D0" /> <!-- EVENT_SNORING -->
+                            <context id="0x080013D1" /> <!-- EVENT_CATMEOW -->
+                            <context id="0x080013D2" /> <!-- EVENT_DOORKNOCK -->
+                            <context id="0x080013D3" /> <!-- EVENT_WATERFLOW -->
+                            <context id="0x080013D4" /> <!-- EVENT_FIREALARM -->
                         </contexts>
                     </sound_model>
                     <sound_model>
@@ -1270,8 +1317,9 @@
                 <!-- do update acdb and usecaseKvManager.xml files by adding more instances    -->
                 <param pdk_first_stage_max_engine_count="1"/>
                 <!-- Profile specific data which the algorithm can support -->
-                <param capture_keyword="2000" />
-                <param client_capture_read_delay="2000" />
+                <param capture_keyword="2000" /> <!-- Default history buffer length -->
+                <param client_capture_read_delay="2000" /> <!-- reserved buffer duration for rt data -->
+                <param pre_roll_duration="500" /> <!-- Default preroll duration -->
                 <!-- durations in us -->
                 <param kw_start_tolerance="360000" />
                 <param kw_end_tolerance="240000" />

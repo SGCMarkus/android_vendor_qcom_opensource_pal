@@ -26,6 +26,39 @@
  * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
  * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Changes from Qualcomm Innovation Center are provided under the following license:
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted (subject to the limitations in the
+ * disclaimer below) provided that the following conditions are met:
+ *
+ *   * Redistributions of source code must retain the above copyright
+ *     notice, this list of conditions and the following disclaimer.
+ *
+ *   * Redistributions in binary form must reproduce the above
+ *     copyright notice, this list of conditions and the following
+ *     disclaimer in the documentation and/or other materials provided
+ *     with the distribution.
+ *
+ *   * Neither the name of Qualcomm Innovation Center, Inc. nor the names of its
+ *     contributors may be used to endorse or promote products derived
+ *     from this software without specific prior written permission.
+ *
+ * NO EXPRESS OR IMPLIED LICENSES TO ANY PARTY'S PATENT RIGHTS ARE
+ * GRANTED BY THIS LICENSE. THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT
+ * HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED
+ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+ * IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
+ * ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE
+ * GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
+ * IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+ * OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
+ * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 #define LOG_TAG "PAL: PayloadBuilder"
@@ -40,6 +73,7 @@
 #include <bt_ble.h>
 #include "sp_vi.h"
 #include "sp_rx.h"
+#include "cps_data_router.h"
 #include "fluence_ffv_common_calibration.h"
 #include "mspp_module_calibration_api.h"
 
@@ -2880,6 +2914,7 @@ int PayloadBuilder::populateDevicePPCkv(Stream *s, std::vector <std::pair<int,in
                 break;
             case PAL_STREAM_LOW_LATENCY:
             case PAL_STREAM_DEEP_BUFFER:
+            case PAL_STREAM_SPATIAL_AUDIO:
             case PAL_STREAM_PCM_OFFLOAD:
             case PAL_STREAM_COMPRESSED:
                 if (dAttr.id == PAL_DEVICE_OUT_SPEAKER) {
@@ -3016,6 +3051,10 @@ int PayloadBuilder::populateCalKeyVector(Stream *s, std::vector <std::pair<int,i
         if (level != -1)
             ckv.push_back(std::make_pair(GAIN, level));
         break;
+    case HANDSET_PROT_ENABLE:
+         PAL_DBG(LOG_TAG, "Handset Mono channel speaker");
+         ckv.push_back(std::make_pair(SPK_PRO_DEV_MAP, LEFT_MONO));
+         break;
     case SPKR_PROT_ENABLE :
         status = s->getAssociatedDevices(associatedDevices);
         if (0 != status) {
@@ -3324,7 +3363,7 @@ void PayloadBuilder::payloadSPConfig(uint8_t** payload, size_t* size, uint32_t m
 
                 payloadSize = sizeof(struct apm_module_param_data_t) +
                               sizeof(param_id_sp_th_vi_r0t0_cfg_t) +
-                              sizeof(vi_r0t0_cfg_t) * data->num_speakers;
+                              sizeof(vi_r0t0_cfg_t) * data->num_ch;
 
                 padBytes = PAL_PADDING_8BYTE_ALIGN(payloadSize);
                 payloadInfo = (uint8_t*) calloc(1, payloadSize + padBytes);
@@ -3340,10 +3379,10 @@ void PayloadBuilder::payloadSPConfig(uint8_t** payload, size_t* size, uint32_t m
                                 sizeof(struct apm_module_param_data_t)
                                 + sizeof(param_id_sp_th_vi_r0t0_cfg_t));
 
-                spConf->num_speakers = data->num_speakers;
-                for(int i = 0; i < data->num_speakers; i++) {
-                    r0t0[i].r0_cali_q24 = data->vi_r0t0_cfg[i].r0_cali_q24;
-                    r0t0[i].t0_cali_q6 = data->vi_r0t0_cfg[i].t0_cali_q6;
+                spConf->num_ch = data->num_ch;
+                for(int i = 0; i < data->num_ch; i++) {
+                    r0t0[i].r0_cali_q24 = data->r0t0_cfg[i].r0_cali_q24;
+                    r0t0[i].t0_cali_q6 = data->r0t0_cfg[i].t0_cali_q6;
                 }
             }
         break;
@@ -3392,6 +3431,7 @@ void PayloadBuilder::payloadSPConfig(uint8_t** payload, size_t* size, uint32_t m
                 param_id_sp_vi_channel_map_cfg_t *spConf;
                 param_id_sp_vi_channel_map_cfg_t *data;
                 int32_t *channelMap;
+                std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
 
                 data = (param_id_sp_vi_channel_map_cfg_t *) param;
 
@@ -3415,9 +3455,7 @@ void PayloadBuilder::payloadSPConfig(uint8_t** payload, size_t* size, uint32_t m
                                     + sizeof(param_id_sp_vi_channel_map_cfg_t));
 
                 spConf->num_ch = data->num_ch;
-                for (int i = 0; i < data->num_ch; i++) {
-                    channelMap[i] = i+1;
-                }
+                rm->getSpViChannelMapCfg(channelMap, data->num_ch);
             }
         break;
         case PARAM_ID_SP_OP_MODE :
@@ -3465,7 +3503,7 @@ void PayloadBuilder::payloadSPConfig(uint8_t** payload, size_t* size, uint32_t m
                 spConf = (param_id_sp_ex_vi_mode_cfg_t *) (payloadInfo +
                                 sizeof(struct apm_module_param_data_t));
 
-                spConf->operation_mode = data->operation_mode;
+                spConf->ex_FTM_mode_enable_flag = data->ex_FTM_mode_enable_flag;
             }
         break;
         case PARAM_ID_SP_TH_VI_FTM_CFG :
@@ -3536,6 +3574,7 @@ void PayloadBuilder::payloadSPConfig(uint8_t** payload, size_t* size, uint32_t m
                 header = (struct apm_module_param_data_t*) payloadInfo;
             }
         break;
+#if 0
         case PARAM_ID_CPS_LPASS_HW_INTF_CFG:
             {
                 lpass_swr_hw_reg_cfg_t *data = NULL;
@@ -3586,6 +3625,40 @@ void PayloadBuilder::payloadSPConfig(uint8_t** payload, size_t* size, uint32_t m
 
                 memcpy(spThrshConf, data, sizeof(param_id_cps_lpass_swr_thresholds_cfg_t) +
                                 (sizeof(cps_reg_wr_values_t) * data->num_spkr));
+            }
+        break;
+#endif
+        case PARAM_ID_CPS_CHANNEL_MAP :
+            {
+                param_id_cps_ch_map_t *spConf;
+                param_id_cps_ch_map_t *data;
+                int32_t *channelMap;
+
+                data = (param_id_cps_ch_map_t *) param;
+
+                payloadSize = sizeof(struct apm_module_param_data_t) +
+                                    sizeof(param_id_cps_ch_map_t) +
+                                    (sizeof(int32_t) * data->num_ch);
+
+                padBytes = PAL_PADDING_8BYTE_ALIGN(payloadSize);
+
+                payloadInfo = (uint8_t*) calloc(1, payloadSize + padBytes);
+                if (!payloadInfo) {
+                    PAL_ERR(LOG_TAG, "payloadInfo malloc failed %s", strerror(errno));
+                    return;
+                }
+                header = (struct apm_module_param_data_t*) payloadInfo;
+
+                spConf = (param_id_cps_ch_map_t *) (payloadInfo +
+                                sizeof(struct apm_module_param_data_t));
+                channelMap = (int32_t *) (payloadInfo +
+                                    sizeof(struct apm_module_param_data_t)
+                                    + sizeof(param_id_cps_ch_map_t));
+
+                spConf->num_ch = data->num_ch;
+                for (int i = 0; i < data->num_ch; i++) {
+                    channelMap[i] = i+1;
+                }
             }
         break;
         default:

@@ -195,6 +195,7 @@ stream_create:
         switch (sAttr->type) {
             case PAL_STREAM_LOW_LATENCY:
             case PAL_STREAM_DEEP_BUFFER:
+            case PAL_STREAM_SPATIAL_AUDIO:
             case PAL_STREAM_GENERIC:
             case PAL_STREAM_VOIP_TX:
             case PAL_STREAM_VOIP_RX:
@@ -369,6 +370,33 @@ int32_t Stream::getEffectParameters(void *effect_query)
     return status;
 }
 
+int32_t Stream::setEffectParameters(void *effect_param)
+{
+    int32_t status = 0;
+
+    if (!effect_param) {
+        PAL_ERR(LOG_TAG, "invalid query");
+        return -EINVAL;
+    }
+
+    mStreamMutex.lock();
+    if (currentState == STREAM_IDLE) {
+        PAL_ERR(LOG_TAG, "Invalid stream state: IDLE");
+        mStreamMutex.unlock();
+        return -EINVAL;
+    }
+
+    pal_param_payload *pal_param = (pal_param_payload *)effect_param;
+    effect_pal_payload_t *effectPayload = (effect_pal_payload_t *)pal_param->payload;
+    status = session->setEffectParameters(this, effectPayload);
+    if (status) {
+       PAL_ERR(LOG_TAG, "setEffectParameters failed with %d", status);
+    }
+
+    mStreamMutex.unlock();
+
+    return status;
+}
 int32_t Stream::rwACDBParameters(void *payload, uint32_t sampleRate,
                                     bool isParamWrite)
 {
@@ -435,6 +463,9 @@ uint32_t Stream::getRenderLatency()
     case PAL_STREAM_LOW_LATENCY:
         delayMs = PAL_LOW_LATENCY_PLATFORM_DELAY / 1000;
         break;
+    case PAL_STREAM_SPATIAL_AUDIO:
+        delayMs = PAL_SPATIAL_AUDIO_PLATFORM_DELAY / 1000;
+        break;
     case PAL_STREAM_COMPRESSED:
     case PAL_STREAM_PCM_OFFLOAD:
         delayMs = PAL_PCM_OFFLOAD_PLATFORM_DELAY / 1000;
@@ -470,6 +501,10 @@ uint32_t Stream::getLatency()
     case PAL_STREAM_LOW_LATENCY:
         latencyMs = PAL_LOW_LATENCY_OUTPUT_PERIOD_DURATION *
             PAL_LOW_LATENCY_PLAYBACK_PERIOD_COUNT;
+        break;
+    case PAL_STREAM_SPATIAL_AUDIO:
+        latencyMs = PAL_SPATIAL_AUDIO_PERIOD_DURATION *
+            PAL_SPATIAL_AUDIO_PLAYBACK_PERIOD_COUNT;
         break;
     case PAL_STREAM_COMPRESSED:
     case PAL_STREAM_PCM_OFFLOAD:
@@ -934,6 +969,7 @@ int32_t Stream::handleBTDeviceNotReady(bool& a2dpSuspend)
                                 dattr.custom_config.custom_key, &devInfo);
                         rm->updateSndName(dattr.id, devInfo.sndDevName);
                     }
+                    dev->setDeviceAttributes(dattr);
                 }
             }
 
@@ -994,8 +1030,10 @@ int32_t Stream::disconnectStreamDevice_l(Stream* streamHandle, pal_device_id_t d
         if (dev_id == mDevices[i]->getSndDeviceId()) {
             PAL_DBG(LOG_TAG, "device %d name %s, going to stop",
                 mDevices[i]->getSndDeviceId(), mDevices[i]->getPALDeviceName().c_str());
-            if (currentState != STREAM_STOPPED)
+            if (currentState != STREAM_STOPPED && isDevRegistered) {
                 rm->deregisterDevice(mDevices[i], this);
+                isDevRegistered = false;
+            }
             rm->lockGraph();
             status = session->disconnectSessionDevice(streamHandle, mStreamAttr->type, mDevices[i]);
             if (0 != status) {
@@ -1131,8 +1169,10 @@ int32_t Stream::connectStreamDevice_l(Stream* streamHandle, struct pal_device *d
         goto dev_stop;
     }
     rm->unlockGraph();
-    if (currentState != STREAM_STOPPED)
+    if (currentState != STREAM_STOPPED && !isDevRegistered) {
         rm->registerDevice(dev, this);
+        isDevRegistered = true;
+    }
 
     rm->checkAndSetDutyCycleParam();
 

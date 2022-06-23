@@ -110,7 +110,7 @@ public:
         std::shared_ptr<Device> deviceToDisconnect __unused) {return 0;};
     uint32_t getMIID(const char *backendName __unused, uint32_t tagId __unused, uint32_t *miid __unused)
                      {return 0;};
-    struct mixer_ctl* getFEMixerCtl(const char *controlName __unused, int *device __unused) {return 0;}
+    struct mixer_ctl* getFEMixerCtl(const char *controlName __unused, int *device __unused, pal_stream_direction_t dir __unused) {return 0;}
     session_callback sessionCb;
     uint64_t cbCookie;
     int32_t sessionId;

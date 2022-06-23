@@ -88,6 +88,8 @@ extern "C" {
 #define PAL_MAX_CHANNELS_SUPPORTED 64
 #define MAX_KEYWORD_SUPPORTED 8
 
+#define PAL_VERSION "1.0"
+
 /** Audio stream handle */
 typedef uint64_t pal_stream_handle_t;
 
@@ -401,6 +403,7 @@ typedef enum {
     PAL_STREAM_CONTEXT_PROXY = 24,        /**< Context Proxy Stream */
     PAL_STREAM_SENSOR_PCM_DATA = 25,      /**< Sensor Pcm Data Stream */
     PAL_STREAM_ULTRASOUND = 26,           /**< Ultrasound Proximity detection */
+    PAL_STREAM_SPATIAL_AUDIO = 27,        /**< Spatial audio playback */
     PAL_STREAM_MAX,                       /**< max stream types - add new ones above */
 } pal_stream_type_t;
 
@@ -458,8 +461,9 @@ typedef enum {
     PAL_DEVICE_IN_ECHO_REF = PAL_DEVICE_IN_MIN + 21,
     PAL_DEVICE_IN_HAPTICS_VI_FEEDBACK = PAL_DEVICE_IN_MIN + 22,
     PAL_DEVICE_IN_BLUETOOTH_BLE = PAL_DEVICE_IN_MIN + 23,
+    PAL_DEVICE_IN_CPS_FEEDBACK = PAL_DEVICE_IN_MIN + 24,
     // Add new IN devices here, increment MAX and MIN below when you do so
-    PAL_DEVICE_IN_MAX = PAL_DEVICE_IN_MIN + 24,
+    PAL_DEVICE_IN_MAX = PAL_DEVICE_IN_MIN + 25,
 } pal_device_id_t;
 
 typedef enum {
@@ -539,6 +543,7 @@ static const std::map<std::string, pal_device_id_t> deviceIdLUT {
     {std::string{ "PAL_DEVICE_IN_EXT_EC_REF" },            PAL_DEVICE_IN_EXT_EC_REF},
     {std::string{ "PAL_DEVICE_IN_ECHO_REF" },              PAL_DEVICE_IN_ECHO_REF},
     {std::string{ "PAL_DEVICE_IN_HAPTICS_VI_FEEDBACK" },   PAL_DEVICE_IN_HAPTICS_VI_FEEDBACK},
+    {std::string{ "PAL_DEVICE_IN_CPS_FEEDBACK" },          PAL_DEVICE_IN_CPS_FEEDBACK},
 };
 
 //reverse mapping
@@ -590,7 +595,8 @@ static const std::map<uint32_t, std::string> deviceNameLUT {
     {PAL_DEVICE_IN_ULTRASOUND_MIC,        std::string{"PAL_DEVICE_IN_ULTRASOUND_MIC"}},
     {PAL_DEVICE_IN_EXT_EC_REF,            std::string{"PAL_DEVICE_IN_EXT_EC_REF"}},
     {PAL_DEVICE_IN_ECHO_REF,              std::string{"PAL_DEVICE_IN_ECHO_REF"}},
-    {PAL_DEVICE_IN_HAPTICS_VI_FEEDBACK,   std::string{"PAL_DEVICE_IN_HAPTICS_VI_FEEDBACK"}}
+    {PAL_DEVICE_IN_HAPTICS_VI_FEEDBACK,   std::string{"PAL_DEVICE_IN_HAPTICS_VI_FEEDBACK"}},
+    {PAL_DEVICE_IN_CPS_FEEDBACK,          std::string{"PAL_DEVICE_IN_CPS_FEEDBACK"}}
 };
 
 const std::map<std::string, uint32_t> usecaseIdLUT {
@@ -619,6 +625,7 @@ const std::map<std::string, uint32_t> usecaseIdLUT {
     {std::string{ "PAL_STREAM_ACD" },                      PAL_STREAM_ACD},
     {std::string{ "PAL_STREAM_ULTRASOUND" },               PAL_STREAM_ULTRASOUND},
     {std::string{ "PAL_STREAM_SENSOR_PCM_DATA" },          PAL_STREAM_SENSOR_PCM_DATA},
+    {std::string{ "PAL_STREAM_SPATIAL_AUDIO" },            PAL_STREAM_SPATIAL_AUDIO},
 };
 
 /* Update the reverse mapping as well when new stream is added */
@@ -648,6 +655,7 @@ const std::map<uint32_t, std::string> streamNameLUT {
     {PAL_STREAM_ACD,                std::string{ "PAL_STREAM_ACD" } },
     {PAL_STREAM_ULTRASOUND,         std::string{ "PAL_STREAM_ULTRASOUND" } },
     {PAL_STREAM_SENSOR_PCM_DATA,    std::string{ "PAL_STREAM_SENSOR_PCM_DATA" } },
+    {PAL_STREAM_SPATIAL_AUDIO,      std::string{ "PAL_STREAM_SPATIAL_AUDIO" } },
 };
 
 const std::map<uint32_t, std::string> vsidLUT {
@@ -1489,6 +1497,7 @@ typedef struct pal_buffer_config {
 
 #define PAL_GENERIC_PLATFORM_DELAY     (29*1000LL)
 #define PAL_DEEP_BUFFER_PLATFORM_DELAY (29*1000LL)
+#define PAL_SPATIAL_AUDIO_PLATFORM_DELAY (13*1000LL)
 #define PAL_PCM_OFFLOAD_PLATFORM_DELAY (30*1000LL)
 #define PAL_LOW_LATENCY_PLATFORM_DELAY (13*1000LL)
 #define PAL_MMAP_PLATFORM_DELAY        (3*1000LL)
@@ -1498,11 +1507,13 @@ typedef struct pal_buffer_config {
 #define PAL_DEEP_BUFFER_OUTPUT_PERIOD_DURATION 40
 #define PAL_PCM_OFFLOAD_OUTPUT_PERIOD_DURATION 80
 #define PAL_LOW_LATENCY_OUTPUT_PERIOD_DURATION 5
+#define PAL_SPATIAL_AUDIO_PERIOD_DURATION 10
 
 #define PAL_GENERIC_PLAYBACK_PERIOD_COUNT 2
 #define PAL_DEEP_BUFFER_PLAYBACK_PERIOD_COUNT 2
 #define PAL_PCM_OFFLOAD_PLAYBACK_PERIOD_COUNT 2
 #define PAL_LOW_LATENCY_PLAYBACK_PERIOD_COUNT 2
+#define PAL_SPATIAL_AUDIO_PLAYBACK_PERIOD_COUNT 2
 
 #ifdef __cplusplus
 }  /* extern "C" */

@@ -40,17 +40,16 @@
 #include "PalCommon.h"
 class Stream;
 
-/*
- * enable_gcov - Enable gcov for pal
+/**
+ *  Get PAL version in the form of Major and Minor number
+ *  seperated by period.
  *
- * Prerequisites
- *   Should be call from CATF
+ *  @return the version string in the form of Major and Minor
+ *  e.g '1.0'
  */
-
-/*void enable_gcov()
-{
-    __gcov_flush();
-}*/
+const char* pal_get_version( ){
+    return PAL_VERSION;
+}
 
 static void notify_concurrent_stream(pal_stream_type_t type,
                                      pal_stream_direction_t dir,
@@ -150,6 +149,13 @@ int32_t pal_stream_open(struct pal_stream_attributes *attributes,
     }
 
     PAL_INFO(LOG_TAG, "Enter, stream type:%d", attributes->type);
+#ifdef SOC_PERIPHERAL_PROT
+    if (ResourceManager::isTZSecureZone) {
+        PAL_DBG(LOG_TAG, "In secure zone, so stop the usecase");
+        status = -ENODEV;
+        goto exit;
+    }
+#endif
 
     try {
         s = Stream::create(attributes, devices, no_of_devices, modifiers,
@@ -224,6 +230,14 @@ int32_t pal_stream_start(pal_stream_handle_t *stream_handle)
         return status;
     }
     PAL_INFO(LOG_TAG, "Enter. Stream handle %pK", stream_handle);
+
+#ifdef SOC_PERIPHERAL_PROT
+    if (ResourceManager::isTZSecureZone) {
+        PAL_DBG(LOG_TAG, "In secure zone, so stop the usecase");
+        status = -ENODEV;
+        goto exit;
+    }
+#endif
 
     s = reinterpret_cast<Stream *>(stream_handle);
 
@@ -338,7 +352,11 @@ int32_t pal_stream_set_param(pal_stream_handle_t *stream_handle, uint32_t param_
     PAL_DBG(LOG_TAG, "Enter. Stream handle :%pK param_id %d", stream_handle,
             param_id);
     s =  reinterpret_cast<Stream *>(stream_handle);
-    status = s->setParameters(param_id, (void *)param_payload);
+    if (PAL_PARAM_ID_UIEFFECT == param_id) {
+        status = s->setEffectParameters((void *)param_payload);
+    } else {
+        status = s->setParameters(param_id, (void *)param_payload);
+    }
     if (0 != status) {
         PAL_ERR(LOG_TAG, "set parameters failed status %d param_id %u", status, param_id);
         return status;
@@ -369,7 +387,9 @@ int32_t pal_stream_set_volume(pal_stream_handle_t *stream_handle,
     }
     PAL_DBG(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
     s =  reinterpret_cast<Stream *>(stream_handle);
+    s->lockStreamMutex();
     status = s->setVolume(volume);
+    s->unlockStreamMutex();
     if (0 != status) {
         PAL_ERR(LOG_TAG, "setVolume failed with status %d", status);
         return status;
@@ -925,4 +945,37 @@ int32_t pal_gef_rw_param_acdb(uint32_t param_id __unused, void *param_payload,
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
 
     return status;
+}
+
+int32_t pal_stream_get_buffer_size(pal_stream_handle_t *stream_handle,
+                                   size_t *in_buffer, size_t *out_buffer){
+    PAL_ERR(LOG_TAG, "error: API pal_stream_get_buffer_size not implemented");
+    return -ENOSYS;
+}
+
+int32_t pal_stream_get_device(pal_stream_handle_t *stream_handle,
+                            uint32_t no_of_devices, struct pal_device *devices){
+    PAL_ERR(LOG_TAG, "error: API: pal_stream_get_device not implemented");
+    return -ENOSYS;
+}
+
+int32_t pal_stream_get_volume(pal_stream_handle_t *stream_handle,
+                              struct pal_volume_data *volume){
+    PAL_ERR(LOG_TAG, "error: API: pal_stream_get_volume not implemented");
+    return -ENOSYS;
+}
+
+int32_t pal_stream_get_mute(pal_stream_handle_t *stream_handle, bool *state){
+    PAL_ERR(LOG_TAG, "error: API: pal_stream_get_mute not implemented");
+    return -ENOSYS;
+}
+
+int32_t pal_get_mic_mute(bool *state){
+    PAL_ERR(LOG_TAG, "error: API: pal_get_mic_mute not implemented");
+    return -ENOSYS;
+}
+
+int32_t pal_set_mic_mute(bool state){
+    PAL_ERR(LOG_TAG, "error: API: pal_set_mic_mute not implemented");
+    return -ENOSYS;
 }

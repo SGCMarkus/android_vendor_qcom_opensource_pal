@@ -167,13 +167,14 @@ public:
         uint32_t &sr_tag, uint32_t &ch_tag, uint32_t &bitwidth_tag);
     virtual uint32_t getMIID(const char *backendName __unused, uint32_t tagId __unused, uint32_t *miid __unused) { return -EINVAL; }
     int getEffectParameters(Stream *s, effect_pal_payload_t *effectPayload);
+    int setEffectParameters(Stream *s, effect_pal_payload_t *effectPayload);
     int rwACDBParameters(void *payload, uint32_t sampleRate, bool isParamWrite);
     int rwACDBParamTunnel(void *payload, pal_device_id_t palDeviceId,
         pal_stream_type_t palStreamType, uint32_t sampleRate, uint32_t instanceId,
         bool isParamWrite, Stream *s);
     int NotifyChargerConcurrency(std::shared_ptr<ResourceManager>rm, bool state);
     int EnableChargerConcurrency(std::shared_ptr<ResourceManager>rm, Stream *s);
-    virtual struct mixer_ctl* getFEMixerCtl(const char *controlName __unused, int *device __unused) {return nullptr;}
+    virtual struct mixer_ctl* getFEMixerCtl(const char *controlName __unused, int *device __unused, pal_stream_direction_t dir __unused) {return nullptr;}
     virtual int createMmapBuffer(Stream *s __unused, int32_t min_size_frames __unused,
                                    struct pal_mmap_buffer *info __unused) {return -EINVAL;}
     virtual int GetMmapPosition(Stream *s __unused, struct pal_mmap_position *position __unused) {return -EINVAL;}
@@ -184,6 +185,10 @@ public:
     virtual int checkAndSetExtEC(const std::shared_ptr<ResourceManager>& rm,
                                  Stream *s, bool is_enable);
     virtual void AdmRoutingChange(Stream *s __unused) {  };
+private:
+    uint32_t getModuleInfo(const char *control, uint32_t tagId, uint32_t *miid, struct mixer_ctl **ctl, int *device);
+    int setEffectParametersTKV(Stream *s, effect_pal_payload_t *effectPayload);
+    int setEffectParametersNonTKV(Stream *s, effect_pal_payload_t *effectPayload);
 };
 
 #endif //SESSION_H

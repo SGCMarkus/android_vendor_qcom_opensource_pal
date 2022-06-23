@@ -164,6 +164,16 @@ int32_t StreamCompress::open()
         goto exit;
     }
 
+    /* Check for BT device connected state */
+    for (int32_t i = 0; i < mDevices.size(); i++) {
+        pal_device_id_t dev_id = (pal_device_id_t) mDevices[i]->getSndDeviceId();
+        if (rm->isBtDevice(dev_id) && !(rm->isDeviceAvailable(dev_id))) {
+            PAL_ERR(LOG_TAG, "BT device %d not connected, cannot open stream", dev_id);
+            status = -ENODEV;
+            goto exit;
+        }
+    }
+
     if (currentState == STREAM_IDLE) {
         status = session->open(this);
         if (0 != status) {
@@ -287,10 +297,12 @@ int32_t StreamCompress::stop()
         rm->lockActiveStream();
         mStreamMutex.lock();
         currentState = STREAM_STOPPED;
-        for (int i = 0; i < mDevices.size(); i++) {
-            rm->deregisterDevice(mDevices[i], this);
+        if (isDevRegistered) {
+            for (int i = 0; i < mDevices.size(); i++) {
+                rm->deregisterDevice(mDevices[i], this);
+            }
+            isDevRegistered = false;
         }
-        isDevRegistered = false;
         rm->unlockActiveStream();
         switch (mStreamAttr->direction) {
         case PAL_AUDIO_OUTPUT:
@@ -705,20 +717,6 @@ int32_t StreamCompress::setParameters(uint32_t param_id, void *payload)
         return -EINVAL;
     }
     switch (param_id) {
-        case PAL_PARAM_ID_UIEFFECT:
-        {
-            param_payload = (pal_param_payload *)payload;
-            effectPalPayload = (effect_pal_payload_t *)(param_payload->payload);
-            if (effectPalPayload->isTKV) {
-                status = session->setTKV(this, MODULE, effectPalPayload);
-            } else {
-                status = session->setParameters(this, effectPalPayload->tag, param_id, payload);
-            }
-            if (status) {
-               PAL_ERR(LOG_TAG, "setParameters %d failed with %d", param_id, status);
-            }
-            break;
-        }
         case PAL_PARAM_ID_DEVICE_ROTATION:
         {
             // Call Session for Setting the parameter.
@@ -963,10 +961,12 @@ int32_t StreamCompress::flush()
     mStreamMutex.unlock();
     rm->lockActiveStream();
     mStreamMutex.lock();
-    for (int i = 0; i < mDevices.size(); i++) {
-        rm->deregisterDevice(mDevices[i], this);
+    if (isDevRegistered) {
+        for (int i = 0; i < mDevices.size(); i++) {
+            rm->deregisterDevice(mDevices[i], this);
+        }
+        isDevRegistered = false;
     }
-    isDevRegistered = false;
     rm->unlockActiveStream();
     return session->flush();
 }
