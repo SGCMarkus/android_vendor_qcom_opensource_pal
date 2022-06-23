@@ -218,7 +218,7 @@ void SoundTriggerPlatformInfo::HandleStartTag(const char* tag, const char** attr
     }
 
     if (!strcmp(tag, "common_config") || !strcmp(tag, "capture_profile_list")) {
-        PAL_INFO(LOG_TAG, "tag:%s appeared, nothing to do", tag);
+        PAL_VERBOSE(LOG_TAG, "tag:%s appeared, nothing to do", tag);
         return;
     }
 
