@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -606,7 +607,7 @@ int SessionAgm::flush()
     return status;
 }
 
-int SessionAgm::suspend()
+int SessionAgm::suspend(Stream *s)
 {
     int status = 0;
 
@@ -618,6 +619,12 @@ int SessionAgm::suspend()
     PAL_VERBOSE(LOG_TAG,"Enter suspend\n");
     status = agm_session_suspend(agmSessHandle);
     PAL_VERBOSE(LOG_TAG,"suspend complete\n");
+
+    if (!status)
+        rm->voteSleepMonitor(s, false);
+    else
+        PAL_VERBOSE(LOG_TAG, "suspend failed : %d \n", status);
+
     return status;
 }
 
