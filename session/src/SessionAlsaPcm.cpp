@@ -40,8 +40,8 @@
 #include <asps/asps_acm_api.h>
 #include <sstream>
 #include <string>
-#include "detection_cmn_api.h"
 #include "audio_dam_buffer_api.h"
+#include "sh_mem_pull_push_mode_api.h"
 #include "apm_api.h"
 #include "us_detect_api.h"
 #include "us_gen_api.h"
@@ -843,6 +843,15 @@ int SessionAlsaPcm::start(Stream * s)
         event_cfg.module_instance_id = svaMiid;
         SessionAlsaUtils::registerMixerEvent(mixer, pcmDevIds.at(0),
             (void *)&event_cfg, payload_size);
+
+        memset(&event_cfg, 0, sizeof(event_cfg));
+        event_cfg.event_config_payload_size = 0;
+        event_cfg.is_register = 1;
+        event_cfg.event_id = EVENT_ID_SH_MEM_PUSH_MODE_EOS_MARKER;
+        tagId = SHMEM_ENDPOINT;
+        SessionAlsaUtils::registerMixerEvent(mixer, pcmDevIds.at(0),
+            txAifBackEnds[0].second.data(), tagId, (void *)&event_cfg,
+            payload_size);
     } else if (sAttr.type == PAL_STREAM_ULTRASOUND && RegisterForEvents) {
         payload_size = sizeof(struct agm_event_reg_cfg);
 
@@ -1426,6 +1435,16 @@ int SessionAlsaPcm::stop(Stream * s)
         event_cfg.module_instance_id = svaMiid;
         SessionAlsaUtils::registerMixerEvent(mixer, pcmDevIds.at(0),
             (void *)&event_cfg, payload_size);
+
+        memset(&event_cfg, 0, sizeof(event_cfg));
+        event_cfg.event_config_payload_size = 0;
+        event_cfg.is_register = 0;
+        event_cfg.event_id = EVENT_ID_SH_MEM_PUSH_MODE_EOS_MARKER;
+        tagId = SHMEM_ENDPOINT;
+        SessionAlsaUtils::registerMixerEvent(mixer, pcmDevIds.at(0),
+            txAifBackEnds[0].second.data(), tagId, (void *)&event_cfg,
+            payload_size);
+
     } else if (sAttr.type == PAL_STREAM_ULTRASOUND && RegisterForEvents) {
         payload_size = sizeof(struct agm_event_reg_cfg);
         memset(&event_cfg, 0, sizeof(event_cfg));
