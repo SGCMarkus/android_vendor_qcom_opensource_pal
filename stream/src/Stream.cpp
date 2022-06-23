@@ -1719,32 +1719,37 @@ std::shared_ptr<Device> Stream::GetPalDevice(Stream *streamHandle, pal_device_id
     }
 
     if (!mStreamAttr) {
-        PAL_ERR(LOG_TAG, "stream attribute is null");
+        PAL_ERR(LOG_TAG, "Stream attribute is null");
         goto exit;
     }
 
-    PAL_DBG(LOG_TAG, "Enter, Stream: %d, device_id: %d", mStreamAttr->type, dev_id);
+    PAL_DBG(LOG_TAG, "Enter, stream: %d, device_id: %d", mStreamAttr->type, dev_id);
 
-    /* Use the rm's common capture profile */
-    cap_prof = rm->GetSoundTriggerCaptureProfile();
+    if (mStreamAttr->type == PAL_STREAM_VOICE_UI) {
+        st_st = dynamic_cast<StreamSoundTrigger*>(streamHandle);
+        cap_prof = st_st->GetCurrentCaptureProfile();
+    } else if (mStreamAttr->type == PAL_STREAM_ACD) {
+        st_acd = dynamic_cast<StreamACD*>(streamHandle);
+        cap_prof = st_acd->GetCurrentCaptureProfile();
+    } else {
+        st_sns_pcm_data = dynamic_cast<StreamSensorPCMData*>(streamHandle);
+        cap_prof = st_sns_pcm_data->GetCurrentCaptureProfile();
+    }
 
-    /* Fall back to stream’s local capture profile if common capture profile is NULL */
-    if (!cap_prof) {
-        PAL_DBG(LOG_TAG, "Failed to get common capture profile for Stream %d", mStreamAttr->type);
-        if (mStreamAttr->type == PAL_STREAM_VOICE_UI) {
-            st_st = dynamic_cast<StreamSoundTrigger*>(streamHandle);
-            cap_prof = st_st->GetCurrentCaptureProfile();
-        } else if (mStreamAttr->type == PAL_STREAM_ACD) {
-            st_acd = dynamic_cast<StreamACD*>(streamHandle);
-            cap_prof = st_acd->GetCurrentCaptureProfile();
-        } else {
-            st_sns_pcm_data = dynamic_cast<StreamSensorPCMData*>(streamHandle);
-            cap_prof = st_sns_pcm_data->GetCurrentCaptureProfile();
-        }
+    if (!cap_prof && !rm->GetSoundTriggerCaptureProfile()) {
+        PAL_ERR(LOG_TAG, "Failed to get local and common cap_prof for stream: %d",
+                mStreamAttr->type);
+        goto exit;
+    }
 
-        if (!cap_prof) {
-            PAL_ERR(LOG_TAG, "Error:Failed to get local capture profile for Stream %d", mStreamAttr->type);
-            goto exit;
+    if (rm->GetSoundTriggerCaptureProfile()) {
+        /* Use the rm's common capture profile if local capture profile is not
+         * available, or the common capture profile has the highest priority.
+         */
+        if (!cap_prof || rm->GetSoundTriggerCaptureProfile()->ComparePriority(cap_prof) > 0) {
+            PAL_DBG(LOG_TAG, "common cap_prof %s has the highest priority.",
+                    rm->GetSoundTriggerCaptureProfile()->GetName().c_str());
+            cap_prof = rm->GetSoundTriggerCaptureProfile();
         }
     }
 
