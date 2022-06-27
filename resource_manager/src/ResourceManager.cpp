@@ -9111,19 +9111,22 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                        goto exit;
                     }
 
-                    stream = static_cast<Stream *>(activestreams[0]);
-                    stream->getStreamAttributes(&sAttr);
-                    if ((sAttr.direction == PAL_AUDIO_OUTPUT) &&
-                        ((sAttr.type == PAL_STREAM_LOW_LATENCY) ||
-                        (sAttr.type == PAL_STREAM_DEEP_BUFFER) ||
-                        (sAttr.type == PAL_STREAM_COMPRESSED) ||
-                        (sAttr.type == PAL_STREAM_PCM_OFFLOAD))) {
-                        stream->getAssociatedSession(&session);
-                        status = session->setParameters(stream, TAG_MODULE_MSPP, param_id, param_payload);
-                        if (0 != status) {
-                            PAL_ERR(LOG_TAG, "session setConfig failed with status %d", status);
-                            goto exit;
-                        }
+                    for (int j = 0; j < activestreams.size(); j++) {
+                       stream = static_cast<Stream *>(activestreams[j]);
+                       stream->getStreamAttributes(&sAttr);
+                       if ((sAttr.direction == PAL_AUDIO_OUTPUT) &&
+                           ((sAttr.type == PAL_STREAM_LOW_LATENCY) ||
+                           (sAttr.type == PAL_STREAM_DEEP_BUFFER) ||
+                           (sAttr.type == PAL_STREAM_COMPRESSED) ||
+                           (sAttr.type == PAL_STREAM_PCM_OFFLOAD))) {
+                           stream->getAssociatedSession(&session);
+                           status = session->setParameters(stream, TAG_MODULE_MSPP,
+                               param_id, param_payload);
+                           if (0 != status) {
+                               PAL_ERR(LOG_TAG, "session setConfig failed. stream: %d, status: %d",
+                                      sAttr.type, status);
+                           }
+                       }
                     }
                 }
             }
