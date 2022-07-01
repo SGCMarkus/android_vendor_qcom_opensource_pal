@@ -598,6 +598,11 @@
         <path name="amic1" />
     </path>
 
+    <path name="handset-mic-unprocessed">
+        <path name="dmic2" />
+        <ctl name="TX_DEC2 Volume" value="102" />
+    </path>
+
     <path name="ultrasound-handset">
         <ctl name="WSA RX_MIX0 MUX" value="AIF_MIX1_PB" />
         <ctl name="WSA_RX0 MIX INP" value="RX_MIX0" />

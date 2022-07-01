@@ -643,6 +643,11 @@
         <path name="dmic2" />
     </path>
 
+    <path name="handset-mic-unprocessed">
+        <path name="dmic2" />
+        <ctl name="TX_DEC2 Volume" value="102" />
+    </path>
+
     <path name="ultrasound-mic">
         <ctl name="TX_AIF2_CAP Mixer DEC4" value="1" />
         <ctl name="TX DMIC MUX4" value="DMIC2" />
