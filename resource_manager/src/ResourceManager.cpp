@@ -6506,11 +6506,15 @@ bool ResourceManager::compareSharedBEStreamDevAttr(std::vector <std::tuple<Strea
                     sharedBEDevAttr = (struct pal_device *) calloc(1, sizeof(struct pal_device));
                     if (!sharedBEDevAttr) {
                         PAL_ERR(LOG_TAG, "failed to allocate memory for pal device");
+                        for (auto it = streamDevAttr.begin(); it != streamDevAttr.end(); it++)
+                            free((*it).second);
                         return switchStreams;
                     }
                     status = palDevices[i]->getTopPriorityDeviceAttr(sharedBEDevAttr, &sharedBEStreamPrio);
                     if (status == 0)
                         streamDevAttr.insert(std::make_pair(sharedBEStreamPrio, sharedBEDevAttr));
+                    else
+                        free(sharedBEDevAttr);
                 }
             }
             palDevices.clear();
