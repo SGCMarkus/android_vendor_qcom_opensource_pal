@@ -11109,6 +11109,11 @@ bool ResourceManager::doDevAttrDiffer(struct pal_device *inDevAttr,
     bool ret = false;
     std::shared_ptr<Device> dev = nullptr;
 
+    if (!inDevAttr->id || !curDevAttr->id) {
+        PAL_DBG(LOG_TAG, "Invalid input or output device attribute");
+        goto exit;
+    }
+
     dev = Device::getInstance(curDevAttr, rm);
     if (!dev) {
         PAL_ERR(LOG_TAG, "No device instance found");
