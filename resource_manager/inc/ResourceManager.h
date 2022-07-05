@@ -127,6 +127,10 @@ typedef enum {
 #endif
 #endif
 
+#ifdef SOC_PERIPHERAL_PROT
+#define SOC_PERIPHERAL_LIBRARY_PATH "/vendor/lib64/libPeripheralStateUtils.so"
+#endif
+
 using InstanceListNode_t = std::vector<std::pair<int32_t, bool>> ;
 using nonTunnelInstMap_t = std::unordered_map<uint32_t, bool>;
 
@@ -392,6 +396,13 @@ typedef void (*adm_request_focus_v2_t)(void *, void*, long);
 typedef void (*adm_on_routing_change_t)(void *, void*);
 typedef int (*adm_request_focus_v2_1_t)(void *, void*, long);
 
+
+#ifdef SOC_PERIPHERAL_PROT
+typedef int32_t (*getPeripheralStatusFnPtr)(void *context);
+typedef void* (*registerPeripheralCBFnPtr)(uint32_t peripheral, PeripheralStateCB NotifyEvent);
+typedef int32_t (*deregisterPeripheralCBFnPtr)(void *context);
+#endif
+
 class Device;
 class Stream;
 class StreamPCM;
@@ -645,12 +656,18 @@ public:
     /*variable to store MSPP linear gain*/
     pal_param_mspp_linear_gain_t linear_gain;
 #ifdef SOC_PERIPHERAL_PROT
+    static std::thread socPerithread;
     static bool isTZSecureZone;
     static void *tz_handle;
     static int deregPeripheralCb(void *cntxt);
     static int registertoPeripheral(uint32_t pUID);
     static int32_t secureZoneEventCb(const uint32_t peripheral,
                                            const uint8_t secureState);
+    static void loadSocPeripheralLib();
+    static void *socPeripheralLibHdl;
+    static getPeripheralStatusFnPtr mGetPeripheralState;
+    static registerPeripheralCBFnPtr mRegisterPeripheralCb;
+    static deregisterPeripheralCBFnPtr mDeregisterPeripheralCb;
 #endif
     uint64_t cookie;
     int initSndMonitor();
