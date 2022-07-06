@@ -40,6 +40,7 @@
 #include <memory>
 #include <mutex>
 #include <exception>
+#include <semaphore.h>
 #include <errno.h>
 #ifdef LINUX_ENABLED
 #include <condition_variable>
@@ -168,6 +169,8 @@ protected:
     static std::mutex pauseMutex;
     bool mutexLockedbyRm = false;
     bool mDutyCycleEnable = false;
+    sem_t mInUse;
+    int connectToDefaultDevice(Stream* streamHandle, uint32_t dir);
 public:
     virtual ~Stream() {};
     struct pal_volume_data* mVolumeData = NULL;
@@ -250,6 +253,10 @@ public:
     int32_t getEffectParameters(void *effect_query, size_t *payload_size);
     uint32_t getInstanceId() { return mInstanceID; }
     inline void setInstanceId(uint32_t sid) { mInstanceID = sid; }
+    int initStreamSmph();
+    int deinitStreamSmph();
+    int postStreamSmph();
+    int waitStreamSmph();
     bool checkStreamMatch(pal_device_id_t pal_device_id,
                                 pal_stream_type_t pal_stream_type);
     int32_t getEffectParameters(void *effect_query);
