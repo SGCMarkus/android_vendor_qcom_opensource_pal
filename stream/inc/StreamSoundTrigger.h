@@ -178,7 +178,7 @@ public:
     bool GetLPIEnabled() { return use_lpi_; }
     uint32_t GetInstanceId();
     bool IsStreamInBuffering() {
-       return capture_requested_ && reader_->isEnabled() &&
+       return capture_requested_ && reader_ && reader_->isEnabled() &&
               (GetCurrentStateId() == ST_STATE_BUFFERING);
     }
 private:
