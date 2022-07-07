@@ -1447,6 +1447,15 @@ int SessionAlsaCompress::start(Stream * s)
                 }
             }
 
+            if (!capture_started) {
+                status = compress_start(compress);
+                if (status) {
+                    PAL_ERR(LOG_TAG, "compress start failed with err %d", status);
+                    return status;
+                }
+                capture_started = true;
+            }
+
             break;
         default:
             break;
@@ -1702,15 +1711,6 @@ int SessionAlsaCompress::read(Stream *s, int tag __unused,
         return status;
     }
 
-    /* Upon first read start the the capture */
-    if (!capture_started) {
-        status = compress_start(compress);  // for capture usecase
-        if (status) {
-            PAL_ERR(LOG_TAG, "compress start failed with err %d", status);
-            return status;
-        }
-        capture_started = true;
-    }
 
     void *data = buf->buffer;
     data = static_cast<char *>(data) + offset;
