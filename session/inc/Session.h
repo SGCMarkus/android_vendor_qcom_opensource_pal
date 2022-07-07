@@ -93,6 +93,8 @@ const std::map<std::uint32_t, slot_mask_t> slotMaskLUT {
    {4, SLOT_MASK15},
 };
 
+#define MSPP_SOFT_PAUSE_DELAY 150
+
 class Stream;
 class ResourceManager;
 class Session

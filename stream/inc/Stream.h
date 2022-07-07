@@ -128,7 +128,7 @@ typedef enum {
  * pause completion. But it's not the case in Gecko.
  * FIXME: load the ramp period config from acdb.
  */
-#define VOLUME_RAMP_PERIOD (100*1000)
+#define VOLUME_RAMP_PERIOD (200*1000)
 
 /*
  * The sleep is required for mute to ramp down.
