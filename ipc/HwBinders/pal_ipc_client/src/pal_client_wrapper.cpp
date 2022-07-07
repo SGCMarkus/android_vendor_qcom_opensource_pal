@@ -25,6 +25,10 @@
  * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
  * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Changes from Qualcomm Innovation Center are provided under the following license:
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause-Clear
  */
 
 #define LOG_TAG "pal_client_wrapper"
@@ -41,12 +45,114 @@ using vendor::qti::hardware::pal::V1_0::IPAL;
 
 using vendor::qti::hardware::pal::V1_0::implementation::PalCallback;
 using android::sp;
+using android::hardware::MessageQueue;
+using android::hardware::EventFlag;
+using android::Thread;
+using android::status_t;
 
 bool pal_server_died = false;
 android::sp<IPAL> pal_client = NULL;
 sp<server_death_notifier> Server_death_notifier = NULL;
 
+
 std::mutex gLock;
+
+class DataTransferThread : public Thread {
+   public:
+    DataTransferThread(std::atomic<bool>* stop, PalStreamHandle streamHandle,
+                pal_stream_callback clbkObject,
+                PalCallback::DataMQ* dataMQ,
+                PalCallback::CommandMQ* commandMQ,
+                EventFlag* efGroup,
+                uint64_t cookie)
+        : Thread(false),
+          mStop(stop),
+          mStreamHandle(streamHandle),
+          mStreamCallback(clbkObject),
+          mDataMQ(dataMQ),
+          mCommandMQ(commandMQ),
+          mEfGroup(efGroup),
+          mBuffer(nullptr),
+          mStreamCookie(cookie) {}
+    bool init() {
+        mBuffer.reset(new (std::nothrow) uint8_t[mDataMQ->getQuantumCount()]);
+        return mBuffer != nullptr;
+    }
+    virtual ~DataTransferThread() {}
+
+   private:
+    std::atomic<bool>* mStop;
+    PalStreamHandle mStreamHandle;
+    pal_stream_callback mStreamCallback;
+    PalCallback::DataMQ* mDataMQ;
+    PalCallback::CommandMQ* mCommandMQ;
+    EventFlag* mEfGroup;
+    std::unique_ptr<uint8_t[]> mBuffer;
+    uint64_t mStreamCookie;
+
+    bool threadLoop() override;
+
+    void startTransfer(int eventId);
+};
+
+void DataTransferThread::startTransfer(int eventId) {
+    size_t availToRead = mDataMQ->availableToRead();
+
+    if (mDataMQ->read(&mBuffer[0], availToRead)) {
+        ALOGV("%s: calling client callback, data size %zu", __func__, availToRead);
+
+        const ::vendor::qti::hardware::pal::V1_0::PalCallbackBuffer *rwDonePayload =
+                (::vendor::qti::hardware::pal::V1_0::PalCallbackBuffer *)&mBuffer[0];
+        auto cbBuffer = std::make_unique<pal_callback_buffer>();
+        if (!cbBuffer) {
+            ALOGE("%s: Failed to allocate memory for callback payload", __func__);
+            return;
+        }
+
+        cbBuffer->size = rwDonePayload->size;
+        std::vector<uint8_t> buffData = {};
+        if (rwDonePayload->buffer.size() == cbBuffer->size) {
+            buffData.resize(cbBuffer->size);
+            memcpy(buffData.data(), rwDonePayload->buffer.data(), cbBuffer->size);
+            cbBuffer->buffer = buffData.data();
+        }
+
+        auto bufTimeSpec = std::make_unique<timespec>();
+        if (!bufTimeSpec) {
+            ALOGE("%s: Failed to allocate memory for timespec", __func__);
+            return;
+        }
+        bufTimeSpec->tv_sec = rwDonePayload->timeStamp.tvSec;
+        bufTimeSpec->tv_nsec = rwDonePayload->timeStamp.tvNSec;
+        cbBuffer->ts = (timespec *) bufTimeSpec.get();
+        cbBuffer->status = rwDonePayload->status;
+        cbBuffer->cb_buf_info.frame_index = rwDonePayload->cbBufInfo.frame_index;
+        cbBuffer->cb_buf_info.sample_rate = rwDonePayload->cbBufInfo.sample_rate;
+        cbBuffer->cb_buf_info.bit_width = rwDonePayload->cbBufInfo.bit_width;
+        cbBuffer->cb_buf_info.channel_count = rwDonePayload->cbBufInfo.channel_count;
+        mStreamCallback((pal_stream_handle_t *)mStreamHandle, eventId,
+                        (uint32_t *)cbBuffer.get(), (uint32_t)availToRead,
+                        mStreamCookie);
+    }
+}
+
+bool DataTransferThread::threadLoop() {
+    while (!std::atomic_load_explicit(mStop, std::memory_order_acquire)) {
+        uint32_t efState = 0;
+        mEfGroup->wait(static_cast<uint32_t>(PalMessageQueueFlagBits::NOT_EMPTY), &efState);
+        if (!(efState & static_cast<uint32_t>(PalMessageQueueFlagBits::NOT_EMPTY))) {
+            continue;  // Nothing to do.
+        }
+        PalReadWriteDoneCommand eventId;
+        if (!mCommandMQ->read(&eventId)) {
+            continue;
+        }
+        startTransfer((int)eventId);
+        mEfGroup->wake(static_cast<uint32_t>(PalMessageQueueFlagBits::NOT_FULL));
+    }
+
+    return false;
+}
 
 void server_death_notifier::serviceDied(uint64_t cookie,
                    const android::wp<::android::hidl::base::V1_0::IBase>& who)
@@ -88,6 +194,21 @@ void pal_deinit(void)
    return;
 }
 
+PalCallback::~PalCallback() {
+    mStopDataTransferThread.store(true, std::memory_order_release);
+    if (mEfGroup) {
+        mEfGroup->wake(static_cast<uint32_t>(PalMessageQueueFlagBits::NOT_EMPTY));
+    }
+    if (mDataTransferThread.get()) {
+        status_t status = mDataTransferThread->join();
+        ALOGE_IF(status, "write thread exit error: %s", strerror(-status));
+    }
+    if (mEfGroup) {
+        status_t status = EventFlag::deleteEventFlag(&mEfGroup);
+        ALOGE_IF(status, "write MQ event flag deletion error: %s", strerror(-status));
+    }
+}
+
 Return<int32_t> PalCallback::event_callback(uint64_t strm_handle,
                                  uint32_t event_id,
                                  uint32_t event_data_size,
@@ -113,91 +234,108 @@ exit:
     return int32_t {};
 }
 
-Return<int32_t> PalCallback::event_callback_rw_done(uint64_t strm_handle,
+Return<void> PalCallback::event_callback_rw_done(uint64_t strm_handle,
                                  uint32_t event_id,
                                  uint32_t event_data_size,
-                                 const hidl_vec<PalEventReadWriteDonePayload>& event_data,
+                                 const hidl_vec<PalCallbackBuffer>& event_data,
                                  uint64_t cookie) {
-    struct pal_event_read_write_done_payload *rw_done_payload;
-    struct pal_buffer *buffer = nullptr;
-    uint32_t *ev_data = NULL;
-    const native_handle *allochandle = nullptr;
-    const PalEventReadWriteDonePayload *rwDonePayloadHidl = event_data.data();
-    PalBuffer *bufferHidl;
-
+    const PalCallbackBuffer *rwDonePayloadHidl = event_data.data();
     ALOGV("%s called \n", __func__);
-    rw_done_payload = (struct pal_event_read_write_done_payload *)
-                          calloc(1, sizeof(pal_event_read_write_done_payload));
-    if (!rw_done_payload) {
-        ALOGE("%s:%d Failed to allocate memory to rw_done_payload", __func__, __LINE__);
-        goto exit;
+
+    auto cbBuffer = std::make_unique<pal_callback_buffer>();
+    if (!cbBuffer) {
+        ALOGE("%s:%d Failed to allocate memory for callback payload", __func__, __LINE__);
+        return Void();
     }
 
-    ev_data = (uint32_t *)rw_done_payload;
-    rw_done_payload->tag = rwDonePayloadHidl->tag;
-    rw_done_payload->status = rwDonePayloadHidl->status;
-    rw_done_payload->md_status = rwDonePayloadHidl->md_status;
-
-    buffer = &rw_done_payload->buff;
-
-    buffer->size = rwDonePayloadHidl->buff.size;
-    if (rwDonePayloadHidl->buff.buffer.size() == buffer->size) {
-        buffer->buffer = (uint8_t *)calloc(1, buffer->size);
-        if (!buffer->buffer) {
-            ALOGE("%s:%d Failed to allocate memory to buffer", __func__, __LINE__);
-            goto exit;
-        }
-        memcpy(buffer->buffer, rwDonePayloadHidl->buff.buffer.data(),
-               buffer->size);
+    cbBuffer->size = rwDonePayloadHidl->size;
+    std::vector<uint8_t> buffData = {};
+    if (rwDonePayloadHidl->buffer.size() == cbBuffer->size) {
+        buffData.resize(cbBuffer->size);
+        memcpy(buffData.data(), rwDonePayloadHidl->buffer.data(), cbBuffer->size);
+        cbBuffer->buffer = buffData.data();
     }
 
-    buffer->offset = rwDonePayloadHidl->buff.offset;
-    buffer->ts = (struct timespec *) calloc(1, sizeof(struct timespec));
-    if (!buffer->ts) {
-        ALOGE("%s:%d Failed to allocate memory to buffer->ts", __func__, __LINE__);
-        goto exit;
+    auto bufTimeSpec = std::make_unique<timespec>();
+    if (!bufTimeSpec) {
+        ALOGE("%s:%d Failed to allocate memory for timespec", __func__, __LINE__);
+        return Void();
+    }
+    bufTimeSpec->tv_sec = rwDonePayloadHidl->timeStamp.tvSec;
+    bufTimeSpec->tv_nsec = rwDonePayloadHidl->timeStamp.tvNSec;
+    cbBuffer->ts = (timespec *) bufTimeSpec.get();
+    cbBuffer->status = rwDonePayloadHidl->status;
+    cbBuffer->cb_buf_info.frame_index = rwDonePayloadHidl->cbBufInfo.frame_index;
+    cbBuffer->cb_buf_info.sample_rate = rwDonePayloadHidl->cbBufInfo.sample_rate;
+    cbBuffer->cb_buf_info.bit_width = rwDonePayloadHidl->cbBufInfo.bit_width;
+    cbBuffer->cb_buf_info.channel_count = rwDonePayloadHidl->cbBufInfo.channel_count;
+    ALOGV("%s:%d Bufsize %d  ret bufSize %d", __func__, __LINE__,
+                rwDonePayloadHidl->size, cbBuffer->size);
+    ALOGV("event_payload_size %d", event_data_size);
+    this->cb((pal_stream_handle_t *)strm_handle, event_id, (uint32_t *)cbBuffer.get(),
+                                    event_data_size, cookie);
+
+    return Void();
+}
+
+Return<void> PalCallback::prepare_mq_for_transfer(PalStreamHandle streamHandle,
+                            uint64_t cookie, prepare_mq_for_transfer_cb _hidl_cb) {
+    status_t status;
+
+    // Wrap the _hidl_cb to return an error
+    auto sendError = [&_hidl_cb](PalReadWriteDoneResult result) {
+        _hidl_cb(result, DataMQ::Descriptor(), CommandMQ::Descriptor());
+    };
+
+    // Create message queues.
+    if (mDataMQ) {
+        ALOGE("the client attempts to call prepareForWriting twice");
+        sendError(PalReadWriteDoneResult::INVALID_STATE);
+        return Void();
     }
 
-    buffer->ts->tv_sec = rwDonePayloadHidl->buff.timeStamp.tvSec;
-    buffer->ts->tv_nsec = rwDonePayloadHidl->buff.timeStamp.tvNSec;
-    buffer->flags = rwDonePayloadHidl->buff.flags;
-    if (rwDonePayloadHidl->buff.metadataSz) {
-        buffer->metadata_size = rwDonePayloadHidl->buff.metadataSz;
-        buffer->metadata = (uint8_t *)calloc(1, buffer->metadata_size);
-        if (!buffer->metadata) {
-            ALOGE("%s:%d Failed to allocate memory to buffer->metadata",
-                __func__, __LINE__);
-            goto exit;
-        }
+    std::unique_ptr<DataMQ> tempDataMQ(
+            new DataMQ(sizeof(PalCallbackBuffer) * 2, true /* EventFlag */));
 
-        ALOGV("metadatasize %d \n", buffer->metadata_size);
-        memcpy(buffer->metadata, rwDonePayloadHidl->buff.metadata.data(),
-               buffer->metadata_size);
+    std::unique_ptr<CommandMQ> tempCommandMQ(new CommandMQ(1));
+    if (!tempDataMQ->isValid() || !tempCommandMQ->isValid()) {
+        ALOGE_IF(!tempDataMQ->isValid(), "data MQ is invalid");
+        ALOGE_IF(!tempCommandMQ->isValid(), "command MQ is invalid");
+        sendError(PalReadWriteDoneResult::INVALID_ARGUMENTS);
+        return Void();
+    }
+    EventFlag* tempRawEfGroup{};
+    status = EventFlag::createEventFlag(tempDataMQ->getEventFlagWord(), &tempRawEfGroup);
+    std::unique_ptr<EventFlag, void (*)(EventFlag*)> tempElfGroup(
+        tempRawEfGroup, [](auto* ef) { EventFlag::deleteEventFlag(&ef); });
+    if (status != android::OK || !tempElfGroup) {
+        ALOGE("failed creating event flag for data MQ: %s", strerror(-status));
+        sendError(PalReadWriteDoneResult::INVALID_ARGUMENTS);
+        return Void();
     }
 
-    allochandle = rwDonePayloadHidl->buff.alloc_info.alloc_handle.handle();
-
-    buffer->alloc_info.alloc_handle = allochandle->data[1];
-    buffer->alloc_info.alloc_size = rwDonePayloadHidl->buff.alloc_info.alloc_size;
-    buffer->alloc_info.offset = rwDonePayloadHidl->buff.alloc_info.offset;
-    ALOGV("%s:%d Bufsize %d  ret bufSize %d", __func__, __LINE__, rwDonePayloadHidl->buff.size, buffer->size);
-    ALOGV("event_payload_size %d alloc_handle %d", event_data_size, allochandle->data[1]);
-    ALOGV("alloc size %d alloc_size ret %d", rwDonePayloadHidl->buff.alloc_info.alloc_size,buffer->alloc_info.alloc_size);
-    this->cb((pal_stream_handle_t *)strm_handle, event_id, ev_data, event_data_size,
-                                    cookie);
-
-exit:
-    if (buffer) {
-        if (buffer->metadata)
-            free(buffer->metadata);
-        if (buffer->buffer)
-            free(buffer->buffer);
-        if (buffer->ts)
-            free(buffer->ts);
+    // Create and launch the thread.
+    auto tempDataTransferThread =
+        sp<DataTransferThread>::make(&mStopDataTransferThread, streamHandle, cb, tempDataMQ.get(),
+                                  tempCommandMQ.get(), tempElfGroup.get(), cookie);
+    if (!tempDataTransferThread->init()) {
+        ALOGW("failed to start writer thread: %s", strerror(-status));
+        sendError(PalReadWriteDoneResult::INVALID_ARGUMENTS);
+        return Void();
     }
-    if (rw_done_payload)
-        free(rw_done_payload);
-    return int32_t {};
+    status = tempDataTransferThread->run("read_write_cb", android::PRIORITY_URGENT_AUDIO);
+    if (status != android::OK) {
+        ALOGW("failed to start read_write_cb thread: %s", strerror(-status));
+        sendError(PalReadWriteDoneResult::INVALID_ARGUMENTS);
+        return Void();
+    }
+
+    mDataMQ = std::move(tempDataMQ);
+    mCommandMQ = std::move(tempCommandMQ);
+    mDataTransferThread = tempDataTransferThread;
+    mEfGroup = tempElfGroup.release();
+    _hidl_cb(PalReadWriteDoneResult::OK, *mDataMQ->getDesc(), *mCommandMQ->getDesc());
+    return Void();
 }
 
 int32_t pal_stream_open(struct pal_stream_attributes *attr,
@@ -450,13 +588,13 @@ ssize_t pal_stream_write(pal_stream_handle_t *stream_handle, struct pal_buffer *
 {
     int ret = -EINVAL;
 
-    if (stream_handle == NULL)
-       goto done;
+    if (!stream_handle)
+        return ret;
 
     if (!pal_server_died) {
         ALOGV("%s:%d hndl %p",__func__, __LINE__, stream_handle );
         android::sp<IPAL> pal_client = get_pal_server();
-        if (pal_client == nullptr)
+        if (!pal_client)
             return ret;
 
         hidl_vec<PalBuffer> buf_hidl;
@@ -475,28 +613,24 @@ ssize_t pal_stream_write(pal_stream_handle_t *stream_handle, struct pal_buffer *
         palBuff->offset = buf->offset;
         palBuff->buffer.resize(buf->size);
         palBuff->flags = buf->flags;
+        palBuff->frame_index = buf->frame_index;
         if (buf->ts) {
              palBuff->timeStamp.tvSec = buf->ts->tv_sec;
              palBuff->timeStamp.tvNSec = buf->ts->tv_nsec;
         }
         if (buf->size && buf->buffer)
             memcpy(palBuff->buffer.data(), buf->buffer, buf->size);
-        if ((buf->metadata_size > 0) && buf->metadata) {
-            palBuff->metadataSz = buf->metadata_size;
-            palBuff->metadata.resize(buf->metadata_size);
-            memcpy(palBuff->metadata.data(),
-                   buf->metadata, buf->metadata_size);
-         }
-         palBuff->alloc_info.alloc_handle = hidl_memory("arpal_alloc_handle", hidl_handle(allocHidlHandle),
-                                                         buf->alloc_info.alloc_size);
-         ALOGV("%s:%d alloc handle %d sending %d",__func__,__LINE__, buf->alloc_info.alloc_handle, allocHidlHandle->data[0]);
+         palBuff->alloc_info.alloc_handle =
+                 hidl_memory("arpal_alloc_handle", hidl_handle(allocHidlHandle),
+                              buf->alloc_info.alloc_size);
+         ALOGV("%s:%d alloc handle %d sending %d",__func__,__LINE__,
+                     buf->alloc_info.alloc_handle, allocHidlHandle->data[0]);
          palBuff->alloc_info.alloc_size = buf->alloc_info.alloc_size;
          palBuff->alloc_info.offset = buf->alloc_info.offset;
          ret = pal_client->ipc_pal_stream_write((PalStreamHandle)stream_handle, buf_hidl);
          if (allocHidlHandle)
              native_handle_delete(allocHidlHandle);
     }
-done:
     return ret;
 }
 
@@ -504,11 +638,12 @@ ssize_t pal_stream_read(pal_stream_handle_t *stream_handle, struct pal_buffer *b
 {
     int ret = -EINVAL;
 
-    if (stream_handle == NULL)
-       goto done;
+    if (!stream_handle)
+        return ret;
+
     if (!pal_server_died) {
         android::sp<IPAL> pal_client = get_pal_server();
-        if (pal_client == nullptr)
+        if (!pal_client)
             return ret;
 
         hidl_vec<PalBuffer> buf_hidl;
@@ -525,14 +660,14 @@ ssize_t pal_stream_read(pal_stream_handle_t *stream_handle, struct pal_buffer *b
 
         palBuff->size = buf->size;
         palBuff->offset = buf->offset;
-        palBuff->metadataSz = buf->metadata_size;
         palBuff->alloc_info.alloc_handle = hidl_memory("arpal_alloc_handle", hidl_handle(allocHidlHandle),
                                                          buf->alloc_info.alloc_size);
         palBuff->alloc_info.alloc_size = buf->alloc_info.alloc_size;
         palBuff->alloc_info.offset = buf->alloc_info.offset;
 
         ALOGV("%s:%d size %d %d",__func__,__LINE__,buf_hidl.data()->size, buf->size);
-        ALOGV("%s:%d alloc handle %d sending %d",__func__,__LINE__, buf->alloc_info.alloc_handle, allocHidlHandle->data[0]);
+        ALOGV("%s:%d alloc handle %d sending %d",__func__,__LINE__,
+                   buf->alloc_info.alloc_handle, allocHidlHandle->data[0]);
         pal_client->ipc_pal_stream_read((PalStreamHandle)stream_handle, buf_hidl,
                [&](int32_t ret_, hidl_vec<PalBuffer> ret_buf_hidl)
                   {
@@ -542,10 +677,6 @@ ssize_t pal_stream_read(pal_stream_handle_t *stream_handle, struct pal_buffer *b
                                      ret_buf_hidl.data()->size, buf->size);
                               ret_ = -ENOMEM;
                            } else {
-                              if ((buf->metadata_size > 0) && buf->metadata)
-                                  memcpy(buf->metadata,
-                                         ret_buf_hidl.data()->metadata.data(),
-                                         ret_buf_hidl.data()->metadataSz);
                               if (buf->ts) {
                                   buf->ts->tv_sec =
                                        ret_buf_hidl.data()->timeStamp.tvSec;
@@ -566,7 +697,6 @@ ssize_t pal_stream_read(pal_stream_handle_t *stream_handle, struct pal_buffer *b
         if (allocHidlHandle)
             native_handle_delete(allocHidlHandle);
     }
-done:
     return ret;
 }
 

@@ -25,10 +25,15 @@
  * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
  * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Changes from Qualcomm Innovation Center are provided under the following license:
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause-Clear
  */
 
 #define LOG_TAG "pal_server_wrapper"
 #include "inc/pal_server_wrapper.h"
+#include "MetadataParser.h"
 #include <hwbinder/IPCThreadState.h>
 
 #define MAX_CACHE_SIZE 64
@@ -37,6 +42,49 @@ using vendor::qti::hardware::pal::V1_0::IPAL;
 using android::hardware::hidl_handle;
 using android::hardware::hidl_memory;
 
+// map<FD, map<offset, input_frame_id>>
+std::map<int, std::map<uint32_t, uint64_t>> gInputsPendingAck;
+std::mutex gInputsPendingAckLock;
+
+void addToPendingInputs(int fd, uint32_t offset, uint32_t ip_frame_id) {
+    ALOGV("%s: fd %d, offset %u", __func__, fd, offset);
+    std::lock_guard<std::mutex> pendingAcksLock(gInputsPendingAckLock);
+    auto itFd = gInputsPendingAck.find(fd);
+    if (itFd != gInputsPendingAck.end()) {
+        gInputsPendingAck[fd][offset] = ip_frame_id;
+        ALOGV("%s: added offset %u and frame id %u", __func__, offset,
+               (uint32_t)gInputsPendingAck[fd][offset]);
+    } else {
+        //create new map<offset,input_buffer_index> and add to FD map
+        ALOGV("%s: added map for fd %lu", __func__, (unsigned long)fd);
+        gInputsPendingAck.insert(std::make_pair(fd, std::map<uint32_t, uint64_t>()));
+        ALOGV("%s: added frame id %lu for fd %d offset %u", __func__,
+                    (unsigned long)ip_frame_id,  fd, (unsigned int)offset);
+        gInputsPendingAck[fd].insert(std::make_pair(offset, ip_frame_id));
+    }
+}
+
+int getInputBufferIndex(int fd, uint32_t offset, uint64_t &buf_index) {
+    int status = 0;
+
+    std::lock_guard<std::mutex> pendingAcksLock(gInputsPendingAckLock);
+    ALOGV("%s: fd %d, offset %u", __func__, fd, offset);
+    std::map<int, std::map<uint32_t, uint64_t>>::iterator itFd = gInputsPendingAck.find(fd);
+    if (itFd != gInputsPendingAck.end()) {
+        std::map<uint32_t, uint64_t> offsetToFrameIdxMap = itFd->second;
+        auto itOffsetFrameIdxPair = offsetToFrameIdxMap.find(offset);
+        if (itOffsetFrameIdxPair != offsetToFrameIdxMap.end()){
+            buf_index = itOffsetFrameIdxPair->second;
+            ALOGV("%s ip_frame_id=%lu", __func__, (unsigned long)buf_index);
+        } else {
+            status = -EINVAL;
+            ALOGE("%s: Entry doesn't exist for FD 0x%x and offset 0x%x",
+                    __func__, fd, offset);
+        }
+        gInputsPendingAck.erase(itFd);
+    }
+    return status;
+}
 
 namespace vendor {
 namespace qti {
@@ -117,6 +165,75 @@ static void printFdList(const std::vector<std::pair<int, int>> &list, const char
     }
 }
 
+int32_t SrvrClbk::callReadWriteTransferThread(
+        PalReadWriteDoneCommand cmd,
+        const uint8_t* data, size_t dataSize) {
+    if (!mCommandMQ->write(&cmd)) {
+        ALOGE("command message queue write failed for %d", cmd);
+        return -EAGAIN;
+    }
+    if (data != nullptr) {
+        size_t availableToWrite = mDataMQ->availableToWrite();
+        if (dataSize > availableToWrite) {
+            ALOGW("truncating write data from %lld to %lld due to insufficient data queue space",
+                    (long long)dataSize, (long long)availableToWrite);
+            dataSize = availableToWrite;
+        }
+        if (!mDataMQ->write(data, dataSize)) {
+            ALOGE("data message queue write failed");
+        }
+    }
+    mEfGroup->wake(static_cast<uint32_t>(PalMessageQueueFlagBits::NOT_EMPTY));
+
+    uint32_t efState = 0;
+retry:
+    status_t ret = mEfGroup->wait(static_cast<uint32_t>(PalMessageQueueFlagBits::NOT_FULL), &efState);
+    if (ret == -EAGAIN || ret == -EINTR) {
+        // Spurious wakeup. This normally retries no more than once.
+        ALOGE("%s: Wait returned error", __func__);
+        goto retry;
+    }
+    return 0;
+}
+
+int32_t SrvrClbk::prepare_mq_for_transfer(uint64_t streamHandle, uint64_t cookie) {
+    std::unique_ptr<DataMQ> tempDataMQ;
+    std::unique_ptr<CommandMQ> tempCommandMQ;
+    PalReadWriteDoneResult retval;
+    auto ret = clbk_binder->prepare_mq_for_transfer(streamHandle, cookie,
+            [&](PalReadWriteDoneResult r,
+                    const DataMQ::Descriptor& dataMQ,
+                    const CommandMQ::Descriptor& commandMQ) {
+                retval = r;
+                if (retval == PalReadWriteDoneResult::OK) {
+                    tempDataMQ.reset(new DataMQ(dataMQ));
+                    tempCommandMQ.reset(new CommandMQ(commandMQ));
+                    if (tempDataMQ->isValid() && tempDataMQ->getEventFlagWord()) {
+                        EventFlag::createEventFlag(tempDataMQ->getEventFlagWord(), &mEfGroup);
+                    }
+                }
+            });
+    if (retval != PalReadWriteDoneResult::OK) {
+        return NO_INIT;
+    }
+    if (!tempDataMQ || !tempDataMQ->isValid() ||
+            !tempCommandMQ || !tempCommandMQ->isValid() ||
+            !mEfGroup) {
+        ALOGE_IF(!tempDataMQ, "Failed to obtain data message queue for transfer");
+        ALOGE_IF(tempDataMQ && !tempDataMQ->isValid(),
+                 "Data message queue for transfer is invalid");
+        ALOGE_IF(!tempCommandMQ, "Failed to obtain command message queue for transfer");
+        ALOGE_IF(tempCommandMQ && !tempCommandMQ->isValid(),
+                 "Command message queue for transfer is invalid");
+        ALOGE_IF(!mEfGroup, "Event flag creation for transfer failed");
+        return NO_INIT;
+    }
+
+    mDataMQ = std::move(tempDataMQ);
+    mCommandMQ = std::move(tempCommandMQ);
+    return 0;
+}
+
 static int32_t pal_callback(pal_stream_handle_t *stream_handle,
                             uint32_t event_id, uint32_t *event_data,
                             uint32_t event_data_size,
@@ -149,17 +266,11 @@ static int32_t pal_callback(pal_stream_handle_t *stream_handle,
     if ((sr_clbk_dat->session_attr.type == PAL_STREAM_NON_TUNNEL) &&
           ((event_id == PAL_STREAM_CBK_EVENT_READ_DONE) ||
            (event_id == PAL_STREAM_CBK_EVENT_WRITE_READY))) {
-        hidl_vec<PalEventReadWriteDonePayload> rwDonePayloadHidl;
-        PalEventReadWriteDonePayload *rwDonePayload;
+        hidl_vec<PalCallbackBuffer> rwDonePayloadHidl;
+        PalCallbackBuffer *rwDonePayload;
         struct pal_event_read_write_done_payload *rw_done_payload;
         int input_fd = -1;
         int fdToBeClosed = -1;
-        native_handle_t *allocHidlHandle = nullptr;
-        allocHidlHandle = native_handle_create(1, 1);
-        if (!allocHidlHandle) {
-            ALOGE("handle allocHidlHandle is NULL");
-            return -EINVAL;
-        }
 
         rw_done_payload = (struct pal_event_read_write_done_payload *)event_data;
         /*
@@ -170,70 +281,99 @@ static int32_t pal_callback(pal_stream_handle_t *stream_handle,
             std::lock_guard<std::mutex> lock(s->mActiveSessionsLock);
             for (int idx = 0; idx < s->mActiveSessions.size(); idx++) {
                 session_info session = s->mActiveSessions[idx];
-                if (session.session_handle == (uint64_t)stream_handle) {
-                    std::vector<std::pair<int, int>>::iterator it;
-                    for (int i = 0; i < sr_clbk_dat->sharedMemFdList.size(); i++) {
-                        if (sr_clbk_dat->sharedMemFdList[i].second ==
-                                rw_done_payload->buff.alloc_info.alloc_handle) {
-                            input_fd = sr_clbk_dat->sharedMemFdList[i].first;
-                            it = (sr_clbk_dat->sharedMemFdList.begin() + i);
-                            if (it != sr_clbk_dat->sharedMemFdList.end()) {
-                                fdToBeClosed = sr_clbk_dat->sharedMemFdList[i].second;
-                                sr_clbk_dat->sharedMemFdList.erase(it);
-                                ALOGV("Removing fd [input %d - dup %d]", input_fd, fdToBeClosed);
-                            }
-                            break;
+                if (session.session_handle != (uint64_t)stream_handle) {
+                    continue;
+                }
+                std::vector<std::pair<int, int>>::iterator it;
+                for (int i = 0; i < sr_clbk_dat->sharedMemFdList.size(); i++) {
+                    if (sr_clbk_dat->sharedMemFdList[i].second ==
+                            rw_done_payload->buff.alloc_info.alloc_handle) {
+                        input_fd = sr_clbk_dat->sharedMemFdList[i].first;
+                        it = (sr_clbk_dat->sharedMemFdList.begin() + i);
+                        if (it != sr_clbk_dat->sharedMemFdList.end()) {
+                            fdToBeClosed = sr_clbk_dat->sharedMemFdList[i].second;
+                            sr_clbk_dat->sharedMemFdList.erase(it);
+                            ALOGV("Removing fd [input %d - dup %d]", input_fd, fdToBeClosed);
                         }
+                        break;
                     }
                 }
             }
         }
 
-        rwDonePayloadHidl.resize(sizeof(struct pal_event_read_write_done_payload));
-        rwDonePayload =(PalEventReadWriteDonePayload *)rwDonePayloadHidl.data();
-        rwDonePayload->tag = rw_done_payload->tag;
+        rwDonePayloadHidl.resize(sizeof(pal_callback_buffer));
+        rwDonePayload = (PalCallbackBuffer *)rwDonePayloadHidl.data();
         rwDonePayload->status = rw_done_payload->status;
-        rwDonePayload->md_status = rw_done_payload->md_status;
+        switch (rw_done_payload->md_status) {
+            case ENOTRECOVERABLE: {
+                ALOGE("%s: Error, md cannot be parsed in buffer", __func__);
+                rwDonePayload->status = rw_done_payload->md_status;
+                break;
+            }
+            case EOPNOTSUPP: {
+                ALOGE("%s: Error, md id not recognized in buffer", __func__);
+                rwDonePayload->status = rw_done_payload->md_status;
+                break;
+            }
+            case ENOMEM: {
+                ALOGE("%s: Error, md buffer size received is small", __func__);
+                rwDonePayload->status = rw_done_payload->md_status;
+                break;
+            }
+            default: {
+                if (rw_done_payload->md_status) {
+                    ALOGE("%s: Error received during callback, md status = 0x%x",
+                           __func__, rw_done_payload->md_status);
+                    rwDonePayload->status = rw_done_payload->md_status;
+                }
+                break;
+            }
+        }
 
-        rwDonePayload->buff.offset = rw_done_payload->buff.offset;
-        rwDonePayload->buff.flags = rw_done_payload->buff.flags;
-        rwDonePayload->buff.size = rw_done_payload->buff.size;
+        if (!rwDonePayload->status) {
+            auto metadataParser = std::make_unique<MetadataParser>();
+            if (event_id == PAL_STREAM_CBK_EVENT_READ_DONE) {
+                auto cb_buf_info = std::make_unique<pal_clbk_buffer_info>();
+                rwDonePayload->status = metadataParser->parseMetadata(
+                            rw_done_payload->buff.metadata,
+                            rw_done_payload->buff.metadata_size,
+                            cb_buf_info.get());
+                rwDonePayload->cbBufInfo.frame_index = cb_buf_info->frame_index;
+                rwDonePayload->cbBufInfo.sample_rate = cb_buf_info->sample_rate;
+                rwDonePayload->cbBufInfo.channel_count = cb_buf_info->channel_count;
+                rwDonePayload->cbBufInfo.bit_width = cb_buf_info->bit_width;
+            } else if (event_id == PAL_STREAM_CBK_EVENT_WRITE_READY) {
+                rwDonePayload->status = getInputBufferIndex(
+                            rw_done_payload->buff.alloc_info.alloc_handle,
+                            rw_done_payload->buff.alloc_info.offset,
+                            rwDonePayload->cbBufInfo.frame_index);
+            }
+            ALOGV("%s: frame_index=%u", __func__, rwDonePayload->cbBufInfo.frame_index);
+        }
+
+        rwDonePayload->size = rw_done_payload->buff.size;
         if (rw_done_payload->buff.ts != NULL) {
-            rwDonePayload->buff.timeStamp.tvSec = rw_done_payload->buff.ts->tv_sec;
-            rwDonePayload->buff.timeStamp.tvNSec = rw_done_payload->buff.ts->tv_nsec;
+            rwDonePayload->timeStamp.tvSec =  rw_done_payload->buff.ts->tv_sec;
+            rwDonePayload->timeStamp.tvNSec = rw_done_payload->buff.ts->tv_nsec;
         }
         if ((rw_done_payload->buff.buffer != NULL) &&
              !(sr_clbk_dat->session_attr.flags & PAL_STREAM_FLAG_EXTERN_MEM)) {
-            rwDonePayload->buff.buffer.resize(rwDonePayload->buff.size);
-            memcpy(rwDonePayload->buff.buffer.data(), rw_done_payload->buff.buffer,
-                   rwDonePayload->buff.size);
-        }
-        if ((rw_done_payload->buff.metadata_size > 0) &&
-             rw_done_payload->buff.metadata) {
-            ALOGV("metadatasize %d ", rw_done_payload->buff.metadata_size);
-            rwDonePayload->buff.metadataSz = rw_done_payload->buff.metadata_size;
-            rwDonePayload->buff.metadata.resize(rwDonePayload->buff.metadataSz);
-            memcpy(rwDonePayload->buff.metadata.data(), rw_done_payload->buff.metadata,
-                    rwDonePayload->buff.metadataSz);
+            rwDonePayload->buffer.resize(rwDonePayload->size);
+            memcpy(rwDonePayload->buffer.data(), rw_done_payload->buff.buffer,
+                   rwDonePayload->size);
         }
 
-        allocHidlHandle->data[0] = rw_done_payload->buff.alloc_info.alloc_handle;
-        allocHidlHandle->data[1] = input_fd;
         ALOGV("fd [input %d - dup %d]", input_fd, rw_done_payload->buff.alloc_info.alloc_handle);
-        rwDonePayload->buff.alloc_info.alloc_handle = hidl_memory("arpal_alloc_handle",
-                                                       hidl_handle(allocHidlHandle),
-                                                       rw_done_payload->buff.alloc_info.alloc_size);
-
-        rwDonePayload->buff.alloc_info.alloc_size = rw_done_payload->buff.alloc_info.alloc_size;
-        rwDonePayload->buff.alloc_info.offset = rw_done_payload->buff.alloc_info.offset;
         if (!sr_clbk_dat->client_died) {
-            auto status = clbk_bdr->event_callback_rw_done((uint64_t)stream_handle, event_id,
-                              sizeof(struct pal_event_read_write_done_payload),
-                              rwDonePayloadHidl,
-                              sr_clbk_dat->client_data_);
-            if (!status.isOk()) {
-                 ALOGE("%s: HIDL call failed during event_callback_rw_done ", __func__);
+            if (!sr_clbk_dat->mDataMQ && !sr_clbk_dat->mCommandMQ) {
+                if (sr_clbk_dat->prepare_mq_for_transfer(
+                        (uint64_t)stream_handle, sr_clbk_dat->client_data_)) {
+                    ALOGE("MQ prepare failed for stream %p", stream_handle);
+                }
             }
+            sr_clbk_dat->callReadWriteTransferThread((PalReadWriteDoneCommand) event_id,
+                                        (uint8_t *)rwDonePayload,
+                                        sizeof(PalCallbackBuffer));
         } else
             ALOGE("Client died dropping this event %d", event_id);
 
@@ -243,8 +383,6 @@ static int32_t pal_callback(pal_stream_handle_t *stream_handle,
         } else {
             ALOGE("Error finding fd %d", rw_done_payload->buff.alloc_info.alloc_handle);
         }
-        if (allocHidlHandle)
-            native_handle_delete(allocHidlHandle);
     } else {
         hidl_vec<uint8_t> PayloadHidl;
         PayloadHidl.resize(event_data_size);
@@ -540,11 +678,19 @@ Return<void> PAL::ipc_pal_stream_set_buffer_size(const uint64_t streamHandle,
 
     in_buf_cfg.buf_count = in_buff_config.buf_count;
     in_buf_cfg.buf_size = in_buff_config.buf_size;
-    in_buf_cfg.max_metadata_size =  in_buff_config.max_metadata_size;
+    if (in_buff_config.max_metadata_size) {
+        in_buf_cfg.max_metadata_size = in_buff_config.max_metadata_size;
+    } else {
+        in_buf_cfg.max_metadata_size = MetadataParser::WRITE_METADATA_MAX_SIZE();
+    }
 
     out_buf_cfg.buf_count = out_buff_config.buf_count;
     out_buf_cfg.buf_size = out_buff_config.buf_size;
-    out_buf_cfg.max_metadata_size =  out_buff_config.max_metadata_size;
+    if (out_buff_config.max_metadata_size) {
+        out_buf_cfg.max_metadata_size = out_buff_config.max_metadata_size;
+    } else {
+        out_buf_cfg.max_metadata_size = MetadataParser::READ_METADATA_MAX_SIZE();
+    }
 
     ret = pal_stream_set_buffer_size((pal_stream_handle_t *)streamHandle,
                                     &in_buf_cfg, &out_buf_cfg);
@@ -580,35 +726,40 @@ Return<void> PAL::ipc_pal_stream_get_buffer_size(const uint64_t streamHandle,
 
 Return<int32_t> PAL::ipc_pal_stream_write(const uint64_t streamHandle,
                                           const hidl_vec<PalBuffer>& buff_hidl) {
-    int32_t ret = -ENOMEM;
     struct pal_buffer buf = {0};
-    uint32_t bufSize;
-    const native_handle *allochandle = nullptr;
-    bufSize = buff_hidl.data()->size;
-    if (buff_hidl.data()->buffer.size() == bufSize)
-        buf.buffer = (uint8_t *)calloc(1, bufSize);
-    buf.size = (size_t)bufSize;
-    buf.offset = (size_t)buff_hidl.data()->offset;
-    buf.ts = (struct timespec *) calloc(1, sizeof(struct timespec));
-    if (!buf.ts) {
-        ALOGE("Not enough memory for buf.ts ");
-        goto exit;
-    }
-    buf.ts->tv_sec =  buff_hidl.data()->timeStamp.tvSec;
-    buf.ts->tv_nsec = buff_hidl.data()->timeStamp.tvNSec;
-    buf.flags = buff_hidl.data()->flags;
-    if (buff_hidl.data()->metadataSz) {
-        buf.metadata_size = buff_hidl.data()->metadataSz;
-        buf.metadata = (uint8_t *)calloc(1, buf.metadata_size);
-        if (!buf.metadata) {
-            ALOGE("Not enough memory for buf.metadata");
-            goto exit;
-        }
-        memcpy(buf.metadata, buff_hidl.data()->metadata.data(),
-               buf.metadata_size);
-    }
 
-    allochandle = buff_hidl.data()->alloc_info.alloc_handle.handle();
+    buf.size = buff_hidl.data()->size;
+    std::vector<uint8_t> dataBuffer;
+    if (buff_hidl.data()->buffer.size() == buf.size) {
+        dataBuffer.resize(buf.size);
+        buf.buffer = dataBuffer.data();
+    }
+    buf.offset = (size_t)buff_hidl.data()->offset;
+    auto timeStamp = std::make_unique<timespec>();
+    timeStamp->tv_sec =  buff_hidl.data()->timeStamp.tvSec;
+    timeStamp->tv_nsec = buff_hidl.data()->timeStamp.tvNSec;
+    buf.ts = timeStamp.get();
+    buf.flags = buff_hidl.data()->flags;
+    buf.frame_index = buff_hidl.data()->frame_index;
+
+    buf.metadata_size = MetadataParser::WRITE_METADATA_MAX_SIZE();
+    std::vector<uint8_t> bufMetadata(buf.metadata_size, 0);
+    buf.metadata = bufMetadata.data();
+    auto stream_media_config = std::make_shared<pal_media_config>();
+    for (auto& s: PAL::getInstance()->mPalClients) {
+        std::lock_guard<std::mutex> lock(s->mActiveSessionsLock);
+        for (auto session : s->mActiveSessions) {
+            if (session.session_handle == streamHandle) {
+                memcpy((uint8_t *)stream_media_config.get(),
+                       (uint8_t *)&session.callback_binder->session_attr.out_media_config,
+                       sizeof(pal_media_config));
+            }
+        }
+    }
+    auto metadataParser = std::make_unique<MetadataParser>();
+    metadataParser->fillMetaData(buf.metadata, buf.frame_index, buf.size,
+                                 stream_media_config.get());
+    const native_handle *allochandle = buff_hidl.data()->alloc_info.alloc_handle.handle();
 
     buf.alloc_info.alloc_handle = dup(allochandle->data[0]);
     add_input_and_dup_fd(streamHandle, allochandle->data[1], buf.alloc_info.alloc_handle);
@@ -617,41 +768,28 @@ Return<int32_t> PAL::ipc_pal_stream_write(const uint64_t streamHandle,
     buf.alloc_info.alloc_size = buff_hidl.data()->alloc_info.alloc_size;
     buf.alloc_info.offset = buff_hidl.data()->alloc_info.offset;
 
-    if (buf.buffer != NULL)
-        memcpy(buf.buffer, buff_hidl.data()->buffer.data(), bufSize);
-    ALOGV("%s:%d sz %d", __func__,__LINE__,bufSize);
-    ret = pal_stream_write((pal_stream_handle_t *)streamHandle, &buf);
-exit:
     if (buf.buffer)
-        free(buf.buffer);
-    if (buf.ts)
-        free(buf.ts);
-    if (buf.metadata)
-        free(buf.metadata);
-    return ret;
+        memcpy(buf.buffer, buff_hidl.data()->buffer.data(), buf.size);
+    ALOGV("%s:%d sz %d, frame_index %u", __func__,__LINE__, buf.size, buf.frame_index);
+
+    addToPendingInputs(buf.alloc_info.alloc_handle,
+                       buf.alloc_info.offset, buf.frame_index);
+
+    return pal_stream_write((pal_stream_handle_t *)streamHandle, &buf);
 }
 
 Return<void> PAL::ipc_pal_stream_read(const uint64_t streamHandle,
                                       const hidl_vec<PalBuffer>& inBuff_hidl,
                                       ipc_pal_stream_read_cb _hidl_cb) {
     struct pal_buffer buf;
-    int32_t ret = 0;
     hidl_vec<PalBuffer> outBuff_hidl;
-    uint32_t bufSize;
-    const native_handle *allochandle = nullptr;
 
-    bufSize = inBuff_hidl.data()->size;
-    buf.buffer = (uint8_t *)calloc(1, bufSize);
-    buf.size = (size_t)bufSize;
-    buf.metadata_size = inBuff_hidl.data()->metadataSz;
-    buf.metadata = (uint8_t *)calloc(1, buf.metadata_size);
-    if (!buf.metadata) {
-        ALOGE("Not enough memory for buf.metadata");
-        goto exit;
-    }
+    buf.size = inBuff_hidl.data()->size;
+    std::vector<uint8_t> dataBuffer(buf.size, 0);
+    buf.buffer = dataBuffer.data();
+    buf.metadata_size = MetadataParser::READ_METADATA_MAX_SIZE();
 
-
-    allochandle = inBuff_hidl.data()->alloc_info.alloc_handle.handle();
+    const native_handle *allochandle = inBuff_hidl.data()->alloc_info.alloc_handle.handle();
 
     buf.alloc_info.alloc_handle = dup(allochandle->data[0]);
     add_input_and_dup_fd(streamHandle, allochandle->data[1], buf.alloc_info.alloc_handle);
@@ -660,7 +798,7 @@ Return<void> PAL::ipc_pal_stream_read(const uint64_t streamHandle,
     buf.alloc_info.alloc_size = inBuff_hidl.data()->alloc_info.alloc_size;
     buf.alloc_info.offset = inBuff_hidl.data()->alloc_info.offset;
 
-    ret = pal_stream_read((pal_stream_handle_t *)streamHandle, &buf);
+    int32_t ret = pal_stream_read((pal_stream_handle_t *)streamHandle, &buf);
     if (ret > 0) {
         outBuff_hidl.resize(sizeof(struct pal_buffer));
         outBuff_hidl.data()->size = (uint32_t)buf.size;
@@ -672,18 +810,8 @@ Return<void> PAL::ipc_pal_stream_read(const uint64_t streamHandle,
           outBuff_hidl.data()->timeStamp.tvSec = buf.ts->tv_sec;
           outBuff_hidl.data()->timeStamp.tvNSec = buf.ts->tv_nsec;
         }
-        if (buf.metadata_size) {
-           outBuff_hidl.data()->metadata.resize(buf.metadata_size);
-           memcpy(outBuff_hidl.data()->metadata.data(),
-                  buf.metadata, buf.metadata_size);
-        }
     }
     _hidl_cb(ret, outBuff_hidl);
-exit:
-    if (buf.buffer)
-        free(buf.buffer);
-    if (buf.metadata)
-        free(buf.metadata);
     return Void();
 }
 
