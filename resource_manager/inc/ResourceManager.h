@@ -609,7 +609,7 @@ public:
     static bool isSpeakerProtectionEnabled;
     static bool isHandsetProtectionEnabled;
     static bool isChargeConcurrencyEnabled;
-    static bool isCpsEnabled;
+    static int cpsMode;
     static bool isVbatEnabled;
     static bool isRasEnabled;
     static bool isGaplessEnabled;

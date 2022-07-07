@@ -512,7 +512,7 @@ static int max_session_num;
 bool ResourceManager::isSpeakerProtectionEnabled = false;
 bool ResourceManager::isHandsetProtectionEnabled = false;
 bool ResourceManager::isChargeConcurrencyEnabled = false;
-bool ResourceManager::isCpsEnabled = false;
+int ResourceManager::cpsMode = 0;
 bool ResourceManager::isVbatEnabled = false;
 static int max_nt_sessions;
 bool ResourceManager::isRasEnabled = false;
@@ -10506,9 +10506,8 @@ void ResourceManager::process_device_info(struct xml_userdata *data, const XML_C
         } else if (!strcmp(tag_name, "Charge_concurrency_enabled")) {
             if (atoi(data->data_buf))
                 isChargeConcurrencyEnabled = true;
-        } else if (!strcmp(tag_name, "cps_enabled")) {
-            if (atoi(data->data_buf))
-                isCpsEnabled = true;
+        } else if (!strcmp(tag_name, "cps_mode")) {
+            cpsMode = atoi(data->data_buf);
         } else if (!strcmp(tag_name, "supported_bit_format")) {
             size = deviceInfo.size() - 1;
             if(!strcmp(data->data_buf, "PAL_AUDIO_FMT_PCM_S24_3LE"))

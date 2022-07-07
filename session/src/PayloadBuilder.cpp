@@ -3574,7 +3574,6 @@ void PayloadBuilder::payloadSPConfig(uint8_t** payload, size_t* size, uint32_t m
                 header = (struct apm_module_param_data_t*) payloadInfo;
             }
         break;
-#if 0
         case PARAM_ID_CPS_LPASS_HW_INTF_CFG:
             {
                 lpass_swr_hw_reg_cfg_t *data = NULL;
@@ -3627,7 +3626,6 @@ void PayloadBuilder::payloadSPConfig(uint8_t** payload, size_t* size, uint32_t m
                                 (sizeof(cps_reg_wr_values_t) * data->num_spkr));
             }
         break;
-#endif
         case PARAM_ID_CPS_CHANNEL_MAP :
             {
                 param_id_cps_ch_map_t *spConf;
