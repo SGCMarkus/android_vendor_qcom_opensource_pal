@@ -1277,17 +1277,17 @@ int32_t StreamACD::ACDLoaded::ProcessEvent(
                         status, dev->getSndDeviceId());
                 goto connect_err;
             }
-            if (acd_stream_.isActive()) {
-                if (!acd_stream_.device_opened_) {
-                    status = dev->open();
-                    if (0 != status) {
-                        PAL_ERR(LOG_TAG, "Error:%d device %d open failed",
-                            status, dev->getSndDeviceId());
-                        goto connect_err;
-                    }
-                    acd_stream_.device_opened_ = true;
+            if (!acd_stream_.device_opened_) {
+                status = dev->open();
+                if (0 != status) {
+                    PAL_ERR(LOG_TAG, "Error:%d device %d open failed",
+                        status, dev->getSndDeviceId());
+                    goto connect_err;
                 }
+                acd_stream_.device_opened_ = true;
+            }
 
+            if (acd_stream_.isActive()) {
                 status = dev->start();
                 if (0 != status) {
                     PAL_ERR(LOG_TAG, "Error:%d device %d start failed",

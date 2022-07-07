@@ -674,7 +674,7 @@ int32_t pal_stream_set_device(pal_stream_handle_t *stream_handle,
         goto exit;
     }
 
-    s->getAssociatedDevices(aDevices);
+    s->getPalDevices(aDevices);
     if (!aDevices.empty()) {
         std::set<pal_device_id_t> activeDevices;
         std::set<pal_device_id_t> newDevices;

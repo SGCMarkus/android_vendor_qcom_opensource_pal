@@ -40,10 +40,11 @@
 #include <asps/asps_acm_api.h>
 #include <sstream>
 #include <string>
-#include "detection_cmn_api.h"
 #include "audio_dam_buffer_api.h"
+#include "sh_mem_pull_push_mode_api.h"
 #include "apm_api.h"
 #include "us_detect_api.h"
+#include "us_gen_api.h"
 #include <sys/ioctl.h>
 
 std::mutex SessionAlsaPcm::pcmLpmRefCntMtx;
@@ -842,6 +843,15 @@ int SessionAlsaPcm::start(Stream * s)
         event_cfg.module_instance_id = svaMiid;
         SessionAlsaUtils::registerMixerEvent(mixer, pcmDevIds.at(0),
             (void *)&event_cfg, payload_size);
+
+        memset(&event_cfg, 0, sizeof(event_cfg));
+        event_cfg.event_config_payload_size = 0;
+        event_cfg.is_register = 1;
+        event_cfg.event_id = EVENT_ID_SH_MEM_PUSH_MODE_EOS_MARKER;
+        tagId = SHMEM_ENDPOINT;
+        SessionAlsaUtils::registerMixerEvent(mixer, pcmDevIds.at(0),
+            txAifBackEnds[0].second.data(), tagId, (void *)&event_cfg,
+            payload_size);
     } else if (sAttr.type == PAL_STREAM_ULTRASOUND && RegisterForEvents) {
         payload_size = sizeof(struct agm_event_reg_cfg);
 
@@ -1425,6 +1435,16 @@ int SessionAlsaPcm::stop(Stream * s)
         event_cfg.module_instance_id = svaMiid;
         SessionAlsaUtils::registerMixerEvent(mixer, pcmDevIds.at(0),
             (void *)&event_cfg, payload_size);
+
+        memset(&event_cfg, 0, sizeof(event_cfg));
+        event_cfg.event_config_payload_size = 0;
+        event_cfg.is_register = 0;
+        event_cfg.event_id = EVENT_ID_SH_MEM_PUSH_MODE_EOS_MARKER;
+        tagId = SHMEM_ENDPOINT;
+        SessionAlsaUtils::registerMixerEvent(mixer, pcmDevIds.at(0),
+            txAifBackEnds[0].second.data(), tagId, (void *)&event_cfg,
+            payload_size);
+
     } else if (sAttr.type == PAL_STREAM_ULTRASOUND && RegisterForEvents) {
         payload_size = sizeof(struct agm_event_reg_cfg);
         memset(&event_cfg, 0, sizeof(event_cfg));
@@ -1681,9 +1701,19 @@ int SessionAlsaPcm::disconnectSessionDevice(Stream *streamHandle,
             streamType != PAL_STREAM_LOOPBACK)
             status = SessionAlsaUtils::disconnectSessionDevice(streamHandle, streamType, rm,
                      dAttr, (pcmDevIds.size() ? pcmDevIds : pcmDevRxIds), rxAifBackEndsToDisconnect);
-        else
+        else {
+            if (PAL_STREAM_ULTRASOUND == streamType) {
+                status = setParameters(streamHandle, DEVICE_POP_SUPPRESSOR,
+                                        PAL_PARAM_ID_ULTRASOUND_RAMPDOWN, NULL);
+                if (0 != status) {
+                    PAL_ERR(LOG_TAG, "SetParameters failed for Rampdown, status = %d", status);
+                }
+                /* TODO: Need to adjust the delay based on requirement */
+                usleep(20000);
+            }
             status = SessionAlsaUtils::disconnectSessionDevice(streamHandle, streamType, rm,
                      dAttr, pcmDevTxIds, pcmDevRxIds, rxAifBackEndsToDisconnect);
+        }
 
         for (const auto &elem : rxAifBackEnds) {
             cnt++;
@@ -2225,6 +2255,37 @@ int SessionAlsaPcm::setParameters(Stream *streamHandle, int tagId, uint32_t para
             }
             return 0;
         }
+        case PAL_PARAM_ID_ULTRASOUND_RAMPDOWN:
+        {
+            uint32_t rampdown = 1;
+            uint32_t paramId = PARAM_ID_EXAMPLE_US_GEN_PARAM_2;
+            device = pcmDevRxIds.at(0);
+            status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
+                                                                rxAifBackEnds[0].second.data(),
+                                                                tagId, &miid);
+            if (0 != status) {
+                PAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", tagId, status);
+                break;
+            } else {
+                PAL_DBG(LOG_TAG, "got Ultrasound Generator miid = 0x%08x", miid);
+                status = builder->payloadCustomParam(&paramData, &paramSize,
+                            &rampdown,
+                            sizeof(rampdown),
+                            miid, paramId);
+                if (status != 0) {
+                    PAL_ERR(LOG_TAG, "payloadCustomParam failed. status = %d",
+                                status);
+                    break;
+                }
+                status = SessionAlsaUtils::setMixerParameter(mixer,
+                                                             device,
+                                                             paramData,
+                                                             paramSize);
+                PAL_DBG(LOG_TAG, "mixer set param status=%d\n", status);
+            }
+            break;
+        }
+
         default:
             status = -EINVAL;
             PAL_ERR(LOG_TAG, "Unsupported param id %u status %d", param_id, status);

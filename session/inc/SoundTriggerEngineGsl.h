@@ -146,6 +146,7 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
         return detection_time_;
     }
     void UpdateState(eng_state_t state);
+    void UpdateStateToActive() override;
 
  private:
     int32_t StartBuffering(Stream *s);
@@ -228,6 +229,7 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
     uint64_t kw_transfer_latency_;
     ChronoSteadyClock_t detection_time_;
     std::mutex state_mutex_;
+    std::mutex eos_mutex_;
     static std::mutex eng_create_mutex_;
     static int32_t engine_count_;
 };

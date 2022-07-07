@@ -61,7 +61,7 @@ void SndCardMonitor::monitorThreadLoop()
             PAL_ERR(LOG_TAG, "Open failed snd sysfs node");
         }
         else {
-            PAL_INFO(LOG_TAG, "snd sysfs node open successful");
+            PAL_VERBOSE(LOG_TAG, "snd sysfs node open successful");
             break;
         }
         usleep(500000);
@@ -78,7 +78,7 @@ void SndCardMonitor::monitorThreadLoop()
         poll_fds.events = POLLERR | POLLPRI;
         poll_fds.revents = 0;
 
-        PAL_INFO(LOG_TAG, "waiting sys_notify event\n");
+        PAL_VERBOSE(LOG_TAG, "waiting sys_notify event\n");
         if (( rv = poll( &poll_fds, 1, -1)) < 0 ) {
              PAL_ERR(LOG_TAG, "snd sysfs node poll error\n");
         } else if ((poll_fds.revents & POLLPRI)) {
@@ -104,7 +104,7 @@ SndCardMonitor::SndCardMonitor(int sndNum)
 {
     sndNum = 0; //not used at present.
     mThread = std::thread(&SndCardMonitor::monitorThreadLoop, this);
-    PAL_INFO(LOG_TAG, "Snd card monitor init done.");
+    PAL_VERBOSE(LOG_TAG, "Snd card monitor init done.");
     return;
 }
 

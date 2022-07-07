@@ -160,7 +160,7 @@ Stream* Stream::create(struct pal_stream_attributes *sAttr, struct pal_device *d
             rm->isBtDevice(palDevsAttr[count].id)) {
             palDevsAttr[count].address = dAttr[i].address;
         }
-        PAL_INFO(LOG_TAG, "count: %d, i: %d, length of dAttr custom_config: %d", count, i, strlen(dAttr[i].custom_config.custom_key));
+        PAL_VERBOSE(LOG_TAG, "count: %d, i: %d, length of dAttr custom_config: %d", count, i, strlen(dAttr[i].custom_config.custom_key));
         if (strlen(dAttr[i].custom_config.custom_key)) {
             strlcpy(palDevsAttr[count].custom_config.custom_key, dAttr[i].custom_config.custom_key, PAL_MAX_CUSTOM_KEY_SIZE);
             PAL_DBG(LOG_TAG, "found custom key %s", dAttr[i].custom_config.custom_key);
@@ -1545,9 +1545,8 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
             rm->checkHapticsConcurrency(&newDevices[newDeviceSlots[i]], NULL, streamsToSwitch/* not used */, NULL);
         }
         /*
-         * switch all streams that are running on the current device if:
-         * 1. switching device for Voice Call
-         * 2. switching device for Rx stream currently using same rx device as voice call
+         * switch all streams that are running on the current device if
+         * switching device for Voice Call
          */
         sharedBEStreamDev.clear();
         for (int j = 0; j < mDevices.size(); j++) {
@@ -1559,15 +1558,6 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
                 if (strAttr.type == PAL_STREAM_VOICE_CALL &&
                     newDeviceId != PAL_DEVICE_OUT_HEARING_AID) {
                     voice_call_switch = true;
-                } else if (rm->isOutputDevId(mDevices[j]->getSndDeviceId())) {
-                    for (const auto &elem : sharedBEStreamDev) {
-                        std::get<0>(elem)->getStreamAttributes(&strAttr);
-                        if (strAttr.type == PAL_STREAM_VOICE_CALL &&
-                            newDeviceId != PAL_DEVICE_OUT_HEARING_AID) {
-                            voice_call_switch = true;
-                            break;
-                        }
-                    }
                 }
                 if (voice_call_switch) {
                     for (const auto &elem : sharedBEStreamDev) {
@@ -1729,32 +1719,37 @@ std::shared_ptr<Device> Stream::GetPalDevice(Stream *streamHandle, pal_device_id
     }
 
     if (!mStreamAttr) {
-        PAL_ERR(LOG_TAG, "stream attribute is null");
+        PAL_ERR(LOG_TAG, "Stream attribute is null");
         goto exit;
     }
 
-    PAL_DBG(LOG_TAG, "Enter, Stream: %d, device_id: %d", mStreamAttr->type, dev_id);
+    PAL_DBG(LOG_TAG, "Enter, stream: %d, device_id: %d", mStreamAttr->type, dev_id);
 
-    /* Use the rm's common capture profile */
-    cap_prof = rm->GetSoundTriggerCaptureProfile();
+    if (mStreamAttr->type == PAL_STREAM_VOICE_UI) {
+        st_st = dynamic_cast<StreamSoundTrigger*>(streamHandle);
+        cap_prof = st_st->GetCurrentCaptureProfile();
+    } else if (mStreamAttr->type == PAL_STREAM_ACD) {
+        st_acd = dynamic_cast<StreamACD*>(streamHandle);
+        cap_prof = st_acd->GetCurrentCaptureProfile();
+    } else {
+        st_sns_pcm_data = dynamic_cast<StreamSensorPCMData*>(streamHandle);
+        cap_prof = st_sns_pcm_data->GetCurrentCaptureProfile();
+    }
 
-    /* Fall back to stream’s local capture profile if common capture profile is NULL */
-    if (!cap_prof) {
-        PAL_DBG(LOG_TAG, "Failed to get common capture profile for Stream %d", mStreamAttr->type);
-        if (mStreamAttr->type == PAL_STREAM_VOICE_UI) {
-            st_st = dynamic_cast<StreamSoundTrigger*>(streamHandle);
-            cap_prof = st_st->GetCurrentCaptureProfile();
-        } else if (mStreamAttr->type == PAL_STREAM_ACD) {
-            st_acd = dynamic_cast<StreamACD*>(streamHandle);
-            cap_prof = st_acd->GetCurrentCaptureProfile();
-        } else {
-            st_sns_pcm_data = dynamic_cast<StreamSensorPCMData*>(streamHandle);
-            cap_prof = st_sns_pcm_data->GetCurrentCaptureProfile();
-        }
+    if (!cap_prof && !rm->GetSoundTriggerCaptureProfile()) {
+        PAL_ERR(LOG_TAG, "Failed to get local and common cap_prof for stream: %d",
+                mStreamAttr->type);
+        goto exit;
+    }
 
-        if (!cap_prof) {
-            PAL_ERR(LOG_TAG, "Error:Failed to get local capture profile for Stream %d", mStreamAttr->type);
-            goto exit;
+    if (rm->GetSoundTriggerCaptureProfile()) {
+        /* Use the rm's common capture profile if local capture profile is not
+         * available, or the common capture profile has the highest priority.
+         */
+        if (!cap_prof || rm->GetSoundTriggerCaptureProfile()->ComparePriority(cap_prof) > 0) {
+            PAL_DBG(LOG_TAG, "common cap_prof %s has the highest priority.",
+                    rm->GetSoundTriggerCaptureProfile()->GetName().c_str());
+            cap_prof = rm->GetSoundTriggerCaptureProfile();
         }
     }
 

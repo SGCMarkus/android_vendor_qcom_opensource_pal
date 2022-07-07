@@ -124,6 +124,7 @@ LOCAL_SHARED_LIBRARIES := \
     liblx-osal\
     libaudioroute\
     libcutils \
+    libutilscallstack \
     libagmclient
 
 ifeq ($(TARGET_BOARD_PLATFORM), kalama)
