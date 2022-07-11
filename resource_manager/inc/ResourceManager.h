@@ -116,18 +116,18 @@ typedef enum {
 #if LINUX_ENABLED
 #if defined(__LP64__)
 #define ADM_LIBRARY_PATH "/usr/lib64/libadm.so"
-#define VUI_DMGR_LIB_PATH "/usr/lib64/libvui_dmgr.so"
+#define VUI_DMGR_LIB_PATH "/usr/lib64/libvui_dmgr_client.so"
 #else
 #define ADM_LIBRARY_PATH "/usr/lib/libadm.so"
-#define VUI_DMGR_MANAGER_LIB_PATH "/usr/lib/libvui_dmgr.so"
+#define VUI_DMGR_MANAGER_LIB_PATH "/usr/lib/libvui_dmgr_client.so"
 #endif
 #else
 #ifdef __LP64__
 #define ADM_LIBRARY_PATH "/vendor/lib64/libadm.so"
-#define VUI_DMGR_LIB_PATH "/vendor/lib64/libvui_dmgr.so"
+#define VUI_DMGR_LIB_PATH "/vendor/lib64/libvui_dmgr_client.so"
 #else
 #define ADM_LIBRARY_PATH "/vendor/lib/libadm.so"
-#define VUI_DMGR_LIB_PATH "/vendor/lib/libvui_dmgr.so"
+#define VUI_DMGR_LIB_PATH "/vendor/lib/libvui_dmgr_client.so"
 #endif
 #endif
 
