@@ -434,7 +434,7 @@ exit:
         free(payloadData);
         payloadData = NULL;
     }
-    if (status) {
+    if (status && effectCustomPayload) {
         PAL_ERR(LOG_TAG, "setEffectParameters for param_id %d failed, status = %d",
                 effectCustomPayload->paramId, status);
     }
