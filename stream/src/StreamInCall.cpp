@@ -199,6 +199,7 @@ int32_t  StreamInCall::close()
     }
 
     currentState = STREAM_IDLE;
+    cachedState = currentState;
     mStreamMutex.unlock();
 
 
@@ -368,6 +369,7 @@ int32_t StreamInCall::stop()
     }
 
 exit:
+   cachedState = currentState;
    mStreamMutex.unlock();
    PAL_DBG(LOG_TAG, "Exit. status %d, state %d", status, currentState);
    return status;
