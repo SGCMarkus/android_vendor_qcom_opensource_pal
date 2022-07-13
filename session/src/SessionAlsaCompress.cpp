@@ -665,7 +665,7 @@ void SessionAlsaCompress::offloadThreadLoop(SessionAlsaCompress* compressObj)
                 event_id = PAL_STREAM_CBK_EVENT_ERROR;
             }
             if (compressObj->sessionCb)
-                compressObj->sessionCb(compressObj->cbCookie, event_id, NULL, 0);
+                compressObj->sessionCb(compressObj->cbCookie, event_id, (void*)NULL, 0);
 
             lock.lock();
         }
@@ -1648,9 +1648,6 @@ int SessionAlsaCompress::close(Stream * s)
             }
             PAL_DBG(LOG_TAG, "out of compress close");
 
-            rm->freeFrontEndIds(compressDevIds, sAttr, 0);
-            freeCustomPayload();
-
             // Deregister for mixer event callback
             if (isPauseRegistrationDone) {
                 status = rm->registerMixerEventCallback(compressDevIds, sessionCb, cbCookie,
@@ -1660,6 +1657,9 @@ int SessionAlsaCompress::close(Stream * s)
                     status = 0;
                 }
             }
+
+            rm->freeFrontEndIds(compressDevIds, sAttr, 0);
+            freeCustomPayload();
             break;
 
         case PAL_AUDIO_INPUT:
