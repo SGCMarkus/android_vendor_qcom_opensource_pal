@@ -575,8 +575,8 @@
         <out-device>
             <id>PAL_DEVICE_OUT_SPEAKER</id>
             <back_end_name>CODEC_DMA-LPAIF_WSA-RX-0</back_end_name>
-            <max_channels>2</max_channels>
-            <channels>2</channels>
+            <max_channels>4</max_channels>
+            <channels>4</channels>
             <samplerate>48000</samplerate>
             <snd_device_name>speaker</snd_device_name>
             <speaker_protection_enabled>0</speaker_protection_enabled>
