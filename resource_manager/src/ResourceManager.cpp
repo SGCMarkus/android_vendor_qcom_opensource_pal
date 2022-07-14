@@ -188,8 +188,6 @@ char rmngr_xml_file_wo_variant[XML_PATH_MAX_LENGTH] = {0};
 char vendor_config_path[VENDOR_CONFIG_PATH_MAX_LENGTH] = {0};
 
 const std::vector<int> gSignalsOfInterest = {
-    SIGABRT,
-    SIGTERM,
     DEBUGGER_SIGNAL,
 };
 
