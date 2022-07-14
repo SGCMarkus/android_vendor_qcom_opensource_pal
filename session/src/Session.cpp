@@ -723,7 +723,7 @@ int Session::handleDeviceRotation(Stream *s, pal_speaker_rotation_type rotation_
 
                 if (alsaPayloadSize) {
                     status = updateCustomPayload(alsaParamData, alsaPayloadSize);
-                    delete alsaParamData;
+                    freeCustomPayload(&alsaParamData, &alsaPayloadSize);
                     if (0 != status) {
                         PAL_ERR(LOG_TAG, "updateCustomPayload Failed\n");
                         return status;

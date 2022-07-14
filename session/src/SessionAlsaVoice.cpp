@@ -826,7 +826,7 @@ int SessionAlsaVoice::start(Stream * s)
 
     if (status != 0) {
         PAL_ERR(LOG_TAG,"Exit Configuring Rx mfc failed with status %d", status);
-        return status;
+        goto err_pcm_open;
     }
     status = SessionAlsaUtils::setMixerParameter(mixer, pcmDevRxIds.at(0),
                                                  customPayload, customPayloadSize);
@@ -1351,6 +1351,8 @@ int SessionAlsaVoice::payloadTaged(Stream * s, configType type, int tag,
             ctl = mixer_get_ctl_by_name(mixer, tagCntrlName.str().data());
             if (!ctl) {
                 PAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", tagCntrlName.str().data());
+                if (tagConfig)
+                    free(tagConfig);
                 return -ENOENT;
             }
 

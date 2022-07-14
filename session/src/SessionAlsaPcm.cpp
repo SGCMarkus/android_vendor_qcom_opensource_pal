@@ -296,12 +296,16 @@ int SessionAlsaPcm::setConfig(Stream * s, configType type, uint32_t tag1,
             }
             status = SessionAlsaUtils::getTagMetadata(tagsent, tkv, tagConfig);
             if (0 != status) {
+                if (tagConfig)
+                    free(tagConfig);
                 goto exit;
             }
             tagCntrlName << stream << pcmDevIds.at(0) << " " << setParamTagControl;
             ctl = mixer_get_ctl_by_name(mixer, tagCntrlName.str().data());
             if (!ctl) {
                 PAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", tagCntrlName.str().data());
+                if (tagConfig)
+                    free(tagConfig);
                 return -ENOENT;
             }
 
@@ -309,6 +313,8 @@ int SessionAlsaPcm::setConfig(Stream * s, configType type, uint32_t tag1,
             status = mixer_ctl_set_array(ctl, tagConfig, sizeof(struct agm_tag_config) + tkv_size);
             if (status != 0) {
                 PAL_ERR(LOG_TAG, "failed to set the tag calibration %d", status);
+                if (tagConfig)
+                    free(tagConfig);
                 goto exit;
             }
             ctl = NULL;
@@ -2222,7 +2228,8 @@ int SessionAlsaPcm::setParameters(Stream *streamHandle, int tagId, uint32_t para
                 status = SessionAlsaUtils::setMixerParameter(mixer, device,
                                                paramData, paramSize);
                 PAL_INFO(LOG_TAG, "mixer set volume config status=%d\n", status);
-                freeCustomPayload(&paramData, &paramSize);
+                delete [] paramData;
+                paramSize = 0;
             }
             return 0;
         }
@@ -2376,7 +2383,7 @@ exit:
 int SessionAlsaPcm::register_asps_event(uint32_t reg)
 {
     int32_t status = 0;
-    struct agm_event_reg_cfg *event_cfg;
+    struct agm_event_reg_cfg *event_cfg = nullptr;
     uint32_t payload_size = sizeof(struct agm_event_reg_cfg);
     event_cfg = (struct agm_event_reg_cfg *)calloc(1, payload_size);
     if (!event_cfg) {
@@ -2402,6 +2409,7 @@ int SessionAlsaPcm::register_asps_event(uint32_t reg)
     event_cfg->event_id = EVENT_ID_ASPS_CLOSE_ALL;
     SessionAlsaUtils::registerMixerEvent(mixer, pcmDevIds.at(0),
             (void *)event_cfg, payload_size);
+    free(event_cfg);
     return status;
 }
 
