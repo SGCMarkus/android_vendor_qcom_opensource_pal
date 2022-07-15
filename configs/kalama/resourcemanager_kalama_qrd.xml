@@ -1389,7 +1389,7 @@
                 <param merge_first_stage_sound_models="false" />
                 <!--For now total 3 engines are supported, if more engine instances are needed,-->
                 <!-- do update acdb and usecaseKvManager.xml files by adding more instances    -->
-                <param pdk_first_stage_max_engine_count="1"/>
+                <param pdk_first_stage_max_engine_count="3"/>
                 <!-- Profile specific data which the algorithm can support -->
                 <param capture_keyword="2000" /> <!-- Default history buffer length -->
                 <param client_capture_read_delay="2000" /> <!-- reserved buffer duration for rt data -->
