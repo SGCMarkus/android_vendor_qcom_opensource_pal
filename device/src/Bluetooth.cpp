@@ -1175,6 +1175,7 @@ void Bluetooth::stopAbr()
     struct mixer_ctl *btSetFeedbackChannelCtrl = NULL;
     struct mixer *hwMixerHandle = NULL;
     int dir, ret = 0;
+    bool isfbDeviceLocked = false;
 
     mAbrMutex.lock();
     if (!fbPcm) {
@@ -1199,6 +1200,10 @@ void Bluetooth::stopAbr()
     sAttr.type = PAL_STREAM_LOW_LATENCY;
     sAttr.direction = PAL_AUDIO_INPUT_OUTPUT;
 
+    if (fbDev) {
+        fbDev->lockDeviceMutex();
+        isfbDeviceLocked = true;
+    }
     pcm_stop(fbPcm);
     pcm_close(fbPcm);
     fbPcm = NULL;
@@ -1250,6 +1255,11 @@ free_fe:
         fbpcmDevIds.clear();
     }
     isAbrEnabled = false;
+
+    if (isfbDeviceLocked) {
+        isfbDeviceLocked = false;
+        fbDev->unlockDeviceMutex();
+    }
     mAbrMutex.unlock();
 }
 
@@ -1640,38 +1650,42 @@ int BtA2dp::start()
 
     status = (a2dpRole == SOURCE) ? startPlayback() : startCapture();
     if (status) {
+        mDeviceMutex.unlock();
         goto exit;
     }
 
     if (totalActiveSessionRequests == 1) {
         status = configureSlimbusClockSrc();
         if (status) {
+            mDeviceMutex.unlock();
             goto exit;
         }
     }
 
     status = Device::start_l();
 
-    if (!status && isAbrEnabled)
-        startAbr();
-
-exit:
     if (customPayload) {
         free(customPayload);
         customPayload = NULL;
         customPayloadSize = 0;
     }
     mDeviceMutex.unlock();
+
+    if (!status && isAbrEnabled)
+        startAbr();
+
+exit:
     return status;
 }
 
 int BtA2dp::stop()
 {
     int status = 0;
-    mDeviceMutex.lock();
 
     if (isAbrEnabled)
         stopAbr();
+
+    mDeviceMutex.lock();
 
     Device::stop_l();
 
