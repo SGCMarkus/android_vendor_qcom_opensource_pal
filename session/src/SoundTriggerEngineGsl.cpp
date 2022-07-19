@@ -1832,8 +1832,7 @@ int32_t SoundTriggerEngineGsl::UpdateConfLevels(
         pdk_wakeup_config_.mode = recognition_mode;
         pdk_wakeup_config_.num_keywords = num_conf_levels;
         pdk_wakeup_config_.model_id = st->GetModelId();
-        pdk_wakeup_config_.custom_payload_size = sizeof(uint32_t) * 2 +
-        pdk_wakeup_config_.num_keywords * sizeof(uint32_t);
+        pdk_wakeup_config_.custom_payload_size = 0;
 
         if (mid_wakeup_cfg_.find(st->GetModelId()) != mid_wakeup_cfg_.end() &&
             std::find(updated_cfg_.begin(), updated_cfg_.end(), st->GetModelId())
@@ -1864,7 +1863,7 @@ int32_t SoundTriggerEngineGsl::UpdateConfLevels(
         }
     } else if (!CheckIfOtherStreamsAttached(s)) {
         wakeup_config_.mode = recognition_mode;
-        wakeup_config_.custom_payload_size = config->data_size;
+        wakeup_config_.custom_payload_size = 0;
         wakeup_config_.num_active_models = num_conf_levels;
         wakeup_config_.reserved = 0;
         for (int i = 0; i < wakeup_config_.num_active_models; i++) {
@@ -1878,7 +1877,7 @@ int32_t SoundTriggerEngineGsl::UpdateConfLevels(
         /* Update recognition mode considering all streams */
         if (wakeup_config_.mode != recognition_mode)
             wakeup_config_.mode |= recognition_mode;
-            wakeup_config_.custom_payload_size = config->data_size;
+            wakeup_config_.custom_payload_size = 0;
             wakeup_config_.num_active_models = eng_sm_info_->GetConfLevelsSize();
             wakeup_config_.reserved = 0;
             for (int i = 0; i < wakeup_config_.num_active_models; i++) {
