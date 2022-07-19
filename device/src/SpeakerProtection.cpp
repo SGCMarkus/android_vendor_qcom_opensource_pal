@@ -1161,9 +1161,12 @@ SpeakerProtection::SpeakerProtection(struct pal_device *device,
 
     if (device->id == PAL_DEVICE_OUT_HANDSET) {
         vi_device.channels = 1;
+        cps_device.channels = 1;
         numberOfChannels = 1;
-        PAL_DBG(LOG_TAG, "Device id: %d vi_device.channels: %d numberOfChannels: %d",
-                              device->id, vi_device.channels, numberOfChannels);
+
+        PAL_DBG(LOG_TAG, "Device id: %d vi_device.channels: %d, cps_device.channels: %d, numberOfChannels: %d",
+                                         device->id, vi_device.channels,
+                                         cps_device.channels, numberOfChannels);
         goto exit;
     }
 
@@ -1910,26 +1913,13 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
         }
         else {
             ch_info.channels = CHANNELS_1;
-            ch_info.ch_map[0] = PAL_CHMAP_CHANNEL_FR;
+            if (mDeviceAttr.id == PAL_DEVICE_OUT_HANDSET)
+                ch_info.ch_map[0] = PAL_CHMAP_CHANNEL_FL;
+            else
+                ch_info.ch_map[0] = PAL_CHMAP_CHANNEL_FR;
         }
 
         rm->getChannelMap(&(ch_info.ch_map[0]), cps_device.channels);
-        ch_info.channels = vi_device.channels;
-        if (mDeviceAttr.id == PAL_DEVICE_OUT_HANDSET)
-                 ch_info.ch_map[0] = PAL_CHMAP_CHANNEL_FL;
-
-        switch (cps_device.channels) {
-            case 1 :
-                ch_info.channels = CHANNELS_1;
-            break;
-            case 2 :
-                ch_info.channels = CHANNELS_2;
-            break;
-            default:
-                PAL_DBG(LOG_TAG, "Unsupported channel. Set default as 2");
-                ch_info.channels = CHANNELS_2;
-            break;
-        }
 
         deviceCPS.config.ch_info = ch_info;
         deviceCPS.config.sample_rate = cps_device.samplerate;
