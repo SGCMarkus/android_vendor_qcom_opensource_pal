@@ -532,8 +532,13 @@ int ResourceManager::max_voice_vol = -1;     /* Variable to store max volume ind
 
 bool ResourceManager::isSignalHandlerEnabled = false;
 #ifdef SOC_PERIPHERAL_PROT
+std::thread ResourceManager::socPerithread;
 bool ResourceManager::isTZSecureZone = false;
 void * ResourceManager::tz_handle = NULL;
+void * ResourceManager::socPeripheralLibHdl = NULL;
+getPeripheralStatusFnPtr ResourceManager::mGetPeripheralState = nullptr;
+registerPeripheralCBFnPtr ResourceManager::mRegisterPeripheralCb = nullptr;
+deregisterPeripheralCBFnPtr ResourceManager::mDeregisterPeripheralCb = nullptr;
 #define PRPHRL_REGSTR_RETRY_COUNT 10
 #endif
 //TODO:Needs to define below APIs so that functionality won't break
@@ -968,7 +973,7 @@ ResourceManager::ResourceManager()
         IsLPISupported(PAL_STREAM_ACD) ||
         IsLPISupported(PAL_STREAM_SENSOR_PCM_DATA);
 #ifdef SOC_PERIPHERAL_PROT
-    registertoPeripheral(CPeripheralAccessControl_AUDIO_UID);
+    socPerithread = std::thread(loadSocPeripheralLib);
 #endif
     PAL_INFO(LOG_TAG, "Exit: %p", this);
 }
@@ -1028,16 +1033,18 @@ int ResourceManager::registertoPeripheral(uint32_t pUID)
     int retry = PRPHRL_REGSTR_RETRY_COUNT;
     int state = PRPHRL_SUCCESS;
 
-    do {
-        /* register callback function with TZ service to get notifications of state change */
-        tz_handle = registerPeripheralCB(pUID, secureZoneEventCb);
-        if (tz_handle != NULL) {
-            PAL_INFO(LOG_TAG, "registered call back for audio peripheral[0x%x] to TZ", pUID);
-            break;
-        }
-        retry--;
-        usleep(1000);
-    } while(retry);
+    if (mRegisterPeripheralCb) {
+        do {
+            /* register callback function with TZ service to get notifications of state change */
+            tz_handle = mRegisterPeripheralCb(pUID, secureZoneEventCb);
+            if (tz_handle != NULL) {
+                PAL_INFO(LOG_TAG, "registered call back for audio peripheral[0x%x] to TZ", pUID);
+                break;
+            }
+            retry--;
+            usleep(1000);
+        } while(retry);
+    }
 
     if (retry == 0)
     {
@@ -1047,22 +1054,64 @@ int ResourceManager::registertoPeripheral(uint32_t pUID)
     }
 
     /** Getting current peripheral state after connection */
-    state = getPeripheralState(tz_handle);
-    if (state == PRPHRL_ERROR) {
-         PAL_ERR(LOG_TAG, "Failed to get Peripheral state from TZ");
-         state = PRPHRL_ERROR;
-         return state;
-    } else if (state == STATE_SECURE) {
-                ResourceManager::isTZSecureZone = true;
+    if (mGetPeripheralState) {
+        state = mGetPeripheralState(tz_handle);
+        if (state == PRPHRL_ERROR) {
+            PAL_ERR(LOG_TAG, "Failed to get Peripheral state from TZ");
+            state = PRPHRL_ERROR;
+            return state;
+        } else if (state == STATE_SECURE) {
+            ResourceManager::isTZSecureZone = true;
+        }
     }
+    PAL_DBG(LOG_TAG, "Soc peripheral thread exit");
     return state;
 }
 
 int ResourceManager::deregPeripheralCb(void *tz_handle)
 {
-    if (tz_handle)
-        return deregisterPeripheralCB(tz_handle);
+    if (tz_handle && mDeregisterPeripheralCb) {
+        mDeregisterPeripheralCb(tz_handle);
+        mRegisterPeripheralCb = nullptr;
+        mDeregisterPeripheralCb = nullptr;
+        dlclose(socPeripheralLibHdl);
+        socPeripheralLibHdl = nullptr;
+    }
+
     return -1;
+}
+
+void ResourceManager::loadSocPeripheralLib()
+{
+    if (access(SOC_PERIPHERAL_LIBRARY_PATH, R_OK) == 0) {
+        socPeripheralLibHdl = dlopen(SOC_PERIPHERAL_LIBRARY_PATH, RTLD_NOW);
+        if (socPeripheralLibHdl == NULL) {
+            PAL_ERR(LOG_TAG, "DLOPEN failed for %s %s", SOC_PERIPHERAL_LIBRARY_PATH, dlerror());
+        } else {
+            PAL_VERBOSE(LOG_TAG, "DLOPEN successful for %s", SOC_PERIPHERAL_LIBRARY_PATH);
+            mRegisterPeripheralCb = (registerPeripheralCBFnPtr)
+                dlsym(socPeripheralLibHdl, "registerPeripheralCB");
+            const char *dlsym_error = dlerror();
+            if (dlsym_error) {
+                 PAL_ERR(LOG_TAG, "cannot find registerPeripheralCB symbol");
+            }
+
+            mGetPeripheralState = (getPeripheralStatusFnPtr)
+                dlsym(socPeripheralLibHdl, "getPeripheralState");
+            dlsym_error = dlerror();
+            if (dlsym_error) {
+                 PAL_ERR(LOG_TAG, "cannot find getPeripheralState symbol");
+            }
+
+            mDeregisterPeripheralCb = (deregisterPeripheralCBFnPtr)
+                dlsym(socPeripheralLibHdl, "deregisterPeripheralCB");
+            dlsym_error = dlerror();
+            if (dlsym_error) {
+                 PAL_ERR(LOG_TAG, "cannot find deregisterPeripheralCB symbol");
+            }
+            registertoPeripheral(CPeripheralAccessControl_AUDIO_UID);
+        }
+    }
 }
 #endif
 
@@ -5888,6 +5937,11 @@ void ResourceManager::deinit()
     while (!msgQ.empty())
         msgQ.pop();
 
+#ifdef SOC_PERIPHERAL_PROT
+    if (socPerithread.joinable()) {
+        socPerithread.join();
+    }
+#endif
     rm = nullptr;
 }
 
