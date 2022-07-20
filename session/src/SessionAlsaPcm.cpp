@@ -1893,10 +1893,9 @@ int SessionAlsaPcm::read(Stream *s, int tag __unused, struct pal_buffer *buf, in
 int SessionAlsaPcm::write(Stream *s, int tag, struct pal_buffer *buf, int * size,
                           int flag)
 {
-    int status = 0, bytesWritten = 0, bytesRemaining = 0, offset = 0;
-    uint32_t sizeWritten = 0;
+    int status = 0;
+    size_t bytesWritten = 0, bytesRemaining = 0, offset = 0, sizeWritten = 0;
     struct pal_stream_attributes sAttr;
-
 
     PAL_VERBOSE(LOG_TAG, "Enter buf:%p tag:%d flag:%d", buf, tag, flag);
 
