@@ -262,6 +262,7 @@ public:
     int32_t setEffectParameters(void *effect_param);
     int32_t rwACDBParameters(void *payload, uint32_t sampleRate,
                                 bool isParamWrite);
+    stream_state_t getCurState() { return currentState; }
     bool isActive() { return currentState == STREAM_STARTED; }
     bool isAlive() { return currentState != STREAM_IDLE; }
     bool isA2dpMuted() { return a2dpMuted; }
