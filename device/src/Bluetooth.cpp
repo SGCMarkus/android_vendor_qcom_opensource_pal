@@ -1941,7 +1941,7 @@ int BtA2dp::startCapture()
         if (param_bt_a2dp.a2dp_capture_suspended) {
             // session will be restarted after suspend completion
             PAL_INFO(LOG_TAG, "a2dp start capture requested during suspend state");
-            return 0;
+            return -EINVAL;
         }
 
         if (a2dpState != A2DP_STATE_STARTED  && !totalActiveSessionRequests) {
