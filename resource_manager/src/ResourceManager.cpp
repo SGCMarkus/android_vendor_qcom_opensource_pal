@@ -7963,8 +7963,9 @@ int32_t ResourceManager::a2dpResume(pal_device_id_t dev_id)
                 (*sIter)->getAssociatedDevices(devices);
                 if (devices.size() > 0) {
                     for (auto device: devices) {
-                        if (device->getSndDeviceId() > PAL_DEVICE_OUT_MIN &&
-                            device->getSndDeviceId() < PAL_DEVICE_OUT_MAX) {
+                        if ((device->getSndDeviceId() > PAL_DEVICE_OUT_MIN &&
+                            device->getSndDeviceId() < PAL_DEVICE_OUT_MAX) &&
+                            ((*sIter)->suspendedDevIds.size() == 1 /* non combo */)) {
                             streamDevDisconnect.push_back({ (*sIter), device->getSndDeviceId() });
                         }
                     }
@@ -11345,7 +11346,9 @@ bool ResourceManager::doDevAttrDiffer(struct pal_device *inDevAttr,
         ((inDevAttr->id == PAL_DEVICE_OUT_BLUETOOTH_BLE) &&
         (curDevAttr->id == PAL_DEVICE_OUT_BLUETOOTH_BLE)) ||
         ((inDevAttr->id == PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST) &&
-        (curDevAttr->id == PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST))) {
+        (curDevAttr->id == PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST)) ||
+        ((inDevAttr->id == PAL_DEVICE_IN_BLUETOOTH_BLE) &&
+        (curDevAttr->id == PAL_DEVICE_IN_BLUETOOTH_BLE))) {
         pal_param_bta2dp_t *param_bt_a2dp = nullptr;
 
         if (isDeviceAvailable(inDevAttr->id)) {
