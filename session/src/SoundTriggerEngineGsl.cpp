@@ -1,6 +1,5 @@
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -26,6 +25,11 @@
  * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
  * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Changes from Qualcomm Innovation Center are provided under the following license:
+ *
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause-Clear
  */
 
 #define ATRACE_TAG (ATRACE_TAG_AUDIO | ATRACE_TAG_HAL)
@@ -40,6 +44,7 @@
 #include "StreamSoundTrigger.h"
 #include "ResourceManager.h"
 #include "SoundTriggerPlatformInfo.h"
+#include "VoiceUIInterface.h"
 #include "sh_mem_pull_push_mode_api.h"
 
 // TODO: find another way to print debug logs by default
@@ -64,7 +69,7 @@ void SoundTriggerEngineGsl::EventProcessingThread(
     SoundTriggerEngineGsl *gsl_engine) {
 
     int32_t status = 0;
-    StreamSoundTrigger *s = nullptr;
+    StreamSoundTrigger *det_str = nullptr;
     std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
 
     PAL_INFO(LOG_TAG, "Enter. start thread loop");
@@ -94,115 +99,35 @@ void SoundTriggerEngineGsl::EventProcessingThread(
         }
         gsl_engine->state_mutex_.unlock();
 
-        if (!IS_MODULE_TYPE_PDK(gsl_engine->module_type_)) {
-            s = dynamic_cast<StreamSoundTrigger *>
-                                     (gsl_engine->GetDetectedStream());
-
-            if (s) {
-                if (gsl_engine->capture_requested_) {
-                    status = gsl_engine->StartBuffering(s);
-                    if (status < 0) {
-                        lck.unlock();
-                        gsl_engine->RestartRecognition(s);
-                        lck.lock();
-                    }
-                } else {
-                    status = gsl_engine->UpdateSessionPayload(ENGINE_RESET);
-                    gsl_engine->CheckAndSetDetectionConfLevels(s);
+        det_str = dynamic_cast<StreamSoundTrigger *>(
+            gsl_engine->vui_intf_->GetDetectedStream());
+        if (det_str) {
+            if (gsl_engine->capture_requested_) {
+                status = gsl_engine->StartBuffering(det_str);
+                if (status < 0) {
                     lck.unlock();
-                    status = s->SetEngineDetectionState(GMM_DETECTED);
-                    if (status < 0)
-                        gsl_engine->RestartRecognition(s);
+                    gsl_engine->RestartRecognition(det_str);
                     lck.lock();
                 }
-            }
-        } else {
-            PAL_DBG(LOG_TAG, "Detection happened for 1st stage PDK");
-            for (int i = 0;
-                i < gsl_engine->detection_event_info_multi_model_.
-                               num_detected_models; i++) {
-                s = dynamic_cast<StreamSoundTrigger *>
-                                (gsl_engine->GetDetectedStream(
-                                 gsl_engine->detection_event_info_multi_model_.
-                                 detected_model_stats[i].
-                                 detected_model_id));
-                if (s) {
-                    if (gsl_engine->capture_requested_) {
-                        status = gsl_engine->StartBuffering(s);
-                        if (status < 0) {
-                            lck.unlock();
-                            gsl_engine->RestartRecognition(s);
-                            lck.lock();
-                        }
-                    } else {
-                        status = gsl_engine->UpdateSessionPayload(ENGINE_RESET);
-                        lck.unlock();
-                        status = s->SetEngineDetectionState(GMM_DETECTED);
-                        /*
-                         * In Dual VA, when the detections are ignored for a
-                         * stopped stream, SPF session will be in same state.
-                         * If engine is not reset and recognition is not restarted,
-                         * SPF modules are not reset properly and further detections
-                         * don't work. So, restart recognition to handle this.
-                         * TODO: When PDK library adds support to ignore detection
-                         * for stopped model, remove this change.
-                         */
-                        if (status < 0)
-                            gsl_engine->RestartRecognition(s);
-                        lck.lock();
-                    }
-                }
+            } else {
+                status = gsl_engine->UpdateSessionPayload(ENGINE_RESET);
+                lck.unlock();
+                status = det_str->SetEngineDetectionState(GMM_DETECTED);
+                if (status < 0)
+                    gsl_engine->RestartRecognition(det_str);
+                lck.lock();
             }
         }
         /*
          * After detection is handled, update the state to Active
          * if other streams are attached to engine and active
          */
-        if (s && gsl_engine->CheckIfOtherStreamsAttached(s)) {
-            for (uint32_t i = 0; i < gsl_engine->eng_streams_.size(); i++) {
-                StreamSoundTrigger *st =
-                    dynamic_cast<StreamSoundTrigger *> (gsl_engine->eng_streams_[i]);
-                if (st != s && st->GetCurrentStateId() == ST_STATE_ACTIVE) {
-                    gsl_engine->UpdateState(ENG_ACTIVE);
-                }
-            }
-        }
+        if (det_str && gsl_engine->CheckIfOtherStreamsActive(det_str))
+            gsl_engine->UpdateState(ENG_ACTIVE);
+
         rm->releaseWakeLock();
     }
     PAL_DBG(LOG_TAG, "Exit");
-}
-
-void SoundTriggerEngineGsl::CheckAndSetDetectionConfLevels(Stream *s) {
-
-   StreamSoundTrigger *st = dynamic_cast<StreamSoundTrigger *>(s);
-
-    PAL_DBG(LOG_TAG, "Enter");
-    if (detection_event_info_.num_confidence_levels <
-            eng_sm_info_->GetConfLevelsSize()) {
-        PAL_ERR(LOG_TAG, "detection event conf lvls %d < eng conf lvl size %d",
-            detection_event_info_.num_confidence_levels,
-            eng_sm_info_->GetConfLevelsSize());
-        return;
-    }
-    /* Reset any cached previous detection conf level values */
-    st->GetSoundModelInfo()->ResetDetConfLevels();
-
-    /* Extract the stream conf level values from SPF detection payload */
-    for (uint32_t i = 0; i < eng_sm_info_->GetConfLevelsSize(); i++) {
-        if (!detection_event_info_.confidence_levels[i])
-            continue;
-        for (uint32_t j = 0; j < st->GetSoundModelInfo()->GetConfLevelsSize(); j++) {
-            if (!strcmp(st->GetSoundModelInfo()->GetConfLevelsKwUsers()[j],
-                 eng_sm_info_->GetConfLevelsKwUsers()[i])) {
-                 st->GetSoundModelInfo()->UpdateDetConfLevel(j,
-                   detection_event_info_.confidence_levels[i]);
-            }
-        }
-    }
-
-    for (uint32_t i = 0; i < st->GetSoundModelInfo()->GetConfLevelsSize(); i++)
-        PAL_DBG(LOG_TAG, "det_cf_levels[%d]-%d", i,
-            st->GetSoundModelInfo()->GetDetConfLevels()[i]);
 }
 
 int32_t SoundTriggerEngineGsl::StartBuffering(Stream *s) {
@@ -238,10 +163,8 @@ int32_t SoundTriggerEngineGsl::StartBuffering(Stream *s) {
         goto exit;
     }
 
-    if (!IS_MODULE_TYPE_PDK(module_type_)) {
-        ftrt_size = UsToBytes(detection_event_info_.ftrt_data_length_in_us);
-    } else {
-        ftrt_size = UsToBytes(detection_event_info_multi_model_.ftrt_data_length_in_us);
+    ftrt_size = vui_intf_->GetFTRTDataSize();
+    if (IS_MODULE_TYPE_PDK(module_type_)) {
         drop_duration = (uint64_t)(buffer_config_.pre_roll_duration_in_ms -
             mid_buff_cfg_[st->GetModelId()].first);
         bytes_to_drop = UsToBytes(drop_duration * 1000);
@@ -309,6 +232,11 @@ int32_t SoundTriggerEngineGsl::StartBuffering(Stream *s) {
                     // TODO: add timeout check & handling
                     continue;
                 }
+                if (size_to_read > (2 * mmap_buffer_size_) - read_offset) {
+                    PAL_ERR(LOG_TAG, "Bytes written is exceeding mmap buffer size");
+                    status = -EINVAL;
+                    goto exit;
+                }
                 PAL_VERBOSE(LOG_TAG, "Mmap write offset %zu, available bytes %zu",
                     bytes_written, size_to_read);
             } else {
@@ -364,6 +292,8 @@ int32_t SoundTriggerEngineGsl::StartBuffering(Stream *s) {
         ATRACE_ASYNC_END("stEngine: lab read", (int32_t)module_type_);
         // write data to ring buffer
         if (size) {
+            if (total_read_size < ftrt_size)
+                vui_intf_->UpdateFTRTData(buf.buffer, size);
             size_t ret = 0;
             if (bytes_to_drop) {
                 if (size < bytes_to_drop) {
@@ -395,45 +325,15 @@ int32_t SoundTriggerEngineGsl::StartBuffering(Stream *s) {
             PAL_INFO(LOG_TAG, "FTRT data read done! total_read_size %zu, ftrt_size %zu, read latency %llums",
                     total_read_size, ftrt_size, (long long)kw_transfer_latency_);
 
-            if (!IS_MODULE_TYPE_PDK(module_type_)) {
-                StreamSoundTrigger *s = dynamic_cast<StreamSoundTrigger *>
-                                                     (GetDetectedStream());
-                if (s) {
-                    CheckAndSetDetectionConfLevels(s);
-                    mutex_.unlock();
-                    status = s->SetEngineDetectionState(GMM_DETECTED);
-                    if (status < 0)
-                        RestartRecognition(s);
-                    mutex_.lock();
-                }
-            } else {
-                for (int i = 0;
-                    i < detection_event_info_multi_model_.num_detected_models;
-                    i++) {
-                    StreamSoundTrigger *s = dynamic_cast<StreamSoundTrigger *>
-                                            (GetDetectedStream(
-                                            detection_event_info_multi_model_.
-                                            detected_model_stats[i].
-                                            detected_model_id));
-
-                    if (s) {
-                        mutex_.unlock();
-                        status = s->SetEngineDetectionState(GMM_DETECTED);
-                        /*
-                         * In Dual VA, when the detections are ignored for a
-                         * stopped stream, SPF session will be in same state.
-                         * If engine is not reset and recognition is not restarted,
-                         * SPF modules are not reset properly and further detections
-                         * don't work. So, restart recognition to handle this.
-                         * TODO: When PDK library adds support to ignore detection
-                         * for stopped model, remove this change.
-                         */
-                        if (status < 0)
-                            RestartRecognition(s);
-                        mutex_.lock();
-                    }
-                }
+            StreamSoundTrigger *s = dynamic_cast<StreamSoundTrigger *>(vui_intf_->GetDetectedStream());
+            if (s) {
+                mutex_.unlock();
+                status = s->SetEngineDetectionState(GMM_DETECTED);
+                if (status < 0)
+                    RestartRecognition(s);
+                mutex_.lock();
             }
+
             if (status) {
                 PAL_ERR(LOG_TAG,
                     "Failed to set engine detection state to stream, status %d",
@@ -458,385 +358,6 @@ exit:
     return status;
 }
 
-int32_t SoundTriggerEngineGsl::ParseDetectionPayloadPDK(void *event_data) {
-    int32_t status = 0;
-    uint32_t payload_size = 0;
-    uint32_t parsed_size = 0;
-    uint32_t event_size = 0;
-    uint32_t keyId = 0;
-    uint64_t kwd_start_timestamp = 0;
-    uint64_t kwd_end_timestamp = 0;
-    uint64_t ftrt_start_timestamp = 0;
-    uint8_t *ptr = nullptr;
-    struct event_id_detection_engine_generic_info_t *generic_info = nullptr;
-    struct detection_event_info_header_t *event_header = nullptr;
-    struct ftrt_data_info_t *ftrt_info = nullptr;
-    struct voice_ui_multi_model_result_info_t *multi_model_result = nullptr;
-    struct model_stats *model_stat = nullptr;
-    struct model_stats *detected_model_stat = nullptr;
-
-    PAL_DBG(LOG_TAG, "Enter");
-    if (!event_data) {
-        PAL_ERR(LOG_TAG, "Invalid event data");
-        return -EINVAL;
-    }
-
-    std::memset(&detection_event_info_multi_model_, 0,
-                    sizeof(struct voice_ui_multi_model_result_info_t));
-
-    generic_info = (struct event_id_detection_engine_generic_info_t *)
-                    event_data;
-    payload_size = sizeof(struct event_id_detection_engine_generic_info_t);
-    event_size = generic_info->payload_size;
-    ptr = (uint8_t *)event_data + payload_size;
-
-    if (!event_size) {
-        status = -EINVAL;
-        PAL_ERR(LOG_TAG, "Invalid detection payload");
-        goto exit;
-    }
-
-    PAL_INFO(LOG_TAG, "event_size = %u", event_size);
-
-    while (parsed_size < event_size) {
-        PAL_DBG(LOG_TAG, "parsed_size = %u, event_size = %u", parsed_size,
-                                                              event_size);
-        event_header = (struct detection_event_info_header_t *)ptr;
-        keyId = event_header->key_id;
-        payload_size = event_header->payload_size;
-        ptr += sizeof(struct detection_event_info_header_t);
-        parsed_size += sizeof(struct detection_event_info_header_t);
-
-        switch (keyId) {
-            case KEY_ID_FTRT_DATA_INFO :
-                PAL_DBG(LOG_TAG, "ftrt structure size : %u", payload_size);
-
-                ftrt_info = (struct ftrt_data_info_t *)ptr;
-                detection_event_info_multi_model_.ftrt_data_length_in_us =
-                                        ftrt_info->ftrt_data_length_in_us;
-                PAL_DBG(LOG_TAG, "ftrt_data_length_in_us = %u",
-                detection_event_info_multi_model_.ftrt_data_length_in_us);
-                break;
-
-            case KEY_ID_VOICE_UI_MULTI_MODEL_RESULT_INFO :
-                PAL_DBG(LOG_TAG, "voice_ui_multi_model_result_info : %u",
-                        payload_size );
-
-                multi_model_result = (struct voice_ui_multi_model_result_info_t *)
-                                      ptr;
-                detection_event_info_multi_model_.num_detected_models =
-                                 multi_model_result->num_detected_models;
-                PAL_DBG(LOG_TAG, "Number of detected models : %d",
-                detection_event_info_multi_model_.num_detected_models);
-
-                model_stat = (struct model_stats *)(ptr +
-                             sizeof(struct voice_ui_multi_model_result_info_t));
-                for (int i = 0; i < detection_event_info_multi_model_.
-                                    num_detected_models; ++i) {
-
-                    detection_event_info_multi_model_.detected_model_stats[i].
-                    detected_model_id = model_stat->detected_model_id;
-
-                    detection_event_info_multi_model_.detected_model_stats[i].
-                    detected_keyword_id = model_stat->detected_keyword_id;
-                    PAL_DBG(LOG_TAG, "detected keyword id : %u",
-                            detection_event_info_multi_model_.detected_model_stats[i].
-                            detected_keyword_id);
-
-                    detection_event_info_multi_model_.detected_model_stats[i].
-                    best_channel_idx = model_stat->best_channel_idx;
-
-                    detection_event_info_multi_model_.detected_model_stats[i].
-                    best_confidence_level = model_stat->best_confidence_level;
-                    PAL_DBG(LOG_TAG, "detected best conf level : %u",
-                            detection_event_info_multi_model_.detected_model_stats[i].
-                            best_confidence_level);
-
-                    detection_event_info_multi_model_.detected_model_stats[i].
-                    kw_start_timestamp_lsw = model_stat->kw_start_timestamp_lsw;
-                    PAL_DBG(LOG_TAG, "kw_start_timestamp_lsw : %u",
-                    detection_event_info_multi_model_.detected_model_stats[i].
-                    kw_start_timestamp_lsw);
-
-                    detection_event_info_multi_model_.detected_model_stats[i].
-                    kw_start_timestamp_msw = model_stat->kw_start_timestamp_msw;
-                    PAL_DBG(LOG_TAG, "kw_start_timestamp_msw : %u",
-                    detection_event_info_multi_model_.detected_model_stats[i].
-                    kw_start_timestamp_msw);
-
-                    detection_event_info_multi_model_.detected_model_stats[i].
-                    kw_end_timestamp_lsw = model_stat->kw_end_timestamp_lsw;
-                    PAL_DBG(LOG_TAG, "kw_end_timestamp_lsw : %u",
-                    detection_event_info_multi_model_.detected_model_stats[i].
-                    kw_end_timestamp_lsw);
-
-
-                    detection_event_info_multi_model_.detected_model_stats[i].
-                    kw_end_timestamp_msw = model_stat->kw_end_timestamp_msw;
-                    PAL_DBG(LOG_TAG, "kw_end_timestamp_msw : %u",
-                    detection_event_info_multi_model_.detected_model_stats[i].
-                    kw_end_timestamp_msw);
-
-
-                    detection_event_info_multi_model_.detected_model_stats[i].
-                    detection_timestamp_lsw = model_stat->detection_timestamp_lsw;
-                    PAL_DBG(LOG_TAG, "detection_timestamp_lsw : %u",
-                    detection_event_info_multi_model_.detected_model_stats[i].
-                    detection_timestamp_lsw);
-
-                    detection_event_info_multi_model_.detected_model_stats[i].
-                    detection_timestamp_msw = model_stat->detection_timestamp_msw;
-                    PAL_DBG(LOG_TAG, "detection_timestamp_msw : %u",
-                    detection_event_info_multi_model_.detected_model_stats[i].
-                    detection_timestamp_msw);
-
-                    PAL_INFO(LOG_TAG," Detection made for model id : %x",
-                    detection_event_info_multi_model_.detected_model_stats[i].
-                    detected_model_id);
-                    model_stat += sizeof(struct model_stats);
-                }
-                break;
-            default :
-                status = -EINVAL;
-                PAL_ERR(LOG_TAG, "Invalid key id %u status %d", keyId, status);
-                goto exit;
-        }
-        ptr += payload_size;
-        parsed_size += payload_size;
-
-    }
-
-    detected_model_stat =
-        &detection_event_info_multi_model_.detected_model_stats[0];
-
-    kwd_start_timestamp =
-        (uint64_t)detected_model_stat->kw_start_timestamp_lsw +
-        ((uint64_t)detected_model_stat->kw_start_timestamp_msw << 32);
-    kwd_end_timestamp =
-        (uint64_t)detected_model_stat->kw_end_timestamp_lsw +
-        ((uint64_t)detected_model_stat->kw_end_timestamp_msw << 32);
-    ftrt_start_timestamp =
-        (uint64_t)detected_model_stat->detection_timestamp_lsw +
-        ((uint64_t)detected_model_stat->detection_timestamp_msw << 32) -
-        detection_event_info_multi_model_.ftrt_data_length_in_us;
-
-    UpdateKeywordIndex(kwd_start_timestamp, kwd_end_timestamp,
-        ftrt_start_timestamp);
-
-exit :
-    PAL_DBG(LOG_TAG, "Exit, status %d", status);
-
-    return status;
-}
-
-int32_t SoundTriggerEngineGsl::ParseDetectionPayload(void *event_data) {
-    int32_t status = 0;
-    int32_t i = 0;
-    uint32_t parsed_size = 0;
-    uint32_t payload_size = 0;
-    uint32_t event_size = 0;
-    uint64_t kwd_start_timestamp = 0;
-    uint64_t kwd_end_timestamp = 0;
-    uint64_t ftrt_start_timestamp = 0;
-    uint8_t *ptr = nullptr;
-    struct event_id_detection_engine_generic_info_t *generic_info = nullptr;
-    struct detection_event_info_header_t *event_header = nullptr;
-    struct confidence_level_info_t *confidence_info = nullptr;
-    struct keyword_position_info_t *keyword_position_info = nullptr;
-    struct detection_timestamp_info_t *detection_timestamp_info = nullptr;
-    struct ftrt_data_info_t *ftrt_info = nullptr;
-
-    PAL_DBG(LOG_TAG, "Enter");
-    if (!event_data) {
-        PAL_ERR(LOG_TAG, "Invalid event data");
-        return -EINVAL;
-    }
-
-    std::memset(&detection_event_info_, 0, sizeof(struct detection_event_info));
-
-    generic_info =
-        (struct event_id_detection_engine_generic_info_t *)event_data;
-    payload_size = sizeof(struct event_id_detection_engine_generic_info_t);
-    detection_event_info_.status = generic_info->status;
-    event_size = generic_info->payload_size;
-    ptr = (uint8_t *)event_data + payload_size;
-    PAL_INFO(LOG_TAG, "status = %u, event_size = %u",
-                detection_event_info_.status, event_size);
-    if (status || !event_size) {
-        status = -EINVAL;
-        PAL_ERR(LOG_TAG, "Invalid detection payload");
-        goto exit;
-    }
-
-    // parse variable payload
-    while (parsed_size < event_size) {
-        PAL_DBG(LOG_TAG, "parsed_size = %u, event_size = %u",
-                parsed_size, event_size);
-        event_header = (struct detection_event_info_header_t *)ptr;
-        uint32_t keyId = event_header->key_id;
-        payload_size = event_header->payload_size;
-        PAL_DBG(LOG_TAG, "key id = %u, payload_size = %u",
-                keyId, payload_size);
-        ptr += sizeof(struct detection_event_info_header_t);
-        parsed_size += sizeof(struct detection_event_info_header_t);
-
-        switch (keyId) {
-        case KEY_ID_CONFIDENCE_LEVELS_INFO:
-            confidence_info = (struct confidence_level_info_t *)ptr;
-            detection_event_info_.num_confidence_levels =
-                confidence_info->number_of_confidence_values;
-            PAL_DBG(LOG_TAG, "num_confidence_levels = %u",
-                    detection_event_info_.num_confidence_levels);
-            for (i = 0; i < detection_event_info_.num_confidence_levels; i++) {
-                detection_event_info_.confidence_levels[i] =
-                    confidence_info->confidence_levels[i];
-                PAL_VERBOSE(LOG_TAG, "confidence_levels[%d] = %u", i,
-                            detection_event_info_.confidence_levels[i]);
-            }
-            break;
-        case KEY_ID_KWD_POSITION_INFO:
-            keyword_position_info = (struct keyword_position_info_t *)ptr;
-            detection_event_info_.kw_start_timestamp_lsw =
-                keyword_position_info->kw_start_timestamp_lsw;
-            detection_event_info_.kw_start_timestamp_msw =
-                keyword_position_info->kw_start_timestamp_msw;
-            detection_event_info_.kw_end_timestamp_lsw =
-                keyword_position_info->kw_end_timestamp_lsw;
-            detection_event_info_.kw_end_timestamp_msw =
-                keyword_position_info->kw_end_timestamp_msw;
-            PAL_DBG(LOG_TAG, "start_lsw = %u, start_msw = %u, "
-                    "end_lsw = %u, end_msw = %u",
-                    detection_event_info_.kw_start_timestamp_lsw,
-                    detection_event_info_.kw_start_timestamp_msw,
-                    detection_event_info_.kw_end_timestamp_lsw,
-                    detection_event_info_.kw_end_timestamp_msw);
-            break;
-        case KEY_ID_TIMESTAMP_INFO:
-            detection_timestamp_info = (struct detection_timestamp_info_t *)ptr;
-            detection_event_info_.detection_timestamp_lsw =
-                detection_timestamp_info->detection_timestamp_lsw;
-            detection_event_info_.detection_timestamp_msw =
-                detection_timestamp_info->detection_timestamp_msw;
-            PAL_DBG(LOG_TAG, "timestamp_lsw = %u, timestamp_msw = %u",
-                    detection_event_info_.detection_timestamp_lsw,
-                    detection_event_info_.detection_timestamp_msw);
-            break;
-        case KEY_ID_FTRT_DATA_INFO:
-            ftrt_info = (struct ftrt_data_info_t *)ptr;
-            detection_event_info_.ftrt_data_length_in_us =
-                ftrt_info->ftrt_data_length_in_us;
-            PAL_DBG(LOG_TAG, "ftrt_data_length_in_us = %u",
-                    detection_event_info_.ftrt_data_length_in_us);
-            break;
-        default:
-            status = -EINVAL;
-            PAL_ERR(LOG_TAG, "Invalid key id %u status %d", keyId, status);
-            goto exit;
-        }
-        ptr += payload_size;
-        parsed_size += payload_size;
-    }
-
-    kwd_start_timestamp =
-        (uint64_t)detection_event_info_.kw_start_timestamp_lsw +
-        ((uint64_t)detection_event_info_.kw_start_timestamp_msw << 32);
-    kwd_end_timestamp =
-        (uint64_t)detection_event_info_.kw_end_timestamp_lsw +
-        ((uint64_t)detection_event_info_.kw_end_timestamp_msw << 32);
-    ftrt_start_timestamp =
-        (uint64_t)detection_event_info_.detection_timestamp_lsw +
-        ((uint64_t)detection_event_info_.detection_timestamp_msw << 32) -
-        detection_event_info_.ftrt_data_length_in_us;
-
-    UpdateKeywordIndex(kwd_start_timestamp, kwd_end_timestamp,
-        ftrt_start_timestamp);
-
-exit:
-    PAL_DBG(LOG_TAG, "Exit, status %d", status);
-
-    return status;
-}
-
-void SoundTriggerEngineGsl::UpdateKeywordIndex(uint64_t kwd_start_timestamp,
-    uint64_t kwd_end_timestamp, uint64_t ftrt_start_timestamp) {
-
-    size_t start_index = 0;
-    size_t end_index = 0;
-
-    PAL_VERBOSE(LOG_TAG, "kwd start timestamp: %llu, kwd end timestamp: %llu",
-        (long long)kwd_start_timestamp, (long long)kwd_end_timestamp);
-    PAL_VERBOSE(LOG_TAG, "Ftrt data start timestamp : %llu",
-        (long long)ftrt_start_timestamp);
-
-    if (kwd_start_timestamp >= kwd_end_timestamp ||
-        kwd_start_timestamp < ftrt_start_timestamp) {
-        PAL_DBG(LOG_TAG, "Invalid timestamp, cannot compute keyword index");
-        return;
-    }
-
-    start_index = UsToBytes(kwd_start_timestamp - ftrt_start_timestamp);
-    end_index = UsToBytes(kwd_end_timestamp - ftrt_start_timestamp);
-    PAL_DBG(LOG_TAG, "start_index : %zu, end_index : %zu",
-        start_index, end_index);
-    buffer_->updateIndices(start_index, end_index);
-}
-
-Stream* SoundTriggerEngineGsl::GetDetectedStream(uint32_t model_id) {
-
-    StreamSoundTrigger *st = nullptr;
-
-    PAL_DBG(LOG_TAG, "Enter");
-    if (eng_streams_.empty()) {
-        PAL_ERR(LOG_TAG, "Unexpected, No streams attached to engine!");
-        return nullptr;
-    }
-    /*
-     * If only single stream exists, this detection is not for merged/multi
-     * sound model, hence return this as only available stream
-     */
-    if (!IS_MODULE_TYPE_PDK(module_type_)) {
-        if (eng_streams_.size() == 1) {
-            return eng_streams_[0];
-        }
-
-        if (detection_event_info_.num_confidence_levels <
-                eng_sm_info_->GetNumKeyPhrases()) {
-            PAL_ERR(LOG_TAG, "detection event conf levels %d < num of keyphrases %d",
-                detection_event_info_.num_confidence_levels,
-                eng_sm_info_->GetNumKeyPhrases());
-            return nullptr;
-        }
-
-        /*
-         * The DSP payload contains the keyword conf levels from the beginning.
-         * Only one keyword conf level is expected to be non-zero from keyword
-         * detection. Find non-zero conf level up to number of keyphrases and
-         * if one is found, match it to the corresponding keyphrase from list
-         * of streams to obtain the detected stream.
-         */
-        for (uint32_t i = 0; i < eng_sm_info_->GetNumKeyPhrases(); i++) {
-            if (!detection_event_info_.confidence_levels[i])
-                continue;
-            for (uint32_t j = 0; j < eng_streams_.size(); j++) {
-                st = dynamic_cast<StreamSoundTrigger *>(eng_streams_[j]);
-                for (uint32_t k = 0; k < st->GetSoundModelInfo()->GetNumKeyPhrases(); k++) {
-                    if (!strcmp(eng_sm_info_->GetKeyPhrases()[i],
-                                st->GetSoundModelInfo()->GetKeyPhrases()[k])) {
-                        return eng_streams_[j];
-                    }
-                }
-            }
-        }
-    } else {
-        st = dynamic_cast<StreamSoundTrigger *>(mid_stream_map_[model_id]);
-        if (!st) {
-            PAL_ERR(LOG_TAG, "Invalid model id = %x", model_id);
-        }
-        return st;
-    }
-    return nullptr;
-}
-
 SoundTriggerEngineGsl::SoundTriggerEngineGsl(
     Stream *s,
     listen_model_indicator_enum type,
@@ -848,6 +369,7 @@ SoundTriggerEngineGsl::SoundTriggerEngineGsl(
     engine_type_ = type;
     module_type_ = module_type;
     sm_cfg_ = sm_cfg;
+    vui_intf_ = nullptr;
     exit_thread_ = false;
     exit_buffering_ = false;
     capture_requested_ = false;
@@ -1132,37 +654,39 @@ int32_t SoundTriggerEngineGsl::AddSoundModel(Stream *s, uint8_t *data,
     SoundModelInfo *sm_info;
 
     PAL_VERBOSE(LOG_TAG, "Enter");
-    if (st->GetSoundModelInfo()->GetModelData()) {
+    if (vui_intf_->GetSoundModelInfo(st)->GetModelData()) {
         PAL_DBG(LOG_TAG, "Stream model already added");
         return 0;
     }
 
     if (!is_qcva_uuid_) {
-        st->GetSoundModelInfo()->SetModelData(data, data_size);
-        *eng_sm_info_ = *(st->GetSoundModelInfo());
+        vui_intf_->GetSoundModelInfo(st)->SetModelData(data, data_size);
+        *eng_sm_info_ = *(vui_intf_->GetSoundModelInfo(st));
+        vui_intf_->SetSoundModelInfo(eng_sm_info_);
         sm_merged_ = false;
         return 0;
     }
 
     /* Populate sound model info for the incoming stream model */
-    status = QuerySoundModel(st->GetSoundModelInfo(), data, data_size);
+    status = QuerySoundModel(vui_intf_->GetSoundModelInfo(st), data, data_size);
     if (status) {
         PAL_ERR(LOG_TAG, "QuerySoundModel failed status: %d", status);
         return status;
     }
 
-    st->GetSoundModelInfo()->SetModelData(data, data_size);
+    vui_intf_->GetSoundModelInfo(st)->SetModelData(data, data_size);
 
     /* Check for remaining stream sound models to merge */
     for (int i = 0; i < eng_streams_.size(); i++) {
         StreamSoundTrigger *sst = dynamic_cast<StreamSoundTrigger *>(eng_streams_[i]);
-        if (s != eng_streams_[i] && sst && sst->GetSoundModelInfo()->GetModelData())
+        if (s != eng_streams_[i] && sst && vui_intf_->GetSoundModelInfo(sst)->GetModelData())
              num_models++;
     }
 
     if (!num_models) {
         PAL_DBG(LOG_TAG, "Copy model info from incoming stream to engine");
-        *eng_sm_info_ = *(st->GetSoundModelInfo());
+        *eng_sm_info_ = *(vui_intf_->GetSoundModelInfo(st));
+        vui_intf_->SetSoundModelInfo(eng_sm_info_);
         sm_merged_ = false;
         return 0;
     }
@@ -1240,6 +764,7 @@ int32_t SoundTriggerEngineGsl::AddSoundModel(Stream *s, uint8_t *data,
     PAL_INFO(LOG_TAG, "Updated sound model: current size %d, new size %d",
         eng_sm_info_->GetModelSize(), out_model.size);
     *eng_sm_info_ = *sm_info;
+    vui_intf_->SetSoundModelInfo(eng_sm_info_);
     sm_merged_ = true;
 
     delete sm_info;
@@ -1349,21 +874,21 @@ int32_t SoundTriggerEngineGsl::DeleteSoundModel(Stream *s) {
     SoundModelInfo *sm_info = nullptr;
 
     PAL_VERBOSE(LOG_TAG, "Enter");
-    if (!st->GetSoundModelInfo()->GetModelData()) {
+    if (!vui_intf_->GetSoundModelInfo(st)->GetModelData()) {
         PAL_DBG(LOG_TAG, "Stream model data already deleted");
         return 0;
     }
 
     PAL_VERBOSE(LOG_TAG, "sm_data %pK, sm_size %d",
-          st->GetSoundModelInfo()->GetModelData(),
-          st->GetSoundModelInfo()->GetModelSize());
+          vui_intf_->GetSoundModelInfo(st)->GetModelData(),
+          vui_intf_->GetSoundModelInfo(st)->GetModelSize());
 
     /* Check for remaining streams sound models to merge */
     for (int i = 0; i < eng_streams_.size(); i++) {
         StreamSoundTrigger *sst = dynamic_cast<StreamSoundTrigger *>(eng_streams_[i]);
         if (s != eng_streams_[i] && sst) {
-             if (sst->GetSoundModelInfo() &&
-                 sst->GetSoundModelInfo()->GetModelData()) {
+             if (vui_intf_->GetSoundModelInfo(sst) &&
+                 vui_intf_->GetSoundModelInfo(sst)->GetModelData()) {
                  rem_st = sst;
                  num_models++;
                  PAL_DBG(LOG_TAG, "num_models: %d", num_models);
@@ -1377,9 +902,10 @@ int32_t SoundTriggerEngineGsl::DeleteSoundModel(Stream *s) {
     }
     if (num_models == 1) {
         PAL_DBG(LOG_TAG, "reuse only remaining stream model, size %d",
-            rem_st->GetSoundModelInfo()->GetModelSize());
+            vui_intf_->GetSoundModelInfo(rem_st)->GetModelSize());
         /* If only one remaining stream model exists, re-use it */
-        *eng_sm_info_ = *(rem_st->GetSoundModelInfo());
+        *eng_sm_info_ = *(vui_intf_->GetSoundModelInfo(rem_st));
+        vui_intf_->SetSoundModelInfo(eng_sm_info_);
         wakeup_config_.num_active_models = eng_sm_info_->GetConfLevelsSize();
         for (int i = 0; i < eng_sm_info_->GetConfLevelsSize(); i++) {
             if (eng_sm_info_->GetConfLevels()) {
@@ -1407,8 +933,8 @@ int32_t SoundTriggerEngineGsl::DeleteSoundModel(Stream *s) {
     in_model.data = eng_sm_info_->GetModelData();
     in_model.size = eng_sm_info_->GetModelSize();
 
-    status = DeleteFromMergedModel(st->GetSoundModelInfo()->GetKeyPhrases(),
-        st->GetSoundModelInfo()->GetNumKeyPhrases(),
+    status = DeleteFromMergedModel(vui_intf_->GetSoundModelInfo(st)->GetKeyPhrases(),
+        vui_intf_->GetSoundModelInfo(st)->GetNumKeyPhrases(),
         &in_model, &out_model);
 
     if (status)
@@ -1434,6 +960,7 @@ int32_t SoundTriggerEngineGsl::DeleteSoundModel(Stream *s) {
         eng_sm_info_->GetModelSize(), out_model.size);
 
     *eng_sm_info_ = *sm_info;
+    vui_intf_->SetSoundModelInfo(eng_sm_info_);
     sm_merged_ = true;
 
     return 0;
@@ -1516,7 +1043,7 @@ int32_t SoundTriggerEngineGsl::UpdateMergeConfLevelsWithActiveStreams() {
         st_str = dynamic_cast<StreamSoundTrigger *>(eng_streams_[i]);
         if (st_str && st_str->GetCurrentStateId() == ST_STATE_ACTIVE) {
             PAL_VERBOSE(LOG_TAG, "update merge conf levels with other active streams");
-            status = UpdateMergeConfLevelsPayload(st_str->GetSoundModelInfo(),
+            status = UpdateMergeConfLevelsPayload(vui_intf_->GetSoundModelInfo(st_str),
                         true);
             if (status)
                 return status;
@@ -2117,7 +1644,7 @@ int32_t SoundTriggerEngineGsl::ReconfigureDetectionGraph(Stream *s) {
     status = UpdateEngineModel(s, nullptr, 0, false);
     if (status)
         PAL_ERR(LOG_TAG, "Failed to update engine model, status = %d", status);
-    st->GetSoundModelInfo()->SetModelData(nullptr, 0);
+    vui_intf_->GetSoundModelInfo(st)->SetModelData(nullptr, 0);
 
     if (status == -ENETRESET) {
         PAL_INFO(LOG_TAG, "Update the status in case of SSR");
@@ -2258,7 +1785,7 @@ int32_t SoundTriggerEngineGsl::UpdateConfLevels(
     }
 
     if (!is_qcva_uuid_) {
-        custom_data_size = config->data_size;
+        custom_data_size = num_conf_levels;
         custom_data = (uint8_t *)calloc(1, custom_data_size);
         if (!custom_data) {
             PAL_ERR(LOG_TAG, "Failed to allocate memory for custom data");
@@ -2266,7 +1793,7 @@ int32_t SoundTriggerEngineGsl::UpdateConfLevels(
             goto exit;
         }
         ar_mem_cpy(custom_data, custom_data_size,
-            (uint8_t *)config + config->data_offset, custom_data_size);
+            conf_levels, custom_data_size);
         goto exit;
     }
 
@@ -2279,9 +1806,9 @@ int32_t SoundTriggerEngineGsl::UpdateConfLevels(
     PAL_VERBOSE(LOG_TAG, "Enter, config: %pK", config);
 
     if (!IS_MODULE_TYPE_PDK(module_type_)
-        && st->GetSoundModelInfo()->GetConfLevelsSize() != num_conf_levels) {
+        && vui_intf_->GetSoundModelInfo(st)->GetConfLevelsSize() != num_conf_levels) {
         PAL_ERR(LOG_TAG, "Unexpected, stream cf levels %d != sm_info cf levels %d",
-                num_conf_levels, st->GetSoundModelInfo()->GetConfLevelsSize());
+                num_conf_levels, vui_intf_->GetSoundModelInfo(st)->GetConfLevelsSize());
         status = -EINVAL;
         goto exit;
     }
@@ -2291,10 +1818,10 @@ int32_t SoundTriggerEngineGsl::UpdateConfLevels(
      * merged model yet.
      */
     if (!IS_MODULE_TYPE_PDK(module_type_)) {
-        st->GetSoundModelInfo()->UpdateConfLevelArray(conf_levels,
+        vui_intf_->GetSoundModelInfo(st)->UpdateConfLevelArray(conf_levels,
             num_conf_levels);
 
-        status = UpdateMergeConfLevelsPayload(st->GetSoundModelInfo(), true);
+        status = UpdateMergeConfLevelsPayload(vui_intf_->GetSoundModelInfo(st), true);
         if (status) {
             PAL_ERR(LOG_TAG, "Update merge conf levels failed %d", status);
             goto exit;
@@ -2446,7 +1973,7 @@ int32_t SoundTriggerEngineGsl::UpdateEngineConfigOnStop(Stream *s) {
 
     /* Update the merged conf levels considering this stream stop */
     StreamSoundTrigger *stopped_st = dynamic_cast<StreamSoundTrigger *>(s);
-    status = UpdateMergeConfLevelsPayload(stopped_st->GetSoundModelInfo(), false);
+    status = UpdateMergeConfLevelsPayload(vui_intf_->GetSoundModelInfo(stopped_st), false);
     for (int i = 0; i < eng_sm_info_->GetConfLevelsSize(); i++) {
         wakeup_config_.confidence_levels[i] = eng_sm_info_->GetConfLevels()[i];
         wakeup_config_.keyword_user_enables[i] =
@@ -2486,7 +2013,7 @@ int32_t SoundTriggerEngineGsl::UpdateEngineConfigOnRestart(Stream *s) {
 
     /* Update the merged conf levels considering this stream restarted as well */
     StreamSoundTrigger *restarted_st = dynamic_cast<StreamSoundTrigger *>(s);
-    status = UpdateMergeConfLevelsPayload(restarted_st->GetSoundModelInfo(), true);
+    status = UpdateMergeConfLevelsPayload(vui_intf_->GetSoundModelInfo(restarted_st), true);
     for (int i = 0; i < eng_sm_info_->GetConfLevelsSize(); i++) {
         wakeup_config_.confidence_levels[i] = eng_sm_info_->GetConfLevels()[i];
         wakeup_config_.keyword_user_enables[i] =
@@ -2500,6 +2027,8 @@ int32_t SoundTriggerEngineGsl::UpdateEngineConfigOnRestart(Stream *s) {
 void SoundTriggerEngineGsl::HandleSessionEvent(uint32_t event_id __unused,
                                                void *data, uint32_t size) {
     int32_t status = 0;
+    uint32_t start_index = 0;
+    uint32_t end_index = 0;
     std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
 
     /*
@@ -2507,28 +2036,18 @@ void SoundTriggerEngineGsl::HandleSessionEvent(uint32_t event_id __unused,
      * keyword index will be updated in parsing.
      */
     buffer_->reset();
-    if (is_qcva_uuid_) {
-        if (!IS_MODULE_TYPE_PDK(module_type_))
-            status = ParseDetectionPayload(data);
-        else
-            status = ParseDetectionPayloadPDK(data);
-        if (status) {
-            PAL_ERR(LOG_TAG, "Failed to parse detection payload, status %d",
-                    status);
-            rm->releaseWakeLock();
-            return;
-        }
-    } else {
-        // store custom detection event for further use
-        custom_detection_event_size = size;
-        custom_detection_event = (uint8_t *)calloc(1, size);
-        if (!custom_detection_event) {
-            PAL_ERR(LOG_TAG, "Failed to allocate custom detection event");
-            rm->releaseWakeLock();
-            return;
-        }
-        ar_mem_cpy(custom_detection_event, size, data, size);
+    status = vui_intf_->ParseDetectionPayload(data, size);
+    if (status) {
+        PAL_ERR(LOG_TAG, "Failed to parse detection payload, status %d",
+            status);
+        rm->releaseWakeLock();
+        return;
     }
+
+    // update keyword index to ring buffer
+    vui_intf_->GetKeywordIndex(&start_index, &end_index);
+    buffer_->updateIndices(start_index, end_index);
+
     if (vui_ptfm_info_->GetEnableDebugDumps()) {
         ST_DBG_DECLARE(FILE *det_event_fd = NULL;
             static int det_event_cnt = 0);
@@ -2715,13 +2234,6 @@ void SoundTriggerEngineGsl::SetCaptureRequested(bool is_requested) {
         is_requested, capture_requested_);
 }
 
-void* SoundTriggerEngineGsl::GetDetectionEventInfo() {
-    if (IS_MODULE_TYPE_PDK(module_type_)) {
-       return &detection_event_info_multi_model_;
-    }
-    return &detection_event_info_;
-}
-
 int32_t SoundTriggerEngineGsl::setECRef(Stream *s, std::shared_ptr<Device> dev, bool is_enable) {
     if (!session_) {
         PAL_ERR(LOG_TAG, "Invalid session");
@@ -2729,14 +2241,6 @@ int32_t SoundTriggerEngineGsl::setECRef(Stream *s, std::shared_ptr<Device> dev, 
     }
 
     return session_->setECRef(s, dev, is_enable);
-}
-
-int32_t SoundTriggerEngineGsl::GetCustomDetectionEvent(uint8_t **event,
-    size_t *size) {
-
-    *event = custom_detection_event;
-    *size = custom_detection_event_size;
-    return 0;
 }
 
 int32_t SoundTriggerEngineGsl::UpdateSessionPayload(st_param_id_type_t param) {

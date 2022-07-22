@@ -134,14 +134,10 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
         std::shared_ptr<Device> device_to_disconnect) override;
     void SetCaptureRequested(bool is_requested) override;
     int32_t ReconfigureDetectionGraph(Stream *s) override;
-    void* GetDetectionEventInfo() override;
     int32_t setECRef(
         Stream *s,
         std::shared_ptr<Device> dev,
         bool is_enable) override;
-    int32_t GetCustomDetectionEvent(uint8_t **event, size_t *size) override;
-    int32_t GetDetectedConfScore() { return 0; }
-    int32_t GetDetectionState() { return 0; }
     ChronoSteadyClock_t GetDetectedTime() {
         return detection_time_;
     }
@@ -151,12 +147,7 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
  private:
     int32_t StartBuffering(Stream *s);
     int32_t UpdateSessionPayload(st_param_id_type_t param);
-    int32_t ParseDetectionPayloadPDK(void *event_data);
-    int32_t ParseDetectionPayload(void *event_data);
-    void UpdateKeywordIndex(uint64_t kwd_start_timestamp,
-        uint64_t kwd_end_timestamp, uint64_t ftrt_start_timestamp);
     void HandleSessionEvent(uint32_t event_id __unused, void *data, uint32_t size);
-    void ResetEngine();
 
     static void EventProcessingThread(SoundTriggerEngineGsl *gsl_engine);
     static void HandleSessionCallBack(uint64_t hdl, uint32_t event_id, void *data,
@@ -176,8 +167,6 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
              listen_model_type *out_model);
     int32_t DeleteFromMergedModel(char **keyphrases, uint32_t num_keyphrases,
              listen_model_type *in_model, listen_model_type *out_model);
-    int32_t ConstructAPMPayload(uint32_t param_id, uint8_t** payload,
-                                uint8_t* data, uint32_t data_size);
     int32_t ProcessStartRecognition(Stream *s);
     int32_t ProcessStopRecognition(Stream *s);
     int32_t UpdateMergeConfLevelsWithActiveStreams();

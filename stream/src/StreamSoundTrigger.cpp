@@ -1,6 +1,5 @@
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -73,6 +72,7 @@
 #include "ResourceManager.h"
 #include "Device.h"
 #include "kvh2xml.h"
+#include "VoiceUIInterface.h"
 
 // TODO: find another way to print debug logs by default
 #define ST_DBG_LOGS
@@ -125,7 +125,7 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
     gsl_engine_model_ = nullptr;
     gsl_conf_levels_ = nullptr;
     gsl_engine_ = nullptr;
-    sm_info_ = nullptr;
+    vui_intf_ = nullptr;
     sm_cfg_ = nullptr;
     mDevices.clear();
 
@@ -360,6 +360,11 @@ int32_t StreamSoundTrigger::read(struct pal_buffer* buf) {
 
     PAL_VERBOSE(LOG_TAG, "Enter");
 
+    if (!buf || !buf->buffer) {
+        PAL_ERR(LOG_TAG, "Invalid buffer");
+        return -EINVAL;
+    }
+
     std::lock_guard<std::mutex> lck(mStreamMutex);
     if (vui_ptfm_info_->GetEnableDebugDumps() && !lab_fd_) {
         ST_DBG_FILE_OPEN_WR(lab_fd_, ST_DEBUG_DUMP_LOCATION,
@@ -376,6 +381,8 @@ int32_t StreamSoundTrigger::read(struct pal_buffer* buf) {
     std::shared_ptr<StEventConfig> ev_cfg(
         new StReadBufferEventConfig((void *)buf));
     size = cur_state_->ProcessEvent(ev_cfg);
+
+    vui_intf_->ProcessLab(buf->buffer, size);
 
     /*
      * st stream read pcm data from ringbuffer with almost no
@@ -459,7 +466,8 @@ int32_t StreamSoundTrigger::getParameters(uint32_t param_id, void **payload) {
         mDevPPSelector = cap_prof_->GetName();
         PAL_DBG(LOG_TAG, "Devicepp Selector: %s", mDevPPSelector.c_str());
         mStreamSelector = sm_cfg_->GetVUIModuleName();
-        SetModelType(sm_cfg_->GetVUIModuleType());
+
+        model_type_ = sm_cfg_->GetVUIModuleType();
         PAL_DBG(LOG_TAG, "Module Type:%d, Name: %s", model_type_, mStreamSelector.c_str());
         mInstanceID = rm->getStreamInstanceID(this);
 
@@ -788,10 +796,6 @@ int32_t StreamSoundTrigger::getCallBack(pal_stream_callback *cb) {
     return 0;
 }
 
-struct detection_event_info* StreamSoundTrigger::GetDetectionEventInfo() {
-    return (struct detection_event_info *)gsl_engine_->GetDetectionEventInfo();
-}
-
 int32_t StreamSoundTrigger::SetEngineDetectionState(int32_t det_type) {
     int32_t status = 0;
     bool lock_status = false;
@@ -912,6 +916,42 @@ std::shared_ptr<SoundTriggerEngine> StreamSoundTrigger::HandleEngineLoad(
         PAL_ERR(LOG_TAG, "engine creation failed for type %u", type);
         goto error_exit;
     }
+
+    // cache 1st stage model for concurrency handling
+    if (type == ST_SM_ID_SVA_F_STAGE_GMM) {
+        gsl_engine_model_ = (uint8_t *)realloc(gsl_engine_model_, sm_size);
+        if (!gsl_engine_model_) {
+            PAL_ERR(LOG_TAG, "Failed to allocate memory for gsl model");
+            goto error_exit;
+        }
+        ar_mem_cpy(gsl_engine_model_, sm_size, sm_data, sm_size);
+        gsl_engine_model_size_ = sm_size;
+        // Create Voice UI Interface object and update to engines
+        vui_intf_ = engine->GetVoiceUIInterface();
+        if (!vui_intf_) {
+            vui_intf_ = VoiceUIInterface::Create(sm_cfg_);
+            if (!vui_intf_) {
+                PAL_ERR(LOG_TAG, "Failed to create interface, status %d",
+                    status);
+                goto error_exit;
+            }
+            engine->SetVoiceUIInterface(vui_intf_);
+            vui_intf_->SetSTModuleType(module_type);
+        }
+
+        // register stream/model to Voice UI interface
+        status = vui_intf_->RegisterModel(this,
+            sm_config_, gsl_engine_model_, gsl_engine_model_size_);
+        if (status) {
+            PAL_ERR(LOG_TAG, "Failed to register stream/model, status %d",
+                status);
+            goto error_exit;
+        }
+        UpdateModelId(module_type);
+        vui_intf_->SetModelId(this, model_id_);
+        vui_intf_->SetRecognitionMode(this, recognition_mode_);
+    }
+
     status = engine->LoadSoundModel(this, sm_data, sm_size);
     if (status) {
         PAL_ERR(LOG_TAG, "big_sm: gsl engine loading model"
@@ -919,25 +959,12 @@ std::shared_ptr<SoundTriggerEngine> StreamSoundTrigger::HandleEngineLoad(
         goto error_exit;
     }
 
-    // cache 1st stage model for currency handling
-    if (type == ST_SM_ID_SVA_F_STAGE_GMM) {
-        gsl_engine_model_ = (uint8_t *)realloc(gsl_engine_model_, sm_size);
-        if (!gsl_engine_model_) {
-            PAL_ERR(LOG_TAG, "Failed to allocate memory for gsl model");
-            goto unload_model;
-        }
-        ar_mem_cpy(gsl_engine_model_, sm_size, sm_data, sm_size);
-        gsl_engine_model_size_ = sm_size;
-    }
-
     return engine;
 
-unload_model:
-    status = engine->UnloadSoundModel(this);
-    if (status)
-        PAL_ERR(LOG_TAG, "Failed to unload sound model, status %d", status);
-
 error_exit:
+    if (gsl_engine_model_)
+        free(gsl_engine_model_);
+
     return nullptr;
 }
 
@@ -1023,329 +1050,77 @@ int32_t StreamSoundTrigger::LoadSoundModel(
     struct pal_st_sound_model *sound_model) {
 
     int32_t status = 0;
-    int32_t i = 0;
-    struct pal_st_phrase_sound_model *phrase_sm = nullptr;
-    struct pal_st_sound_model *common_sm = nullptr;
-    uint8_t *ptr = nullptr;
-    uint8_t *sm_payload = nullptr;
-    uint8_t *sm_data = nullptr;
-    int32_t sm_size = 0;
-    SML_GlobalHeaderType *global_hdr = nullptr;
-    SML_HeaderTypeV3 *hdr_v3 = nullptr;
-    SML_BigSoundModelTypeV3 *big_sm = nullptr;
-    std::shared_ptr<SoundTriggerEngine> engine = nullptr;
-    uint32_t sm_version = SML_MODEL_V2;
     int32_t engine_id = 0;
+    std::shared_ptr<SoundTriggerEngine> engine = nullptr;
     std::shared_ptr<EngineCfg> engine_cfg = nullptr;
-    class SoundTriggerUUID uuid;
+    std::vector<sm_pair_t> model_list;
 
     PAL_DBG(LOG_TAG, "Enter");
 
-    if (!sound_model) {
-        PAL_ERR(LOG_TAG, "Exit Invalid sound_model param status %d", status);
-        status = -EINVAL;
-        goto exit;
-    }
-
-    sound_model_type_ = sound_model->type;
-
-    if (sound_model->type == PAL_SOUND_MODEL_TYPE_KEYPHRASE) {
-        phrase_sm = (struct pal_st_phrase_sound_model *)sound_model;
-        if ((phrase_sm->common.data_offset < sizeof(*phrase_sm)) ||
-            (phrase_sm->common.data_size == 0) ||
-            (phrase_sm->num_phrases == 0)) {
-            PAL_ERR(LOG_TAG, "Invalid phrase sound model params data size=%d, "
-                   "data offset=%d, type=%d phrases=%d status %d",
-                   phrase_sm->common.data_size, phrase_sm->common.data_offset,
-                   phrase_sm->common.type, phrase_sm->num_phrases, status);
-            status = -EINVAL;
-            goto exit;
-        }
-        common_sm = (struct pal_st_sound_model*)&phrase_sm->common;
-        sm_size = sizeof(*phrase_sm) + common_sm->data_size;
-
-    } else if (sound_model->type == PAL_SOUND_MODEL_TYPE_GENERIC) {
-        if ((sound_model->data_size == 0) ||
-            (sound_model->data_offset < sizeof(struct pal_st_sound_model))) {
-            PAL_ERR(LOG_TAG, "Invalid generic sound model params data size=%d,"
-                    " data offset=%d status %d", sound_model->data_size,
-                    sound_model->data_offset, status);
-            status = -EINVAL;
-            goto exit;
-        }
-        common_sm = sound_model;
-        sm_size = sizeof(*common_sm) + common_sm->data_size;
-    } else {
-        PAL_ERR(LOG_TAG, "Unknown sound model type - %d status %d",
-                sound_model->type, status);
-        status = -EINVAL;
-        goto exit;
-    }
-    if ((struct pal_st_sound_model *)sm_config_ != sound_model) {
-        // Cache to use during SSR and other internal events handling.
-        if (sm_config_) {
-            free(sm_config_);
-        }
-        sm_config_ = (struct pal_st_phrase_sound_model *)calloc(1, sm_size);
-        if (!sm_config_) {
-            PAL_ERR(LOG_TAG, "sound model config allocation failed, status %d",
-                    status);
-            status = -ENOMEM;
-            goto exit;
-        }
-
-        if (sound_model->type == PAL_SOUND_MODEL_TYPE_KEYPHRASE) {
-            ar_mem_cpy(sm_config_, sizeof(*phrase_sm),
-                             phrase_sm, sizeof(*phrase_sm));
-            ar_mem_cpy((uint8_t *)sm_config_ + common_sm->data_offset,
-                             common_sm->data_size,
-                             (uint8_t *)phrase_sm + common_sm->data_offset,
-                             common_sm->data_size);
-            recognition_mode_ = phrase_sm->phrases[0].recognition_mode;
-        } else {
-            ar_mem_cpy(sm_config_, sizeof(*common_sm),
-                             common_sm, sizeof(*common_sm));
-            ar_mem_cpy((uint8_t *)sm_config_ +  common_sm->data_offset,
-                             common_sm->data_size,
-                             (uint8_t *)common_sm + common_sm->data_offset,
-                             common_sm->data_size);
-            recognition_mode_ = PAL_RECOGNITION_MODE_VOICE_TRIGGER;
-        }
-    }
-    GetUUID(&uuid, sound_model);
-    this->sm_cfg_ = this->vui_ptfm_info_->GetStreamConfig(uuid);
-    if (!this->sm_cfg_) {
-        PAL_ERR(LOG_TAG, "Failed to get sound model config");
-        status = -EINVAL;
-        goto exit;
+    status = UpdateSoundModel(sound_model);
+    if (status) {
+        PAL_ERR(LOG_TAG, "Failed to update sound model, status %d", status);
+        goto error_exit;
     }
 
     /* Update stream attributes as per sound model config */
     updateStreamAttributes();
 
-    /* Create Sound Model Info for stream */
-    sm_info_ = new SoundModelInfo();
+    // Parse sound model with Voice UI interface
+    status = VoiceUIInterface::ParseSoundModel(sm_cfg_,
+        sound_model, model_type_, model_list);
+    if (status) {
+        PAL_ERR(LOG_TAG, "Failed to parse sound model, status %d", status);
+        goto error_exit;
+    }
 
-    if (sound_model->type == PAL_SOUND_MODEL_TYPE_KEYPHRASE) {
-        sm_payload = (uint8_t *)common_sm + common_sm->data_offset;
-        global_hdr = (SML_GlobalHeaderType *)sm_payload;
-        if (global_hdr->magicNumber == SML_GLOBAL_HEADER_MAGIC_NUMBER) {
-            // Parse sound model 3.0
-            sm_version = SML_MODEL_V3;
-            hdr_v3 = (SML_HeaderTypeV3 *)(sm_payload +
-                                          sizeof(SML_GlobalHeaderType));
-            PAL_DBG(LOG_TAG, "num of sound models = %u", hdr_v3->numModels);
-            for (i = 0; i < hdr_v3->numModels; i++) {
-                big_sm = (SML_BigSoundModelTypeV3 *)(
-                    sm_payload + sizeof(SML_GlobalHeaderType) +
-                    sizeof(SML_HeaderTypeV3) +
-                    (i * sizeof(SML_BigSoundModelTypeV3)));
-
-                engine_id = static_cast<int32_t>(big_sm->type);
-                PAL_INFO(LOG_TAG, "type = %u, size = %u, version = %u.%u",
-                         big_sm->type, big_sm->size,
-                         big_sm->versionMajor, big_sm->versionMinor);
-                if (big_sm->type == ST_SM_ID_SVA_F_STAGE_GMM) {
-                    st_module_type_t module_type = (st_module_type_t)big_sm->versionMajor;
-                    SetModelType(module_type);
-                    this->mStreamSelector = sm_cfg_->GetVUIModuleName(module_type);
-                    PAL_DBG(LOG_TAG, "Module type:%d, name: %s",
-                        model_type_, mStreamSelector.c_str());
-                    this->mInstanceID = this->rm->getStreamInstanceID(this);
-                    sm_size = big_sm->size +
-                        sizeof(struct pal_st_phrase_sound_model);
-                    sm_data = (uint8_t *)calloc(1, sm_size);
-                    if (!sm_data) {
-                        status = -ENOMEM;
-                        PAL_ERR(LOG_TAG, "sm_data allocation failed, status %d",
-                                status);
-                        goto error_exit;
-                    }
-                    ar_mem_cpy(sm_data, sizeof(*phrase_sm),
-                                     (char *)phrase_sm, sizeof(*phrase_sm));
-                    common_sm = (struct pal_st_sound_model *)sm_data;
-                    common_sm->data_size = big_sm->size;
-                    common_sm->data_offset += sizeof(SML_GlobalHeaderType) +
-                        sizeof(SML_HeaderTypeV3) +
-                        (hdr_v3->numModels * sizeof(SML_BigSoundModelTypeV3)) +
-                        big_sm->offset;
-                    ar_mem_cpy(sm_data + sizeof(*phrase_sm), big_sm->size,
-                                     (char *)phrase_sm + common_sm->data_offset,
-                                     big_sm->size);
-                    common_sm->data_offset = sizeof(*phrase_sm);
-                    common_sm = (struct pal_st_sound_model *)&phrase_sm->common;
-
-                    UpdateModelId((st_module_type_t)big_sm->versionMajor);
-                    gsl_engine_ = HandleEngineLoad(sm_data + sizeof(*phrase_sm),
-                                                     big_sm->size, big_sm->type,
-                                         (st_module_type_t)big_sm->versionMajor);
-                    if (!gsl_engine_) {
-                        status = -EINVAL;
-                        goto error_exit;
-                    }
-
-                    engine_id = static_cast<int32_t>(ST_SM_ID_SVA_F_STAGE_GMM);
-                    std::shared_ptr<EngineCfg> engine_cfg(new EngineCfg(
-                       engine_id, gsl_engine_, (void *) sm_data, sm_size));
-
-                    AddEngine(engine_cfg);
-                } else if (big_sm->type != SML_ID_SVA_S_STAGE_UBM) {
-                    if (big_sm->type == SML_ID_SVA_F_STAGE_INTERNAL || (big_sm->type == ST_SM_ID_SVA_S_STAGE_USER &&
-                        !(phrase_sm->phrases[0].recognition_mode &
-                        PAL_RECOGNITION_MODE_USER_IDENTIFICATION)))
-                        continue;
-                    sm_size = big_sm->size;
-                    ptr = (uint8_t *)sm_payload +
-                        sizeof(SML_GlobalHeaderType) +
-                        sizeof(SML_HeaderTypeV3) +
-                        (hdr_v3->numModels * sizeof(SML_BigSoundModelTypeV3)) +
-                        big_sm->offset;
-                    sm_data = (uint8_t *)calloc(1, sm_size);
-                    if (!sm_data) {
-                        status = -ENOMEM;
-                        PAL_ERR(LOG_TAG, "Failed to alloc memory for sm_data");
-                        goto error_exit;
-                    }
-                    ar_mem_cpy(sm_data, sm_size, ptr, sm_size);
-
-                    engine = HandleEngineLoad(sm_data, sm_size, big_sm->type,
-                                      (st_module_type_t) big_sm->versionMajor);
-                    if (!engine) {
-                        status = -EINVAL;
-                        goto error_exit;
-                    }
-
-                    if (big_sm->type & ST_SM_ID_SVA_S_STAGE_KWD) {
-                        notification_state_ |= KEYWORD_DETECTION_SUCCESS;
-                    } else if (big_sm->type == ST_SM_ID_SVA_S_STAGE_USER) {
-                        notification_state_ |= USER_VERIFICATION_SUCCESS;
-                    }
-
-                    std::shared_ptr<EngineCfg> engine_cfg(new EngineCfg(
-                       engine_id, engine, (void *)sm_data, sm_size));
-
-                    AddEngine(engine_cfg);
-                }
-            }
-            if (!gsl_engine_) {
-                PAL_ERR(LOG_TAG, "First stage sound model not present!!");
-                goto error_exit;
-            }
-        } else {
-            // Parse sound model 2.0
-            sm_size = sizeof(*phrase_sm) + common_sm->data_size;
-            sm_data = (uint8_t *)calloc(1, sm_size);
-            if (!sm_data) {
-                PAL_ERR(LOG_TAG, "Failed to allocate memory for sm_data");
-                status = -ENOMEM;
-                goto error_exit;
-            }
-            ar_mem_cpy(sm_data, sizeof(*phrase_sm),
-                             (uint8_t *)phrase_sm, sizeof(*phrase_sm));
-            ar_mem_cpy(sm_data + sizeof(*phrase_sm), common_sm->data_size,
-                             (uint8_t*)phrase_sm + common_sm->data_offset,
-                             common_sm->data_size);
-
-            /*
-             * For third party models, get module type and name from
-             * sound model config directly without passing model type
-             * as only one module is mapped to one vendor UUID
-             */
-            if (!sm_cfg_->isQCVAUUID()) {
-                SetModelType(sm_cfg_->GetVUIModuleType());
-                this->mStreamSelector = sm_cfg_->GetVUIModuleName();
-            } else {
-                SetModelType(ST_MODULE_TYPE_GMM);
-                this->mStreamSelector = sm_cfg_->GetVUIModuleName(ST_MODULE_TYPE_GMM);
-            }
-
-            PAL_DBG(LOG_TAG, "Module type:%d name:%s",
-                model_type_, mStreamSelector.c_str());
-
-            this->mInstanceID = this->rm->getStreamInstanceID(this);
-
-            gsl_engine_ = HandleEngineLoad(sm_data + sizeof(*phrase_sm),
-                                 common_sm->data_size, ST_SM_ID_SVA_F_STAGE_GMM,
-                                 model_type_);
-            if (!gsl_engine_) {
-                status = -EINVAL;
-                goto error_exit;
-            }
-
-            engine_id = static_cast<int32_t>(ST_SM_ID_SVA_F_STAGE_GMM);
-            std::shared_ptr<EngineCfg> engine_cfg(new EngineCfg(
-                 engine_id, gsl_engine_, (void *) sm_data, sm_size));
-
-            AddEngine(engine_cfg);
-        }
+    if (!sm_cfg_->isQCVAUUID()) {
+        mStreamSelector = sm_cfg_->GetVUIModuleName();
     } else {
-        // handle for generic sound model
-        common_sm = sound_model;
-        sm_size = sizeof(*common_sm) + common_sm->data_size;
-        sm_data = (uint8_t *)calloc(1, sm_size);
-        if (!sm_data) {
-            PAL_ERR(LOG_TAG, "Failed to allocate memory for sm_data");
-            status = -ENOMEM;
-            goto error_exit;
-        }
-        ar_mem_cpy(sm_data, sizeof(*common_sm),
-            (uint8_t *)common_sm, sizeof(*common_sm));
-        ar_mem_cpy(sm_data + sizeof(*common_sm), common_sm->data_size,
-            (uint8_t*)common_sm + common_sm->data_offset, common_sm->data_size);
-        if (!sm_cfg_->isQCVAUUID()) {
-            SetModelType(sm_cfg_->GetVUIModuleType());
-            this->mStreamSelector = sm_cfg_->GetVUIModuleName();
-        } else {
-            SetModelType(ST_MODULE_TYPE_GMM);
-            this->mStreamSelector = sm_cfg_->GetVUIModuleName(ST_MODULE_TYPE_GMM);
-        }
-        PAL_DBG(LOG_TAG, "Module type:%d, name:%s",
-            model_type_, mStreamSelector.c_str());
-        this->mInstanceID = this->rm->getStreamInstanceID(this);
+        mStreamSelector = sm_cfg_->GetVUIModuleName(model_type_);
+    }
+    mInstanceID = rm->getStreamInstanceID(this);
 
-        gsl_engine_ = HandleEngineLoad(sm_data + sizeof(*common_sm),
-                                common_sm->data_size, ST_SM_ID_SVA_F_STAGE_GMM,
-                                model_type_);
-        if (!gsl_engine_) {
-            status = -EINVAL;
-            goto error_exit;
-        }
-
-        engine_id = static_cast<int32_t>(ST_SM_ID_SVA_F_STAGE_GMM);
+    // Create engines by parsing result
+    for (auto iter: model_list) {
+        engine_id = static_cast<int32_t>(iter.first);
+        engine = HandleEngineLoad((uint8_t *)iter.second.first,
+                                  iter.second.second,
+                                  iter.first, model_type_);
         std::shared_ptr<EngineCfg> engine_cfg(new EngineCfg(
-                engine_id, gsl_engine_, (void *) sm_data, sm_size));
+            engine_id, engine, (void *)iter.second.first, iter.second.second));
 
         AddEngine(engine_cfg);
+        if (iter.first == ST_SM_ID_SVA_F_STAGE_GMM) {
+            gsl_engine_ = engine;
+        } else {
+            if (iter.first & ST_SM_ID_SVA_S_STAGE_KWD) {
+                notification_state_ |= KEYWORD_DETECTION_SUCCESS;
+            } else if (iter.first == ST_SM_ID_SVA_S_STAGE_USER) {
+                notification_state_ |= USER_VERIFICATION_SUCCESS;
+            }
+        }
     }
-    PAL_DBG(LOG_TAG, "Exit, status %d", status);
-    return status;
+
+    // update voice ui interface for second stage engines
+    for (auto &eng: engines_) {
+        if (eng->GetEngineId() & ST_SM_ID_SVA_S_STAGE_KWD ||
+            eng->GetEngineId() == ST_SM_ID_SVA_S_STAGE_USER)
+            eng->GetEngine()->SetVoiceUIInterface(vui_intf_);
+    }
+
+    goto exit;
 
 error_exit:
-    /*
-     * Free sm_data allocated for engine which fails
-     * to create or load sound model first, and then
-     * release other engines which created or loaded
-     * successfully.
-     */
-    if (sm_data) {
-        free(sm_data);
+    for (auto iter: model_list) {
+        if (iter.second.first)
+            free(iter.second.first);
     }
     for (auto &eng: engines_) {
-        if (eng->sm_data_) {
-            free(eng->sm_data_);
-        }
         eng->GetEngine()->UnloadSoundModel(this);
     }
     engines_.clear();
     gsl_engine_.reset();
-    if (reader_) {
-        delete reader_;
-        reader_ = nullptr;
-    }
-    if (sm_info_) {
-        delete sm_info_;
-        sm_info_ = nullptr;
-    }
     if (sm_config_) {
         free(sm_config_);
         sm_config_ = nullptr;
@@ -1404,12 +1179,12 @@ int32_t StreamSoundTrigger::UpdateSoundModel(
         status = -EINVAL;
         goto exit;
     }
-    if ((struct pal_st_sound_model *)sm_config_ != sound_model) {
+    if (sm_config_ != sound_model) {
         // Cache to use during SSR and other internal events handling.
         if (sm_config_) {
             free(sm_config_);
         }
-        sm_config_ = (struct pal_st_phrase_sound_model *)calloc(1, sm_size);
+        sm_config_ = (struct pal_st_sound_model *)calloc(1, sm_size);
         if (!sm_config_) {
             PAL_ERR(LOG_TAG, "sound model config allocation failed, status %d",
                     status);
@@ -1424,6 +1199,7 @@ int32_t StreamSoundTrigger::UpdateSoundModel(
                          common_sm->data_size,
                          (uint8_t *)phrase_sm + common_sm->data_offset,
                          common_sm->data_size);
+            recognition_mode_ = phrase_sm->phrases[0].recognition_mode;
         } else {
             ar_mem_cpy(sm_config_, sizeof(*common_sm),
                          common_sm, sizeof(*common_sm));
@@ -1431,6 +1207,7 @@ int32_t StreamSoundTrigger::UpdateSoundModel(
                          common_sm->data_size,
                          (uint8_t *)common_sm + common_sm->data_offset,
                          common_sm->data_size);
+            recognition_mode_ = PAL_RECOGNITION_MODE_VOICE_TRIGGER;
         }
     }
     GetUUID(&uuid, sound_model);
@@ -1450,11 +1227,6 @@ int32_t StreamSoundTrigger::SendRecognitionConfig(
 
     int32_t status = 0;
     int32_t i = 0;
-    struct st_param_header *param_hdr = NULL;
-    struct st_hist_buffer_info *hist_buf = NULL;
-    struct st_det_perf_mode_info *det_perf_mode = NULL;
-    uint8_t *opaque_ptr = NULL;
-    unsigned int opaque_size = 0, conf_levels_payload_size = 0;
     uint32_t hist_buffer_duration = 0;
     uint32_t pre_roll_duration = 0;
     uint32_t client_capture_read_delay = 0;
@@ -1462,32 +1234,19 @@ int32_t StreamSoundTrigger::SendRecognitionConfig(
     uint32_t num_conf_levels = 0;
     uint32_t ring_buffer_len = 0;
     uint32_t ring_buffer_size = 0;
+    uint32_t sec_stage_threshold = 0;
 
     PAL_DBG(LOG_TAG, "Enter");
-    if (!config) {
-        PAL_ERR(LOG_TAG, "Invalid config");
-        status = -EINVAL;
-        goto exit;
+    if (!vui_intf_) {
+        PAL_ERR(LOG_TAG, "VoiceUI Interface not created!");
+        return -EINVAL;
     }
-    if (rec_config_ != config) {
-        // Possible due to subsequent detections.
-        if (rec_config_) {
-            free(rec_config_);
-        }
-        rec_config_ = (struct pal_st_recognition_config *)calloc(1,
-            sizeof(struct pal_st_recognition_config) + config->data_size);
-        if (!rec_config_) {
-            PAL_ERR(LOG_TAG, "Failed to allocate rec_config status %d",
-                status);
-            status = -ENOMEM;
-            goto exit;
-        }
-        ar_mem_cpy(rec_config_, sizeof(struct pal_st_recognition_config),
-                         config, sizeof(struct pal_st_recognition_config));
-        ar_mem_cpy((uint8_t *)rec_config_ + config->data_offset,
-                         config->data_size,
-                         (uint8_t *)config + config->data_offset,
-                         config->data_size);
+
+    status = UpdateRecognitionConfig(config);
+    if (status) {
+        PAL_ERR(LOG_TAG, "Failed to update recognition config, status %d",
+            status);
+        goto error_exit;
     }
 
     // dump recognition config opaque data
@@ -1503,105 +1262,17 @@ int32_t StreamSoundTrigger::SendRecognitionConfig(
         rec_opaque_cnt++;
     }
 
-    // Parse recognition config
-    if (config->data_size > CUSTOM_CONFIG_OPAQUE_DATA_SIZE &&
-        sm_cfg_->isQCVAUUID()) {
-        opaque_ptr = (uint8_t *)config + config->data_offset;
-        while (opaque_size < config->data_size) {
-            param_hdr = (struct st_param_header *)opaque_ptr;
-            PAL_VERBOSE(LOG_TAG, "key %d, payload size %d",
-                        param_hdr->key_id, param_hdr->payload_size);
-
-            switch (param_hdr->key_id) {
-              case ST_PARAM_KEY_CONFIDENCE_LEVELS:
-                  conf_levels_intf_version_ = *(uint32_t *)(
-                      opaque_ptr + sizeof(struct st_param_header));
-                  PAL_VERBOSE(LOG_TAG, "conf_levels_intf_version = %u",
-                      conf_levels_intf_version_);
-                  if (conf_levels_intf_version_ !=
-                      CONF_LEVELS_INTF_VERSION_0002) {
-                      conf_levels_payload_size =
-                          sizeof(struct st_confidence_levels_info);
-                  } else {
-                      conf_levels_payload_size =
-                          sizeof(struct st_confidence_levels_info_v2);
-                  }
-                  if (param_hdr->payload_size != conf_levels_payload_size) {
-                      PAL_ERR(LOG_TAG, "Conf level format error, exiting");
-                      status = -EINVAL;
-                      goto error_exit;
-                  }
-                  status = ParseOpaqueConfLevels(opaque_ptr,
-                                                 conf_levels_intf_version_,
-                                                 &conf_levels,
-                                                 &num_conf_levels);
-                if (status) {
-                    PAL_ERR(LOG_TAG, "Failed to parse opaque conf levels");
-                    goto error_exit;
-                }
-
-                opaque_size += sizeof(struct st_param_header) +
-                    conf_levels_payload_size;
-                opaque_ptr += sizeof(struct st_param_header) +
-                    conf_levels_payload_size;
-                if (status) {
-                    PAL_ERR(LOG_TAG, "Parse conf levels failed(status=%d)",
-                            status);
-                    status = -EINVAL;
-                    goto error_exit;
-                }
-                break;
-              case ST_PARAM_KEY_HISTORY_BUFFER_CONFIG:
-                  if (param_hdr->payload_size !=
-                      sizeof(struct st_hist_buffer_info)) {
-                      PAL_ERR(LOG_TAG, "History buffer config format error");
-                      status = -EINVAL;
-                      goto error_exit;
-                  }
-                  hist_buf = (struct st_hist_buffer_info *)(opaque_ptr +
-                      sizeof(struct st_param_header));
-                  hist_buf_duration_ = hist_buf->hist_buffer_duration_msec;
-                  pre_roll_duration_ = hist_buf->pre_roll_duration_msec;
-
-                  opaque_size += sizeof(struct st_param_header) +
-                      sizeof(struct st_hist_buffer_info);
-                  opaque_ptr += sizeof(struct st_param_header) +
-                      sizeof(struct st_hist_buffer_info);
-                  break;
-              case ST_PARAM_KEY_DETECTION_PERF_MODE:
-                  if (param_hdr->payload_size !=
-                      sizeof(struct st_det_perf_mode_info)) {
-                      PAL_ERR(LOG_TAG, "Opaque data format error, exiting");
-                      status = -EINVAL;
-                      goto error_exit;
-                  }
-                  det_perf_mode = (struct st_det_perf_mode_info *)
-                      (opaque_ptr + sizeof(struct st_param_header));
-                  PAL_DBG(LOG_TAG, "set perf mode %d", det_perf_mode->mode);
-                  opaque_size += sizeof(struct st_param_header) +
-                      sizeof(struct st_det_perf_mode_info);
-                  opaque_ptr += sizeof(struct st_param_header) +
-                      sizeof(struct st_det_perf_mode_info);
-                  break;
-              default:
-                  PAL_ERR(LOG_TAG, "Unsupported opaque data key id, exiting");
-                  status = -EINVAL;
-                  goto error_exit;
-            }
-        }
-    } else {
-        // get history buffer duration from sound trigger platform xml
-        hist_buf_duration_ = sm_cfg_->GetKwDuration();
-        pre_roll_duration_ = 0;
-
-        if (sm_cfg_->isQCVAUUID()) {
-            status = FillConfLevels(config, &conf_levels, &num_conf_levels);
-            if (status) {
-                PAL_ERR(LOG_TAG, "Failed to parse conf levels from rc config");
-                goto error_exit;
-            }
-        }
+    // Parse recognition config with VoiceUI Interface
+    status = vui_intf_->ParseRecognitionConfig(this, rec_config_);
+    if (status) {
+        PAL_ERR(LOG_TAG, "Failed to parse recognition config, status %d",
+            status);
+        goto error_exit;
     }
+
+    // acquire buffering config for current stream
+    vui_intf_->GetBufferingConfigs(this, &hist_buf_duration_,
+                                   &pre_roll_duration_);
 
     // use default value if preroll is not set
     if (pre_roll_duration_ == 0) {
@@ -1630,7 +1301,7 @@ int32_t StreamSoundTrigger::SendRecognitionConfig(
      * attached to it might have different buffer configurations
      */
     gsl_engine_->GetUpdatedBufConfig(&hist_buffer_duration,
-                                          &pre_roll_duration);
+                                     &pre_roll_duration);
 
     PAL_INFO(LOG_TAG, "updated hist buf len = %d, preroll len = %d in gsl engine",
         hist_buffer_duration, pre_roll_duration);
@@ -1664,8 +1335,7 @@ int32_t StreamSoundTrigger::SendRecognitionConfig(
      * For first stage engine, assign reader to stream side.
      */
     for (i = 0; i < engines_.size(); i++) {
-        if (engines_[i]->GetEngine()->GetEngineType() ==
-            ST_SM_ID_SVA_F_STAGE_GMM) {
+        if (engines_[i]->GetEngineId() == ST_SM_ID_SVA_F_STAGE_GMM) {
             reader_ = reader_list_[i];
         } else {
             status = engines_[i]->GetEngine()->SetBufferReader(
@@ -1677,23 +1347,30 @@ int32_t StreamSoundTrigger::SendRecognitionConfig(
         }
     }
 
-    // update custom config for 3rd party VA session
-    if (!sm_cfg_->isQCVAUUID()) {
-        gsl_engine_->UpdateConfLevels(this, config, nullptr, 0);
-    } else {
-        if (num_conf_levels > 0) {
-            gsl_engine_->UpdateConfLevels(this, config,
-                                      conf_levels, num_conf_levels);
-
-            gsl_conf_levels_ = (uint8_t *)realloc(gsl_conf_levels_, num_conf_levels);
-            if (!gsl_conf_levels_) {
-                PAL_ERR(LOG_TAG, "Failed to allocate gsl conf levels memory");
-                status = -ENOMEM;
-                goto error_exit;
+    for (auto &eng: engines_) {
+        if (eng->GetEngineId() == ST_SM_ID_SVA_F_STAGE_GMM) {
+            vui_intf_->GetWakeupConfigs(this, (void **)&conf_levels, &num_conf_levels);
+            eng->GetEngine()->UpdateConfLevels(this, config, conf_levels, num_conf_levels);
+            if (num_conf_levels > 0) {
+                gsl_conf_levels_ = (uint8_t *)realloc(gsl_conf_levels_,
+                                                      num_conf_levels);
+                if (!gsl_conf_levels_) {
+                    PAL_ERR(LOG_TAG, "Failed to allocate gsl conf levels memory");
+                    status = -ENOMEM;
+                    goto error_exit;
+                }
+                ar_mem_cpy(gsl_conf_levels_,
+                    num_conf_levels, conf_levels, num_conf_levels);
+                gsl_conf_levels_size_ = num_conf_levels;
             }
+        } else if (eng->GetEngineId() & ST_SM_ID_SVA_S_STAGE_KWD ||
+                   eng->GetEngineId() == ST_SM_ID_SVA_S_STAGE_USER) {
+            vui_intf_->GetSecondStageConfLevels(this,
+                (listen_model_indicator_enum)eng->GetEngineId(),
+                &sec_stage_threshold);
+            eng->GetEngine()->UpdateConfLevels(this,
+                config, (uint8_t *)&sec_stage_threshold, 1);
         }
-        ar_mem_cpy(gsl_conf_levels_, num_conf_levels, conf_levels, num_conf_levels);
-        gsl_conf_levels_size_ = num_conf_levels;
     }
 
     // Update capture requested flag to gsl engine
@@ -1710,14 +1387,6 @@ error_exit:
         rec_config_ = nullptr;
     }
 
-    if (st_conf_levels_) {
-        free(st_conf_levels_);
-        st_conf_levels_ = nullptr;
-    }
-    if (st_conf_levels_v2_) {
-        free(st_conf_levels_v2_);
-        st_conf_levels_v2_ = nullptr;
-    }
 exit:
     if (conf_levels)
         free(conf_levels);
@@ -1817,8 +1486,10 @@ int32_t StreamSoundTrigger::notifyClient(bool detection) {
     uint64_t total_process_duration = 0;
     bool lock_status = false;
 
-    status = GenerateCallbackEvent(&rec_event, &event_size,
-                                                detection);
+    status = vui_intf_->GenerateCallbackEvent(this,
+                                             &rec_event,
+                                             &event_size,
+                                             detection);
     if (status || !rec_event) {
         PAL_ERR(LOG_TAG, "Failed to generate callback event");
         return status;
@@ -1866,923 +1537,6 @@ int32_t StreamSoundTrigger::notifyClient(bool detection) {
     }
 
     free(rec_event);
-
-    PAL_DBG(LOG_TAG, "Exit, status %d", status);
-    return status;
-}
-
-void StreamSoundTrigger::PackEventConfLevels(uint8_t *opaque_data) {
-
-    struct st_confidence_levels_info *conf_levels = nullptr;
-    struct st_confidence_levels_info_v2 *conf_levels_v2 = nullptr;
-    uint32_t i = 0, j = 0, k = 0, user_id = 0, num_user_levels = 0;
-
-    PAL_VERBOSE(LOG_TAG, "Enter");
-
-    /*
-     * Update the opaque data of callback event with confidence levels
-     * accordingly for all users and keywords from the detection event
-     */
-    if (conf_levels_intf_version_ != CONF_LEVELS_INTF_VERSION_0002) {
-        conf_levels = (struct st_confidence_levels_info *)opaque_data;
-        for (i = 0; i < conf_levels->num_sound_models; i++) {
-            if (conf_levels->conf_levels[i].sm_id == ST_SM_ID_SVA_F_STAGE_GMM) {
-                for (j = 0; j < conf_levels->conf_levels[i].num_kw_levels; j++) {
-                    if (j <= sm_info_->GetConfLevelsSize())
-                        conf_levels->conf_levels[i].kw_levels[j].kw_level =
-                            sm_info_->GetDetConfLevels()[j];
-                    else
-                        PAL_ERR(LOG_TAG, "unexpected conf size %d < %d",
-                            sm_info_->GetConfLevelsSize(), j);
-
-                    num_user_levels =
-                        conf_levels->conf_levels[i].kw_levels[j].num_user_levels;
-                    for (k = 0; k < num_user_levels; k++) {
-                        user_id = conf_levels->conf_levels[i].kw_levels[j].
-                            user_levels[k].user_id;
-                        if (user_id <= sm_info_->GetConfLevelsSize())
-                            conf_levels->conf_levels[i].kw_levels[j].user_levels[k].
-                                level = sm_info_->GetDetConfLevels()[user_id];
-                        else
-                            PAL_ERR(LOG_TAG, "Unexpected conf size %d < %d",
-                                sm_info_->GetConfLevelsSize(), user_id);
-                    }
-                }
-            } else if (conf_levels->conf_levels[i].sm_id & ST_SM_ID_SVA_S_STAGE_KWD ||
-                       conf_levels->conf_levels[i].sm_id & ST_SM_ID_SVA_S_STAGE_USER) {
-                /* Update confidence levels for second stage */
-                for (auto& eng: engines_) {
-                    if (conf_levels->conf_levels[i].sm_id & ST_SM_ID_SVA_S_STAGE_KWD &&
-                        eng->GetEngineId() & ST_SM_ID_SVA_S_STAGE_KWD) {
-                        conf_levels->conf_levels[i].kw_levels[0].kw_level =
-                            eng->GetEngine()->GetDetectedConfScore();
-                        conf_levels->conf_levels[i].kw_levels[0].user_levels[0].level = 0;
-                    } else if (conf_levels->conf_levels[i].sm_id & ST_SM_ID_SVA_S_STAGE_USER &&
-                        conf_levels->conf_levels[i].sm_id == eng->GetEngineId()) {
-                        conf_levels->conf_levels[i].kw_levels[0].kw_level =
-                            eng->GetEngine()->GetDetectedConfScore();
-                        conf_levels->conf_levels[i].kw_levels[0].user_levels[0].level =
-                            eng->GetEngine()->GetDetectedConfScore();
-                    }
-                }
-            }
-        }
-    } else {
-        conf_levels_v2 = (struct st_confidence_levels_info_v2 *)opaque_data;
-        for (i = 0; i < conf_levels_v2->num_sound_models; i++) {
-            if (conf_levels_v2->conf_levels[i].sm_id == ST_SM_ID_SVA_F_STAGE_GMM) {
-                for (j = 0; j < conf_levels_v2->conf_levels[i].num_kw_levels; j++) {
-                    if (j <= sm_info_->GetConfLevelsSize())
-                            conf_levels_v2->conf_levels[i].kw_levels[j].kw_level =
-                                    sm_info_->GetDetConfLevels()[j];
-                    else
-                        PAL_ERR(LOG_TAG, "unexpected conf size %d < %d",
-                            sm_info_->GetConfLevelsSize(), j);
-
-                    PAL_INFO(LOG_TAG, "First stage KW Conf levels[%d]-%d",
-                        j, sm_info_->GetDetConfLevels()[j])
-
-                    num_user_levels =
-                        conf_levels_v2->conf_levels[i].kw_levels[j].num_user_levels;
-                    for (k = 0; k < num_user_levels; k++) {
-                        user_id = conf_levels_v2->conf_levels[i].kw_levels[j].
-                            user_levels[k].user_id;
-                        if (user_id <=  sm_info_->GetConfLevelsSize())
-                            conf_levels_v2->conf_levels[i].kw_levels[j].user_levels[k].
-                                level = sm_info_->GetDetConfLevels()[user_id];
-                        else
-                            PAL_ERR(LOG_TAG, "Unexpected conf size %d < %d",
-                                sm_info_->GetConfLevelsSize(), user_id);
-
-                        PAL_INFO(LOG_TAG, "First stage User Conf levels[%d]-%d",
-                            k, sm_info_->GetDetConfLevels()[user_id])
-                    }
-                }
-            } else if (conf_levels_v2->conf_levels[i].sm_id & ST_SM_ID_SVA_S_STAGE_KWD ||
-                       conf_levels_v2->conf_levels[i].sm_id & ST_SM_ID_SVA_S_STAGE_USER) {
-                /* Update confidence levels for second stage */
-                for (auto& eng: engines_) {
-                    if (conf_levels_v2->conf_levels[i].sm_id & ST_SM_ID_SVA_S_STAGE_KWD &&
-                        eng->GetEngineId() & ST_SM_ID_SVA_S_STAGE_KWD) {
-                        conf_levels_v2->conf_levels[i].kw_levels[0].kw_level =
-                            eng->GetEngine()->GetDetectedConfScore();
-                        conf_levels_v2->conf_levels[i].kw_levels[0].user_levels[0].level = 0;
-                    } else if (conf_levels_v2->conf_levels[i].sm_id & ST_SM_ID_SVA_S_STAGE_USER &&
-                        conf_levels_v2->conf_levels[i].sm_id == eng->GetEngineId()) {
-                        conf_levels_v2->conf_levels[i].kw_levels[0].kw_level =
-                            eng->GetEngine()->GetDetectedConfScore();
-                        conf_levels_v2->conf_levels[i].kw_levels[0].user_levels[0].level =
-                            eng->GetEngine()->GetDetectedConfScore();
-                    }
-                }
-            }
-        }
-    }
-    PAL_VERBOSE(LOG_TAG, "Exit");
-}
-
-void StreamSoundTrigger::FillCallbackConfLevels(uint8_t *opaque_data,
-                   uint32_t det_keyword_id, uint32_t best_conf_level) {
-    int i = 0;
-    struct st_confidence_levels_info_v2 *conf_levels_v2 = nullptr;
-    struct st_confidence_levels_info *conf_levels = nullptr;
-
-    if (conf_levels_intf_version_ != CONF_LEVELS_INTF_VERSION_0002) {
-        conf_levels = (struct st_confidence_levels_info *)opaque_data;
-        for (i = 0; i < conf_levels->num_sound_models; i++) {
-            if (conf_levels->conf_levels[i].sm_id == ST_SM_ID_SVA_F_STAGE_GMM) {
-                conf_levels->conf_levels[i].kw_levels[det_keyword_id].
-                    kw_level = best_conf_level;
-                conf_levels->conf_levels[i].kw_levels[det_keyword_id].
-                    user_levels[0].level = 0;
-                PAL_DBG(LOG_TAG, "First stage returning conf level : %d",
-                    best_conf_level);
-            } else if (conf_levels->conf_levels[i].sm_id & ST_SM_ID_SVA_S_STAGE_KWD) {
-                for (auto& eng: engines_) {
-                    if (eng->GetEngineId() & ST_SM_ID_SVA_S_STAGE_KWD) {
-                        conf_levels->conf_levels[i].kw_levels[0].kw_level =
-                            eng->GetEngine()->GetDetectedConfScore();
-                        conf_levels->conf_levels[i].kw_levels[0].user_levels[0].level = 0;
-                        PAL_DBG(LOG_TAG, "Second stage keyword conf level: %d",
-                            eng->GetEngine()->GetDetectedConfScore());
-                    }
-                }
-            } else if (conf_levels->conf_levels[i].sm_id & ST_SM_ID_SVA_S_STAGE_USER) {
-                for (auto& eng: engines_) {
-                    if (eng->GetEngineId() == conf_levels->conf_levels[i].sm_id) {
-                        conf_levels->conf_levels[i].kw_levels[0].kw_level =
-                            eng->GetEngine()->GetDetectedConfScore();
-                        conf_levels->conf_levels[i].kw_levels[0].user_levels[0].level =
-                            eng->GetEngine()->GetDetectedConfScore();
-                        PAL_DBG(LOG_TAG, "Second stage user conf level: %d",
-                            eng->GetEngine()->GetDetectedConfScore());
-                    }
-                }
-            }
-        }
-    } else {
-        conf_levels_v2 = (struct st_confidence_levels_info_v2 *)opaque_data;
-        for (i = 0; i < conf_levels_v2->num_sound_models; i++) {
-            if (conf_levels_v2->conf_levels[i].sm_id == ST_SM_ID_SVA_F_STAGE_GMM) {
-                conf_levels_v2->conf_levels[i].kw_levels[det_keyword_id].
-                    kw_level = best_conf_level;
-                conf_levels_v2->conf_levels[i].kw_levels[det_keyword_id].
-                    user_levels[0].level = 0;
-                PAL_DBG(LOG_TAG, "First stage returning conf level: %d",
-                    best_conf_level);
-            } else if (conf_levels_v2->conf_levels[i].sm_id & ST_SM_ID_SVA_S_STAGE_KWD) {
-                for (auto& eng: engines_) {
-                    if (eng->GetEngineId() & ST_SM_ID_SVA_S_STAGE_KWD) {
-                        conf_levels_v2->conf_levels[i].kw_levels[0].kw_level =
-                            eng->GetEngine()->GetDetectedConfScore();
-                        conf_levels_v2->conf_levels[i].kw_levels[0].user_levels[0].level = 0;
-                        PAL_DBG(LOG_TAG, "Second stage keyword conf level: %d",
-                            eng->GetEngine()->GetDetectedConfScore());
-                    }
-                }
-            } else if (conf_levels_v2->conf_levels[i].sm_id & ST_SM_ID_SVA_S_STAGE_USER) {
-                for (auto& eng: engines_) {
-                    if (eng->GetEngineId() == conf_levels_v2->conf_levels[i].sm_id) {
-                        conf_levels_v2->conf_levels[i].kw_levels[0].kw_level =
-                            eng->GetEngine()->GetDetectedConfScore();
-                        conf_levels_v2->conf_levels[i].kw_levels[0].user_levels[0].level =
-                            eng->GetEngine()->GetDetectedConfScore();
-                        PAL_DBG(LOG_TAG, "Second stage user conf level: %d",
-                            eng->GetEngine()->GetDetectedConfScore());
-                    }
-                }
-            }
-        }
-    }
-}
-
-int32_t StreamSoundTrigger::GenerateCallbackEvent(
-    struct pal_st_recognition_event **event, uint32_t *evt_size,
-    bool detection) {
-
-    struct pal_st_phrase_recognition_event *phrase_event = nullptr;
-    struct pal_st_generic_recognition_event *generic_event = nullptr;
-    struct st_param_header *param_hdr = nullptr;
-    struct st_keyword_indices_info *kw_indices = nullptr;
-    struct st_timestamp_info *timestamps = nullptr;
-    struct model_stats *det_model_stat = nullptr;
-    struct detection_event_info_pdk *det_ev_info_pdk = nullptr;
-    struct detection_event_info *det_ev_info = nullptr;
-    size_t opaque_size = 0;
-    size_t event_size = 0, conf_levels_size = 0;
-    uint8_t *opaque_data = nullptr;
-    uint32_t start_index = 0, end_index = 0;
-    uint8_t *custom_event = nullptr;
-    uint32_t det_keyword_id = 0;
-    uint32_t best_conf_level = 0;
-    uint32_t detection_timestamp_lsw = 0;
-    uint32_t detection_timestamp_msw = 0;
-    int32_t status = 0;
-    int32_t num_models = 0;
-
-    PAL_DBG(LOG_TAG, "Enter");
-    *event = nullptr;
-    if (sound_model_type_ == PAL_SOUND_MODEL_TYPE_KEYPHRASE) {
-        if (model_id_ > 0) {
-            det_ev_info_pdk = (struct detection_event_info_pdk *)
-                gsl_engine_->GetDetectionEventInfo();
-            if (!det_ev_info_pdk) {
-                PAL_ERR(LOG_TAG, "detection info multi model not available");
-                status = -EINVAL;
-                goto exit;
-            }
-        } else {
-            det_ev_info = (struct detection_event_info *)gsl_engine_->
-                            GetDetectionEventInfo();
-            if (!det_ev_info) {
-                PAL_ERR(LOG_TAG, "detection info not available");
-                status = -EINVAL;
-                goto exit;
-            }
-        }
-
-        if (conf_levels_intf_version_ != CONF_LEVELS_INTF_VERSION_0002)
-            conf_levels_size = sizeof(struct st_confidence_levels_info);
-        else
-            conf_levels_size = sizeof(struct st_confidence_levels_info_v2);
-
-        opaque_size = (3 * sizeof(struct st_param_header)) +
-            sizeof(struct st_timestamp_info) +
-            sizeof(struct st_keyword_indices_info) +
-            conf_levels_size;
-
-        event_size = sizeof(struct pal_st_phrase_recognition_event) +
-                     opaque_size;
-        phrase_event = (struct pal_st_phrase_recognition_event *)
-                       calloc(1, event_size);
-        if (!phrase_event) {
-            PAL_ERR(LOG_TAG, "Failed to alloc memory for recognition event");
-            status =  -ENOMEM;
-            goto exit;
-        }
-
-        phrase_event->num_phrases = rec_config_->num_phrases;
-        memcpy(phrase_event->phrase_extras, rec_config_->phrases,
-               phrase_event->num_phrases *
-               sizeof(struct pal_st_phrase_recognition_extra));
-
-        *event = &(phrase_event->common);
-        (*event)->status = detection ? PAL_RECOGNITION_STATUS_SUCCESS :
-                           PAL_RECOGNITION_STATUS_FAILURE;
-        (*event)->type = sound_model_type_;
-        (*event)->st_handle = (pal_st_handle_t *)this;
-        (*event)->capture_available = rec_config_->capture_requested;
-        // TODO: generate capture session
-        (*event)->capture_session = 0;
-        (*event)->capture_delay_ms = 0;
-        (*event)->capture_preamble_ms = 0;
-        (*event)->trigger_in_data = true;
-        (*event)->data_size = opaque_size;
-        (*event)->data_offset = sizeof(struct pal_st_phrase_recognition_event);
-        (*event)->media_config.sample_rate =
-            mStreamAttr->in_media_config.sample_rate;
-        (*event)->media_config.bit_width =
-            mStreamAttr->in_media_config.bit_width;
-        (*event)->media_config.ch_info.channels =
-            mStreamAttr->in_media_config.ch_info.channels;
-        (*event)->media_config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S16_LE;
-        // Filling Opaque data
-        opaque_data = (uint8_t *)phrase_event +
-                       phrase_event->common.data_offset;
-
-        /* Pack the opaque data confidence levels structure */
-        param_hdr = (struct st_param_header *)opaque_data;
-        param_hdr->key_id = ST_PARAM_KEY_CONFIDENCE_LEVELS;
-        if (conf_levels_intf_version_ !=  CONF_LEVELS_INTF_VERSION_0002)
-            param_hdr->payload_size = sizeof(struct st_confidence_levels_info);
-        else
-            param_hdr->payload_size = sizeof(struct st_confidence_levels_info_v2);
-        opaque_data += sizeof(struct st_param_header);
-        /* Copy the cached conf levels from recognition config */
-        if (conf_levels_intf_version_ != CONF_LEVELS_INTF_VERSION_0002)
-            ar_mem_cpy(opaque_data, param_hdr->payload_size,
-                    st_conf_levels_, param_hdr->payload_size);
-        else
-            ar_mem_cpy(opaque_data, param_hdr->payload_size,
-                st_conf_levels_v2_, param_hdr->payload_size);
-        if (model_id_ > 0) {
-            num_models = det_ev_info_pdk->num_detected_models;
-            for (int i = 0; i < num_models; ++i) {
-                det_model_stat = &det_ev_info_pdk->detected_model_stats[i];
-                if (model_id_ == det_model_stat->detected_model_id) {
-                    det_keyword_id = det_model_stat->detected_keyword_id;
-                    best_conf_level = det_model_stat->best_confidence_level;
-                    detection_timestamp_lsw =
-                        det_model_stat->detection_timestamp_lsw;
-                    detection_timestamp_msw =
-                        det_model_stat->detection_timestamp_msw;
-                    PAL_DBG(LOG_TAG, "keywordID: %u, best_conf_level: %u",
-                            det_keyword_id, best_conf_level);
-                    break;
-                }
-            }
-            FillCallbackConfLevels(opaque_data, det_keyword_id, best_conf_level);
-        } else {
-            PackEventConfLevels(opaque_data);
-        }
-        opaque_data += param_hdr->payload_size;
-
-        /* Pack the opaque data keyword indices structure */
-        param_hdr = (struct st_param_header *)opaque_data;
-        param_hdr->key_id = ST_PARAM_KEY_KEYWORD_INDICES;
-        param_hdr->payload_size = sizeof(struct st_keyword_indices_info);
-        opaque_data += sizeof(struct st_param_header);
-        kw_indices = (struct st_keyword_indices_info *)opaque_data;
-        kw_indices->version = 0x1;
-        reader_->getIndices(&start_index, &end_index);
-        // adjust reader offset if lab requested and history buffer not set
-        if (rec_config_->capture_requested && !hist_buf_duration_)
-            reader_->advanceReadOffset(end_index);
-
-        kw_indices->start_index = start_index;
-        kw_indices->end_index = end_index;
-        opaque_data += sizeof(struct st_keyword_indices_info);
-
-        /*
-            * Pack the opaque data detection time structure
-            * TODO: add support for 2nd stage detection timestamp
-            */
-        param_hdr = (struct st_param_header *)opaque_data;
-        param_hdr->key_id = ST_PARAM_KEY_TIMESTAMP;
-        param_hdr->payload_size = sizeof(struct st_timestamp_info);
-        opaque_data += sizeof(struct st_param_header);
-        timestamps = (struct st_timestamp_info *)opaque_data;
-        timestamps->version = 0x1;
-        if (model_id_ > 0) {
-            timestamps->first_stage_det_event_time = 1000 *
-                        ((uint64_t)detection_timestamp_lsw +
-                        ((uint64_t)detection_timestamp_msw<<32));
-        } else {
-            timestamps->first_stage_det_event_time = 1000 *
-                ((uint64_t)det_ev_info->detection_timestamp_lsw +
-                ((uint64_t)det_ev_info->detection_timestamp_msw << 32));
-        }
-
-        // dump detection event opaque data
-        if ((*event)->data_offset > 0 && (*event)->data_size > 0 &&
-            vui_ptfm_info_->GetEnableDebugDumps()) {
-            opaque_data = (uint8_t *)phrase_event + phrase_event->common.data_offset;
-            ST_DBG_DECLARE(FILE *det_opaque_fd = NULL; static int det_opaque_cnt = 0);
-            ST_DBG_FILE_OPEN_WR(det_opaque_fd, ST_DEBUG_DUMP_LOCATION,
-                "det_event_opaque", "bin", det_opaque_cnt);
-            ST_DBG_FILE_WRITE(det_opaque_fd, opaque_data, (*event)->data_size);
-            ST_DBG_FILE_CLOSE(det_opaque_fd);
-            PAL_DBG(LOG_TAG, "detection event opaque data stored in: det_event_opaque_%d.bin",
-                det_opaque_cnt);
-            det_opaque_cnt++;
-        }
-    } else if (sound_model_type_ == PAL_SOUND_MODEL_TYPE_GENERIC) {
-        gsl_engine_->GetCustomDetectionEvent(&custom_event, &opaque_size);
-        event_size = sizeof(struct pal_st_generic_recognition_event) +
-                     opaque_size;
-        generic_event = (struct pal_st_generic_recognition_event *)
-                       calloc(1, event_size);
-        if (!generic_event) {
-            PAL_ERR(LOG_TAG, "Failed to alloc memory for recognition event");
-            status =  -ENOMEM;
-            goto exit;
-
-        }
-
-        *event = &(generic_event->common);
-        (*event)->status = PAL_RECOGNITION_STATUS_SUCCESS;
-        (*event)->type = sound_model_type_;
-        (*event)->st_handle = (pal_st_handle_t *)this;
-        (*event)->capture_available = rec_config_->capture_requested;
-        // TODO: generate capture session
-        (*event)->capture_session = 0;
-        (*event)->capture_delay_ms = 0;
-        (*event)->capture_preamble_ms = 0;
-        (*event)->trigger_in_data = true;
-        (*event)->data_size = opaque_size;
-        (*event)->data_offset = sizeof(struct pal_st_generic_recognition_event);
-        (*event)->media_config.sample_rate =
-            mStreamAttr->in_media_config.sample_rate;
-        (*event)->media_config.bit_width =
-            mStreamAttr->in_media_config.bit_width;
-        (*event)->media_config.ch_info.channels =
-            mStreamAttr->in_media_config.ch_info.channels;
-        (*event)->media_config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S16_LE;
-
-        // Filling Opaque data
-        opaque_data = (uint8_t *)generic_event +
-                       generic_event->common.data_offset;
-        ar_mem_cpy(opaque_data, opaque_size, custom_event, opaque_size);
-    }
-    *evt_size = event_size;
-exit:
-    PAL_DBG(LOG_TAG, "Exit");
-    return status;
-}
-
-int32_t StreamSoundTrigger::ParseOpaqueConfLevels(
-    void *opaque_conf_levels,
-    uint32_t version,
-    uint8_t **out_conf_levels,
-    uint32_t *out_num_conf_levels) {
-
-    int32_t status = 0;
-    struct st_confidence_levels_info *conf_levels = nullptr;
-    struct st_confidence_levels_info_v2 *conf_levels_v2 = nullptr;
-    struct st_sound_model_conf_levels *sm_levels = nullptr;
-    struct st_sound_model_conf_levels_v2 *sm_levels_v2 = nullptr;
-    int32_t confidence_level = 0;
-    int32_t confidence_level_v2 = 0;
-    bool gmm_conf_found = false;
-
-    PAL_DBG(LOG_TAG, "Enter");
-    if (version != CONF_LEVELS_INTF_VERSION_0002) {
-        conf_levels = (struct st_confidence_levels_info *)
-            ((char *)opaque_conf_levels + sizeof(struct st_param_header));
-
-        if (!st_conf_levels_) {
-             st_conf_levels_ = (struct st_confidence_levels_info *)calloc(1,
-                                 sizeof(struct st_confidence_levels_info));
-             if (!st_conf_levels_) {
-                 PAL_ERR(LOG_TAG, "failed to alloc stream conf_levels_");
-                 status = -ENOMEM;
-                 goto exit;
-             }
-        }
-        /* Cache to use during detection event processing */
-        ar_mem_cpy((uint8_t *)st_conf_levels_, sizeof(struct st_confidence_levels_info),
-            (uint8_t *)conf_levels, sizeof(struct st_confidence_levels_info));
-
-        for (int i = 0; i < conf_levels->num_sound_models; i++) {
-            sm_levels = &conf_levels->conf_levels[i];
-            if (sm_levels->sm_id == ST_SM_ID_SVA_F_STAGE_GMM) {
-                gmm_conf_found = true;
-                status = FillOpaqueConfLevels((void *)sm_levels,
-                    out_conf_levels, out_num_conf_levels, version);
-            } else if (sm_levels->sm_id & ST_SM_ID_SVA_S_STAGE_KWD ||
-                       sm_levels->sm_id & ST_SM_ID_SVA_S_STAGE_USER) {
-                confidence_level =
-                    (sm_levels->sm_id & ST_SM_ID_SVA_S_STAGE_KWD) ?
-                    sm_levels->kw_levels[0].kw_level:
-                    sm_levels->kw_levels[0].user_levels[0].level;
-                if (sm_levels->sm_id & ST_SM_ID_SVA_S_STAGE_KWD) {
-                    PAL_DBG(LOG_TAG, "second stage keyword confidence level = %d", confidence_level);
-                } else {
-                    PAL_DBG(LOG_TAG, "second stage user confidence level = %d", confidence_level);
-                }
-                for (auto& eng: engines_) {
-                    if (sm_levels->sm_id & eng->GetEngineId() ||
-                        ((eng->GetEngineId() & ST_SM_ID_SVA_S_STAGE_RNN) &&
-                        (sm_levels->sm_id & ST_SM_ID_SVA_S_STAGE_PDK)) ||
-                        ((eng->GetEngineId() & ST_SM_ID_SVA_S_STAGE_UDK) &&
-                        (sm_levels->sm_id & ST_SM_ID_SVA_S_STAGE_PDK))) {
-                        eng->GetEngine()->UpdateConfLevels(this, rec_config_,
-                            (uint8_t *)&confidence_level, 1);
-                    }
-                }
-            }
-        }
-    } else {
-        conf_levels_v2 = (struct st_confidence_levels_info_v2 *)
-            ((char *)opaque_conf_levels + sizeof(struct st_param_header));
-
-        if (!st_conf_levels_v2_) {
-            st_conf_levels_v2_ = (struct st_confidence_levels_info_v2 *)calloc(1,
-                sizeof(struct st_confidence_levels_info_v2));
-            if (!st_conf_levels_v2_) {
-                PAL_ERR(LOG_TAG, "failed to alloc stream conf_levels_");
-                status = -ENOMEM;
-                goto exit;
-            }
-        }
-        /* Cache to use during detection event processing */
-        ar_mem_cpy((uint8_t *)st_conf_levels_v2_, sizeof(struct st_confidence_levels_info_v2),
-            (uint8_t *)conf_levels_v2, sizeof(struct st_confidence_levels_info_v2));
-
-        for (int i = 0; i < conf_levels_v2->num_sound_models; i++) {
-            sm_levels_v2 = &conf_levels_v2->conf_levels[i];
-            if (sm_levels_v2->sm_id == ST_SM_ID_SVA_F_STAGE_GMM) {
-                gmm_conf_found = true;
-                status = FillOpaqueConfLevels((void *)sm_levels_v2,
-                    out_conf_levels, out_num_conf_levels, version);
-            } else if (sm_levels_v2->sm_id & ST_SM_ID_SVA_S_STAGE_KWD ||
-                       sm_levels_v2->sm_id & ST_SM_ID_SVA_S_STAGE_USER) {
-                confidence_level_v2 =
-                    (sm_levels_v2->sm_id & ST_SM_ID_SVA_S_STAGE_KWD) ?
-                    sm_levels_v2->kw_levels[0].kw_level:
-                    sm_levels_v2->kw_levels[0].user_levels[0].level;
-                if (sm_levels_v2->sm_id & ST_SM_ID_SVA_S_STAGE_KWD) {
-                    PAL_DBG(LOG_TAG, "second stage keyword confidence level = %d", confidence_level_v2);
-                } else {
-                    PAL_DBG(LOG_TAG, "second stage user confidence level = %d", confidence_level_v2);
-                }
-                for (auto& eng: engines_) {
-                    PAL_VERBOSE(LOG_TAG, "sm id %d, engine id %d ",
-                        sm_levels_v2->sm_id , eng->GetEngineId());
-                    if (sm_levels_v2->sm_id & eng->GetEngineId() ||
-                        ((eng->GetEngineId() & ST_SM_ID_SVA_S_STAGE_RNN) &&
-                        (sm_levels_v2->sm_id & ST_SM_ID_SVA_S_STAGE_PDK)) ||
-                        ((eng->GetEngineId() & ST_SM_ID_SVA_S_STAGE_UDK) &&
-                        (sm_levels_v2->sm_id & ST_SM_ID_SVA_S_STAGE_PDK))) {
-                        eng->GetEngine()->UpdateConfLevels(this, rec_config_,
-                            (uint8_t *)&confidence_level_v2, 1);
-                    }
-                }
-            }
-        }
-    }
-
-    if (!gmm_conf_found || status) {
-        PAL_ERR(LOG_TAG, "Did not receive GMM confidence threshold, error!");
-        status = -EINVAL;
-    }
-
-exit:
-    PAL_DBG(LOG_TAG, "Exit");
-
-    return status;
-}
-
-int32_t StreamSoundTrigger::FillConfLevels(
-    struct pal_st_recognition_config *config,
-    uint8_t **out_conf_levels,
-    uint32_t *out_num_conf_levels) {
-
-    int32_t status = 0;
-    uint32_t num_conf_levels = 0;
-    unsigned int user_level, user_id;
-    unsigned int i = 0, j = 0;
-    uint8_t *conf_levels = nullptr;
-    unsigned char *user_id_tracker = nullptr;
-    struct pal_st_phrase_sound_model *phrase_sm = nullptr;
-
-    PAL_DBG(LOG_TAG, "Enter");
-
-    if (!config) {
-        status = -EINVAL;
-        PAL_ERR(LOG_TAG, "invalid input status %d", status);
-        goto exit;
-    }
-
-    for (auto& eng: engines_) {
-        if (eng->GetEngineId() == ST_SM_ID_SVA_F_STAGE_GMM) {
-            phrase_sm = (struct pal_st_phrase_sound_model *)eng->sm_data_;
-            break;
-        }
-    }
-
-    if ((config->num_phrases == 0) ||
-        (phrase_sm && config->num_phrases > phrase_sm->num_phrases)) {
-        status = -EINVAL;
-        PAL_ERR(LOG_TAG, "Invalid phrase data status %d", status);
-        goto exit;
-    }
-
-    for (i = 0; i < config->num_phrases; i++) {
-        num_conf_levels++;
-        if (model_id_ == 0) {
-            for (j = 0; j < config->phrases[i].num_levels; j++)
-                num_conf_levels++;
-        }
-    }
-
-    conf_levels = (unsigned char*)calloc(1, num_conf_levels);
-    if (!conf_levels) {
-        status = -ENOMEM;
-        PAL_ERR(LOG_TAG, "conf_levels calloc failed, status %d", status);
-        goto exit;
-    }
-
-    user_id_tracker = (unsigned char *)calloc(1, num_conf_levels);
-    if (!user_id_tracker) {
-        status = -ENOMEM;
-        PAL_ERR(LOG_TAG, "failed to allocate user_id_tracker status %d",
-                status);
-        goto exit;
-    }
-
-    for (i = 0; i < config->num_phrases; i++) {
-        PAL_VERBOSE(LOG_TAG, "[%d] kw level %d", i,
-        config->phrases[i].confidence_level);
-        if (config->phrases[i].confidence_level > ST_MAX_FSTAGE_CONF_LEVEL) {
-            PAL_ERR(LOG_TAG, "Invalid kw level %d",
-                config->phrases[i].confidence_level);
-            status = -EINVAL;
-            goto exit;
-        }
-        for (j = 0; j < config->phrases[i].num_levels; j++) {
-            PAL_VERBOSE(LOG_TAG, "[%d] user_id %d level %d ", i,
-                        config->phrases[i].levels[j].user_id,
-                        config->phrases[i].levels[j].level);
-            if (config->phrases[i].levels[j].level > ST_MAX_FSTAGE_CONF_LEVEL) {
-                PAL_ERR(LOG_TAG, "Invalid user level %d",
-                    config->phrases[i].levels[j].level);
-                status = -EINVAL;
-                goto exit;
-            }
-        }
-    }
-
-    /* Example: Say the recognition structure has 3 keywords with users
-     *      [0] k1 |uid|
-     *              [0] u1 - 1st trainer
-     *              [1] u2 - 4th trainer
-     *              [3] u3 - 3rd trainer
-     *      [1] k2
-     *              [2] u2 - 2nd trainer
-     *              [4] u3 - 5th trainer
-     *      [2] k3
-     *              [5] u4 - 6th trainer
-     *    Output confidence level array will be
-     *    [k1, k2, k3, u1k1, u2k1, u2k2, u3k1, u3k2, u4k3]
-     */
-
-    for (i = 0; i < config->num_phrases; i++) {
-        conf_levels[i] = config->phrases[i].confidence_level;
-        if (model_id_ == 0) {
-            for (j = 0; j < config->phrases[i].num_levels; j++) {
-                user_level = config->phrases[i].levels[j].level;
-                user_id = config->phrases[i].levels[j].user_id;
-                if ((user_id < config->num_phrases) ||
-                     (user_id >= num_conf_levels)) {
-                    status = -EINVAL;
-                    PAL_ERR(LOG_TAG, "Invalid params user id %d status %d",
-                            user_id, status);
-                    goto exit;
-                } else {
-                    if (user_id_tracker[user_id] == 1) {
-                        status = -EINVAL;
-                        PAL_ERR(LOG_TAG, "Duplicate user id %d status %d", user_id,
-                                status);
-                        goto exit;
-                    }
-                    conf_levels[user_id] = (user_level < ST_MAX_FSTAGE_CONF_LEVEL) ?
-                        user_level : ST_MAX_FSTAGE_CONF_LEVEL;
-                    user_id_tracker[user_id] = 1;
-                    PAL_VERBOSE(LOG_TAG, "user_conf_levels[%d] = %d", user_id,
-                                conf_levels[user_id]);
-                }
-            }
-        }
-    }
-
-    *out_conf_levels = conf_levels;
-    *out_num_conf_levels = num_conf_levels;
-
-exit:
-    if (status && conf_levels) {
-        free(conf_levels);
-        *out_conf_levels = nullptr;
-        *out_num_conf_levels = 0;
-    }
-
-    if (user_id_tracker)
-        free(user_id_tracker);
-
-    PAL_DBG(LOG_TAG, "Exit, status %d", status);
-
-    return status;
-}
-
-int32_t StreamSoundTrigger::FillOpaqueConfLevels(
-    const void *sm_levels_generic,
-    uint8_t **out_payload,
-    uint32_t *out_payload_size,
-    uint32_t version) {
-
-    int status = 0;
-    int32_t level = 0;
-    unsigned int num_conf_levels = 0;
-    unsigned int user_level = 0, user_id = 0;
-    unsigned char *conf_levels = nullptr;
-    unsigned int i = 0, j = 0;
-    unsigned char *user_id_tracker = nullptr;
-    struct st_sound_model_conf_levels *sm_levels = nullptr;
-    struct st_sound_model_conf_levels_v2 *sm_levels_v2 = nullptr;
-
-    PAL_VERBOSE(LOG_TAG, "Enter");
-
-    /*  Example: Say the recognition structure has 3 keywords with users
-     *  |kid|
-     *  [0] k1 |uid|
-     *         [3] u1 - 1st trainer
-     *         [4] u2 - 4th trainer
-     *         [6] u3 - 3rd trainer
-     *  [1] k2
-     *         [5] u2 - 2nd trainer
-     *         [7] u3 - 5th trainer
-     *  [2] k3
-     *         [8] u4 - 6th trainer
-     *
-     *  Output confidence level array will be
-     *  [k1, k2, k3, u1k1, u2k1, u2k2, u3k1, u3k2, u4k3]
-     */
-
-    if (version != CONF_LEVELS_INTF_VERSION_0002) {
-        sm_levels = (struct st_sound_model_conf_levels *)sm_levels_generic;
-        if (!sm_levels) {
-            status = -EINVAL;
-            PAL_ERR(LOG_TAG, "ERROR. Invalid inputs");
-            goto exit;
-        }
-
-        for (i = 0; i < sm_levels->num_kw_levels; i++) {
-            level = sm_levels->kw_levels[i].kw_level;
-            if (level < 0 || level > ST_MAX_FSTAGE_CONF_LEVEL) {
-                PAL_ERR(LOG_TAG, "Invalid First stage [%d] kw level %d", i, level);
-                status = -EINVAL;
-                goto exit;
-            } else {
-                PAL_DBG(LOG_TAG, "First stage [%d] kw level %d", i, level);
-            }
-            for (j = 0; j < sm_levels->kw_levels[i].num_user_levels; j++) {
-                level = sm_levels->kw_levels[i].user_levels[j].level;
-                if (level < 0 || level > ST_MAX_FSTAGE_CONF_LEVEL) {
-                    PAL_ERR(LOG_TAG, "Invalid First stage [%d] user_id %d level %d", i,
-                        sm_levels->kw_levels[i].user_levels[j].user_id, level);
-                    status = -EINVAL;
-                    goto exit;
-                } else {
-                    PAL_DBG(LOG_TAG, "First stage [%d] user_id %d level %d ", i,
-                        sm_levels->kw_levels[i].user_levels[j].user_id, level);
-                }
-            }
-        }
-
-        for (i = 0; i < sm_levels->num_kw_levels; i++) {
-            num_conf_levels++;
-            if (model_id_ == 0) {
-                for (j = 0; j < sm_levels->kw_levels[i].num_user_levels; j++)
-                    num_conf_levels++;
-            }
-        }
-
-        PAL_DBG(LOG_TAG, "Number of confidence levels : %d", num_conf_levels);
-
-        if (!num_conf_levels) {
-            status = -EINVAL;
-            PAL_ERR(LOG_TAG, "ERROR. Invalid num_conf_levels input");
-            goto exit;
-        }
-
-        conf_levels = (unsigned char*)calloc(1, num_conf_levels);
-        if (!conf_levels) {
-            status = -ENOMEM;
-            PAL_ERR(LOG_TAG, "conf_levels calloc failed, status %d", status);
-            goto exit;
-        }
-
-        user_id_tracker = (unsigned char *)calloc(1, num_conf_levels);
-        if (!user_id_tracker) {
-            status = -ENOMEM;
-            PAL_ERR(LOG_TAG, "failed to allocate user_id_tracker status %d",
-                    status);
-            goto exit;
-        }
-
-        for (i = 0; i < sm_levels->num_kw_levels; i++) {
-            if (i < num_conf_levels) {
-                conf_levels[i] = sm_levels->kw_levels[i].kw_level;
-            } else {
-                status = -EINVAL;
-                PAL_ERR(LOG_TAG, "ERROR. Invalid numver of kw levels");
-                goto exit;
-            }
-            if (model_id_ == 0) {
-                for (j = 0; j < sm_levels->kw_levels[i].num_user_levels; j++) {
-                    user_level = sm_levels->kw_levels[i].user_levels[j].level;
-                    user_id = sm_levels->kw_levels[i].user_levels[j].user_id;
-                    if ((user_id < sm_levels->num_kw_levels) ||
-                        (user_id >= num_conf_levels)) {
-                        status = -EINVAL;
-                        PAL_ERR(LOG_TAG, "ERROR. Invalid params user id %d>%d",
-                                user_id, num_conf_levels);
-                        goto exit;
-                    } else {
-                        if (user_id_tracker[user_id] == 1) {
-                            status = -EINVAL;
-                            PAL_ERR(LOG_TAG, "ERROR. Duplicate user id %d",
-                                    user_id);
-                            goto exit;
-                        }
-                        conf_levels[user_id] = user_level;
-                        user_id_tracker[user_id] = 1;
-                        PAL_ERR(LOG_TAG, "user_conf_levels[%d] = %d",
-                                user_id, conf_levels[user_id]);
-                    }
-                }
-            }
-        }
-    } else {
-        sm_levels_v2 =
-            (struct st_sound_model_conf_levels_v2 *)sm_levels_generic;
-        if (!sm_levels_v2) {
-            status = -EINVAL;
-            PAL_ERR(LOG_TAG, "ERROR. Invalid inputs");
-            goto exit;
-        }
-
-        for (i = 0; i < sm_levels_v2->num_kw_levels; i++) {
-            level = sm_levels_v2->kw_levels[i].kw_level;
-            if (level < 0 || level > ST_MAX_FSTAGE_CONF_LEVEL) {
-                PAL_ERR(LOG_TAG, "Invalid First stage [%d] kw level %d", i, level);
-                status = -EINVAL;
-                goto exit;
-            } else {
-                PAL_DBG(LOG_TAG, "First stage [%d] kw level %d", i, level);
-            }
-            for (j = 0; j < sm_levels_v2->kw_levels[i].num_user_levels; j++) {
-                level = sm_levels_v2->kw_levels[i].user_levels[j].level;
-                if (level < 0 || level > ST_MAX_FSTAGE_CONF_LEVEL) {
-                    PAL_ERR(LOG_TAG, "Invalid First stage [%d] user_id %d level %d", i,
-                        sm_levels_v2->kw_levels[i].user_levels[j].user_id, level);
-                    status = -EINVAL;
-                    goto exit;
-                } else {
-                    PAL_DBG(LOG_TAG, "First stage [%d] user_id %d level %d ", i,
-                        sm_levels_v2->kw_levels[i].user_levels[j].user_id, level);
-                }
-            }
-        }
-
-        for (i = 0; i < sm_levels_v2->num_kw_levels; i++) {
-            num_conf_levels++;
-            if (model_id_ == 0) {
-                for (j = 0; j < sm_levels_v2->kw_levels[i].num_user_levels; j++)
-                    num_conf_levels++;
-            }
-        }
-
-        PAL_DBG(LOG_TAG,"number of confidence levels : %d", num_conf_levels);
-
-        if (!num_conf_levels) {
-            status = -EINVAL;
-            PAL_ERR(LOG_TAG, "ERROR. Invalid num_conf_levels input");
-            goto exit;
-        }
-
-        conf_levels = (unsigned char*)calloc(1, num_conf_levels);
-        if (!conf_levels) {
-            status = -ENOMEM;
-            PAL_ERR(LOG_TAG, "conf_levels calloc failed, status %d", status);
-            goto exit;
-        }
-
-        user_id_tracker = (unsigned char *)calloc(1, num_conf_levels);
-        if (!user_id_tracker) {
-            status = -ENOMEM;
-            PAL_ERR(LOG_TAG, "failed to allocate user_id_tracker status %d",
-                    status);
-            goto exit;
-        }
-
-        for (i = 0; i < sm_levels_v2->num_kw_levels; i++) {
-            if (i < num_conf_levels) {
-                conf_levels[i] = sm_levels_v2->kw_levels[i].kw_level;
-            } else {
-                status = -EINVAL;
-                PAL_ERR(LOG_TAG, "ERROR. Invalid numver of kw levels");
-                goto exit;
-            }
-            if (model_id_ == 0) {
-                for (j = 0; j < sm_levels_v2->kw_levels[i].num_user_levels; j++) {
-                    user_level = sm_levels_v2->kw_levels[i].user_levels[j].level;
-                    user_id = sm_levels_v2->kw_levels[i].user_levels[j].user_id;
-                    if ((user_id < sm_levels_v2->num_kw_levels) ||
-                         (user_id >= num_conf_levels)) {
-                        status = -EINVAL;
-                        PAL_ERR(LOG_TAG, "ERROR. Invalid params user id %d>%d",
-                              user_id, num_conf_levels);
-                        goto exit;
-                    } else {
-                        if (user_id_tracker[user_id] == 1) {
-                            status = -EINVAL;
-                            PAL_ERR(LOG_TAG, "ERROR. Duplicate user id %d",
-                                user_id);
-                            goto exit;
-                        }
-                        conf_levels[user_id] = user_level;
-                        user_id_tracker[user_id] = 1;
-                        PAL_VERBOSE(LOG_TAG, "user_conf_levels[%d] = %d",
-                        user_id, conf_levels[user_id]);
-                    }
-                }
-            }
-        }
-    }
-
-    *out_payload = conf_levels;
-    *out_payload_size = num_conf_levels;
-    PAL_DBG(LOG_TAG, "Returning number of conf levels : %d", *out_payload_size);
-exit:
-    if (status && conf_levels) {
-        free(conf_levels);
-        *out_payload = nullptr;
-        *out_payload_size = 0;
-    }
-
-    if (user_id_tracker)
-        free(user_id_tracker);
 
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
@@ -3020,10 +1774,6 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
             if(st_stream_.gsl_engine_)
                 st_stream_.gsl_engine_->DetachStream(&st_stream_, true);
             st_stream_.reader_list_.clear();
-            if (st_stream_.sm_info_) {
-                delete st_stream_.sm_info_;
-                st_stream_.sm_info_ = nullptr;
-            }
 
             st_stream_.rm->resetStreamInstanceID(
                 &st_stream_,
@@ -3235,10 +1985,6 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
             st_stream_.engines_.clear();
             st_stream_.gsl_engine_->DetachStream(&st_stream_, true);
             st_stream_.reader_list_.clear();
-            if (st_stream_.sm_info_) {
-                delete st_stream_.sm_info_;
-                st_stream_.sm_info_ = nullptr;
-            }
 
             st_stream_.rm->resetStreamInstanceID(
                 &st_stream_,
@@ -4309,9 +3055,9 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
 
                 for (auto& eng : st_stream_.engines_) {
                     if ((data->det_type_ == USER_VERIFICATION_REJECT &&
-                        eng->GetEngine()->GetEngineType() & ST_SM_ID_SVA_S_STAGE_KWD) ||
+                        eng->GetEngineId() & ST_SM_ID_SVA_S_STAGE_KWD) ||
                         (data->det_type_ == KEYWORD_DETECTION_REJECT &&
-                        eng->GetEngine()->GetEngineType() & ST_SM_ID_SVA_S_STAGE_USER)) {
+                        eng->GetEngineId() & ST_SM_ID_SVA_S_STAGE_USER)) {
 
                         status = eng->GetEngine()->StopRecognition(&st_stream_);
                         if (status) {

@@ -1,6 +1,5 @@
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -29,36 +28,7 @@
  *
  * Changes from Qualcomm Innovation Center are provided under the following license:
  * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted (subject to the limitations in the
- * disclaimer below) provided that the following conditions are met:
- *
- *   * Redistributions of source code must retain the above copyright
- *     notice, this list of conditions and the following disclaimer.
- *
- *   * Redistributions in binary form must reproduce the above
- *     copyright notice, this list of conditions and the following
- *     disclaimer in the documentation and/or other materials provided
- *     with the distribution.
- *
- *   * Neither the name of Qualcomm Innovation Center, Inc. nor the names of its
- *     contributors may be used to endorse or promote products derived
- *     from this software without specific prior written permission.
- *
- * NO EXPRESS OR IMPLIED LICENSES TO ANY PARTY'S PATENT RIGHTS ARE
- * GRANTED BY THIS LICENSE. THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT
- * HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED
- * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
- * IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
- * ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE
- * GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
- * IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
- * OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
- * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ * SPDX-License-Identifier: BSD-3-Clause-Clear
  */
 
 /** \file pal_defs.h
@@ -794,7 +764,7 @@ enum {
 /** metadata flags, can be OR'able */
 typedef uint32_t pal_meta_data_flags_t;
 
-typedef struct pal_extern_alloc_buff_info{
+typedef struct pal_extern_alloc_buff_info {
     int      alloc_handle;/**< unique memory handle identifying extern mem allocation */
     uint32_t alloc_size;  /**< size of external allocation */
     uint32_t offset;      /**< offset of buffer within extern allocation */
@@ -802,7 +772,7 @@ typedef struct pal_extern_alloc_buff_info{
 
 /** PAL buffer structure used for reading/writing buffers from/to the stream */
 struct pal_buffer {
-    uint8_t *buffer;                  /**<  buffer pointer */
+    uint8_t *buffer;               /**<  buffer pointer */
     size_t size;                   /**< number of bytes */
     size_t offset;                 /**< offset in buffer from where valid byte starts */
     struct timespec *ts;           /**< timestmap */
@@ -810,6 +780,22 @@ struct pal_buffer {
     size_t metadata_size;          /**< size of metadata buffer in bytes */
     uint8_t *metadata;             /**< metadata buffer. Can contain multiple metadata*/
     pal_extern_alloc_buff_info_t alloc_info; /**< holds info for extern buff */
+    uint64_t frame_index;          /**< frame index of the buffer */
+};
+
+struct pal_clbk_buffer_info {
+    uint64_t frame_index;       /**< frame index of the buffer */
+    uint32_t sample_rate;       /**< updated sample rate */
+    uint32_t bit_width;         /**< updated bit width */
+    uint16_t channel_count;     /**< updated channel count */
+};
+
+struct pal_callback_buffer {
+    uint8_t *buffer;               /**<  buffer pointer */
+    size_t size;                   /**< filled length of the buffer */
+    struct timespec *ts;           /**< timestamp */
+    uint32_t status;               /**< status of callback payload */
+    struct pal_clbk_buffer_info cb_buf_info;   /**< callback buffer info */
 };
 
 /** pal_mmap_buffer flags */
@@ -963,6 +949,7 @@ typedef enum {
     PAL_PARAM_ID_SET_SOURCE_METADATA = 60,
     PAL_PARAM_ID_SET_SINK_METADATA = 61,
     PAL_PARAM_ID_ULTRASOUND_RAMPDOWN = 62,
+    PAL_PARAM_ID_VOLUME_CTRL_RAMP = 63,
 } pal_param_id_type_t;
 
 /** HDMI/DP */
@@ -1001,6 +988,10 @@ struct pal_amp_db_and_gain_table {
     float    amp;
     float    db;
     uint32_t level;
+};
+
+struct pal_vol_ctrl_ramp_param {
+   uint32_t ramp_period_ms;
 };
 
 /* Payload For ID: PAL_PARAM_ID_DEVICE_CONNECTION

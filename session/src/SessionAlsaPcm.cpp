@@ -865,25 +865,10 @@ int SessionAlsaPcm::start(Stream * s)
                 txAifBackEnds[0].second.data(), tagId, (void *)&event_cfg,
                 payload_size);
     } else if(sAttr.type == PAL_STREAM_ACD) {
-        if (eventPayload) {
-            payload_size = sizeof(struct agm_event_reg_cfg) + eventPayloadSize;
-
-            acd_event_cfg = (struct agm_event_reg_cfg *)calloc(1, payload_size);
-            if (acd_event_cfg) {
-                acd_event_cfg->event_id = eventId;
-                acd_event_cfg->event_config_payload_size = eventPayloadSize;
-                acd_event_cfg->is_register = 1;
-                memcpy(acd_event_cfg->event_config_payload, eventPayload, eventPayloadSize);
-                SessionAlsaUtils::registerMixerEvent(mixer, pcmDevIds.at(0),
-                    txAifBackEnds[0].second.data(), CONTEXT_DETECTION_ENGINE, (void *)acd_event_cfg,
-                    payload_size);
-                free(acd_event_cfg);
-            } else {
-                PAL_ERR(LOG_TAG, "get acd_event_cfg instance memory allocation failed");
-                status = -ENOMEM;
-                goto exit;
-            }
-        }
+        PAL_DBG(LOG_TAG, "register ACD models");
+        SessionAlsaUtils::setMixerParameter(mixer, pcmDevIds.at(0),
+                                            customPayload, customPayloadSize);
+        freeCustomPayload();
     } else if(sAttr.type == PAL_STREAM_CONTEXT_PROXY) {
         status = register_asps_event(1);
     }
@@ -1049,10 +1034,37 @@ set_mixer:
                     if (status)
                         PAL_ERR(LOG_TAG, "Failed to set incall record params status = %d", status);
                 }
-            } else if (sAttr.type == PAL_STREAM_VOICE_UI || (sAttr.type == PAL_STREAM_ACD)) {
+            } else if (sAttr.type == PAL_STREAM_VOICE_UI) {
                 SessionAlsaUtils::setMixerParameter(mixer,
                     pcmDevIds.at(0), customPayload, customPayloadSize);
-                freeCustomPayload();            }
+                freeCustomPayload();
+            } else if (sAttr.type == PAL_STREAM_ACD) {
+                if (eventPayload) {
+                    PAL_DBG(LOG_TAG, "register ACD events");
+                    payload_size = sizeof(struct agm_event_reg_cfg) + eventPayloadSize;
+
+                    acd_event_cfg = (struct agm_event_reg_cfg *)calloc(1, payload_size);
+                    if (acd_event_cfg) {
+                        acd_event_cfg->event_id = eventId;
+                        acd_event_cfg->event_config_payload_size = eventPayloadSize;
+                        acd_event_cfg->is_register = 1;
+                        memcpy(acd_event_cfg->event_config_payload, eventPayload, eventPayloadSize);
+                        SessionAlsaUtils::registerMixerEvent(mixer, pcmDevIds.at(0),
+                                                             txAifBackEnds[0].second.data(),
+                                                             CONTEXT_DETECTION_ENGINE,
+                                                             (void *)acd_event_cfg,
+                                                             payload_size);
+                        free(acd_event_cfg);
+                    } else {
+                        PAL_ERR(LOG_TAG, "get acd_event_cfg instance memory allocation failed");
+                        status = -ENOMEM;
+                        goto exit;
+                    }
+                } else {
+                    PAL_INFO(LOG_TAG, "eventPayload is NULL");
+                }
+            }
+
             if (ResourceManager::isLpiLoggingEnabled()) {
                 struct audio_route *audioRoute;
 
@@ -1458,8 +1470,10 @@ int SessionAlsaPcm::stop(Stream * s)
                 txAifBackEnds[0].second.data(), tagId, (void *)&event_cfg,
                 payload_size);
     } else if (sAttr.type == PAL_STREAM_ACD) {
-        if (eventPayload == NULL)
+        if (eventPayload == NULL) {
+            PAL_INFO(LOG_TAG, "eventPayload is NULL");
             goto exit;
+        }
 
         payload_size = sizeof(struct agm_event_reg_cfg);
         memset(&event_cfg, 0, sizeof(event_cfg));
@@ -2286,6 +2300,25 @@ int SessionAlsaPcm::setParameters(Stream *streamHandle, int tagId, uint32_t para
             break;
         }
 
+        case PAL_PARAM_ID_VOLUME_CTRL_RAMP:
+        {
+            struct pal_vol_ctrl_ramp_param *rampParam = (struct pal_vol_ctrl_ramp_param *)payload;
+            status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
+                               rxAifBackEnds[0].second.data(), tagId, &miid);
+            if (0 != status) {
+                PAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", tagId, status);
+                return status;
+            }
+            builder->payloadVolumeCtrlRamp(&paramData, &paramSize,
+                 miid, rampParam->ramp_period_ms);
+            if (paramSize) {
+                status = SessionAlsaUtils::setMixerParameter(mixer, device,
+                                               paramData, paramSize);
+                PAL_INFO(LOG_TAG, "mixer set vol ctrl ramp status=%d\n", status);
+                freeCustomPayload(&paramData, &paramSize);
+            }
+            return 0;
+        }
         default:
             status = -EINVAL;
             PAL_ERR(LOG_TAG, "Unsupported param id %u status %d", param_id, status);

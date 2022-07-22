@@ -106,6 +106,7 @@ StreamCompress::StreamCompress(const struct pal_stream_attributes *sattr, struct
     mVolumeData->volume_pair[0].channel_mask = 0x03;
     mVolumeData->volume_pair[0].vol = 1.0f;
 
+    volRampPeriodms = 0x28;
     mStreamAttr = (struct pal_stream_attributes *)calloc(1, sizeof(struct pal_stream_attributes));
     if (!mStreamAttr) {
         PAL_ERR(LOG_TAG, "malloc for stream attributes failed");
@@ -798,7 +799,7 @@ int32_t StreamCompress::setVolume(struct pal_volume_data *volume)
     memset(&vol_set_param_info, 0, sizeof(struct volume_set_param_info));
     rm->getVolumeSetParamInfo(&vol_set_param_info);
     if (rm->cardState == CARD_STATUS_ONLINE && currentState != STREAM_IDLE
-        && currentState != STREAM_INIT) {
+        && currentState != STREAM_INIT && !isPaused) {
         bool isStreamAvail = (find(vol_set_param_info.streams_.begin(),
                     vol_set_param_info.streams_.end(), mStreamAttr->type) !=
                     vol_set_param_info.streams_.end());
@@ -853,7 +854,10 @@ int32_t StreamCompress::pause_l()
 {
     int32_t status = 0;
     std::unique_lock<std::mutex> pauseLock(pauseMutex);
-
+    struct pal_vol_ctrl_ramp_param ramp_param;
+    struct pal_volume_data *volume = NULL;
+    uint8_t volSize = 0;
+    struct pal_volume_data *voldata = NULL;
     //AF will try to pause the stream during SSR.
     if (rm->cardState == CARD_STATUS_OFFLINE) {
         status = -EINVAL;
@@ -865,7 +869,49 @@ int32_t StreamCompress::pause_l()
     PAL_DBG(LOG_TAG,"Enter, session handle - %p, state %d",
                session, currentState);
 
-    if (currentState != STREAM_PAUSED) {
+    if ((currentState == STREAM_PAUSED) && isPaused) {
+        PAL_INFO(LOG_TAG, "Stream is already paused");
+    } else {
+        //caching the volume before setting it to 0
+        voldata = (struct pal_volume_data *)calloc(1, (sizeof(uint32_t) +
+                          (sizeof(struct pal_channel_vol_kv) * (0xFFFF))));
+        if (!voldata) {
+            status = -ENOMEM;
+            goto exit;
+        }
+
+        status = this->getVolumeData(voldata);
+        if (0 != status) {
+            PAL_ERR(LOG_TAG,"getVolumeData Failed \n");
+            goto exit;
+        }
+        /* set ramp period to 0 */
+        ramp_param.ramp_period_ms = 0;
+        status = session->setParameters(this, TAG_STREAM_VOLUME, PAL_PARAM_ID_VOLUME_CTRL_RAMP, &ramp_param);
+        if (0 != status)
+            PAL_ERR(LOG_TAG, "session setParam for vol ctrl ramp failed with status %d", status);
+
+        volSize = sizeof(uint32_t) + (sizeof(struct pal_channel_vol_kv) * (voldata->no_of_volpair));
+        volRampPeriodms = 0;
+        status = 0; /* not fatal , reset status to 0 */
+        /* set volume to 0 */
+        volume = (struct pal_volume_data *)malloc(sizeof(struct pal_volume_data)
+                    +sizeof(struct pal_channel_vol_kv));
+        if (!volume) {
+            PAL_ERR(LOG_TAG, "Failed to allocate mem for volume");
+            status = -ENOMEM;
+            goto exit;
+        }
+        volume->no_of_volpair = 1;
+        volume->volume_pair[0].channel_mask = 0x03;
+        volume->volume_pair[0].vol = 0x0;
+        setVolume(volume);
+        ar_mem_cpy(mVolumeData, volSize, voldata, volSize);
+        free(volume);
+        free(voldata);
+        volume = NULL;
+        voldata = NULL;
+
         status = session->setConfig(this, MODULE, PAUSE_TAG);
         if (0 != status) {
             PAL_ERR(LOG_TAG,"session setConfig for pause failed with status %d",status);
@@ -879,8 +925,6 @@ int32_t StreamCompress::pause_l()
         isPaused = true;
         currentState = STREAM_PAUSED;
         PAL_VERBOSE(LOG_TAG,"session pause successful, state %d", currentState);
-    } else {
-       PAL_INFO(LOG_TAG, "Stream is already paused");
     }
 
 exit:
@@ -901,6 +945,8 @@ int32_t StreamCompress::pause()
 int32_t StreamCompress::resume_l()
 {
     int32_t status = 0;
+    struct pal_vol_ctrl_ramp_param ramp_param;
+    struct pal_volume_data *voldata = NULL;
 
     if (rm->cardState == CARD_STATUS_OFFLINE) {
         status = -EINVAL;
@@ -917,7 +963,35 @@ int32_t StreamCompress::resume_l()
        goto exit;
     }
 
+    /* set ramp period to default */
+    if (volRampPeriodms == 0) {
+        ramp_param.ramp_period_ms = 0x28;
+        status = session->setParameters(this, TAG_STREAM_VOLUME, PAL_PARAM_ID_VOLUME_CTRL_RAMP, &ramp_param);
+        if (0 != status) {
+            PAL_ERR(LOG_TAG, "session setParam for vol ctrl ramp failed with status %d", status);
+        } else {
+            volRampPeriodms = 0x28;
+        }
+        status = 0;
+    }
+
     isPaused = false;
+
+    //since we set the volume to 0 in pause, in resume we need to set vol back to default
+    voldata = (struct pal_volume_data *)calloc(1, (sizeof(uint32_t) +
+                      (sizeof(struct pal_channel_vol_kv) * (0xFFFF))));
+    if (!voldata) {
+        status = -ENOMEM;
+        goto exit;
+    }
+
+    status = this->getVolumeData(voldata);
+    if (0 != status) {
+        PAL_ERR(LOG_TAG,"getVolumeData Failed \n");
+        goto exit;
+    }
+    setVolume(voldata);
+    free(voldata);
     PAL_VERBOSE(LOG_TAG,"session resume successful, state %d", currentState);
 
 exit:

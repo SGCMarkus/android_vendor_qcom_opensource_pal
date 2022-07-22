@@ -1,6 +1,5 @@
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -26,6 +25,11 @@
  * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
  * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Changes from Qualcomm Innovation Center are provided under the following license:
+ *
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause-Clear
  */
 
 #define ATRACE_TAG (ATRACE_TAG_AUDIO | ATRACE_TAG_HAL)
@@ -39,6 +43,10 @@
 #include "StreamSoundTrigger.h"
 #include "Stream.h"
 #include "SoundTriggerPlatformInfo.h"
+#include "VoiceUIInterface.h"
+
+#define CNN_BUFFER_LENGTH 10000
+#define CNN_FRAME_SIZE 320
 
 ST_DBG_DECLARE(static int keyword_detection_cnt = 0);
 ST_DBG_DECLARE(static int user_verification_cnt = 0);
@@ -316,6 +324,8 @@ int32_t SoundTriggerEngineCapi::StartKeywordDetection()
             PAL_INFO(LOG_TAG, "KW Second Stage rejected");
         }
         det_conf_score_ = result_cfg_ptr->best_confidence;
+        vui_intf_->SetSecondStageDetLevels(stream_handle_,
+            engine_type_, det_conf_score_);
         PAL_INFO(LOG_TAG, "KW second stage conf level %d", det_conf_score_);
 
         if (!first_buffer_processed) {
@@ -464,8 +474,8 @@ int32_t SoundTriggerEngineCapi::StartUserVerification()
     }
 
     str = dynamic_cast<StreamSoundTrigger *>(stream_handle_);
-    if (str->GetModelType() == ST_MODULE_TYPE_GMM) {
-        info = str->GetDetectionEventInfo();
+    if (vui_intf_->GetModuleType(stream_handle_) == ST_MODULE_TYPE_GMM) {
+        info = (struct detection_event_info *)vui_intf_->GetDetectionEventInfo();
         if (!info) {
             status = -EINVAL;
             PAL_ERR(LOG_TAG, "Failed to get detection event info");
@@ -585,6 +595,8 @@ int32_t SoundTriggerEngineCapi::StartUserVerification()
             PAL_INFO(LOG_TAG, "UV Second Stage Rejected");
         }
         det_conf_score_ = (int32_t)result_cfg_ptr->final_user_score;
+        vui_intf_->SetSecondStageDetLevels(stream_handle_,
+            engine_type_, det_conf_score_);
         PAL_INFO(LOG_TAG, "UV second stage conf level %d", det_conf_score_);
     }
 
@@ -642,6 +654,7 @@ SoundTriggerEngineCapi::SoundTriggerEngineCapi(
     PAL_DBG(LOG_TAG, "Enter");
     engine_type_ = type;
     sm_cfg_ = sm_cfg;
+    vui_intf_ = nullptr;
     processing_started_ = false;
     sm_data_ = nullptr;
     exit_thread_ = false;

@@ -25,6 +25,10 @@
  * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
  * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Changes from Qualcomm Innovation Center are provided under the following license:
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause-Clear
  */
 
 package vendor.qti.hardware.pal@1.0;
@@ -267,14 +271,28 @@ struct PalExternAllocBuffInfo{
 
 /** PAL buffer structure used for reading/writing buffers from/to the stream */
 struct PalBuffer {
-    vec<uint8_t> buffer;                //  buffer pointer
+    vec<uint8_t> buffer;                // buffer pointer
     uint32_t size;                      // number of bytes
     uint32_t offset;                    // offset in buffer from where valid byte starts
-    TimeSpec timeStamp;                 // timestmap
-    uint32_t flags;             // meta data flags
-    uint32_t metadataSz;
-    vec<uint8_t> metadata;
-    PalExternAllocBuffInfo alloc_info; /**< holds info for extern buff */
+    TimeSpec timeStamp;                 // timestamp
+    uint32_t flags;                     // stream flags
+    PalExternAllocBuffInfo alloc_info;  // holds info for extern buff
+    uint64_t frame_index;               // frame index of the buffer
+};
+
+struct PalCallbackBufferInfo {
+    uint64_t frame_index;       // frame index of the buffer
+    uint32_t sample_rate;       // updated sample rate
+    uint32_t bit_width;         // updated bit width
+    uint16_t channel_count;     // updated channel count
+};
+
+struct PalCallbackBuffer {
+    vec<uint8_t> buffer;                // buffer pointer
+    uint32_t size;                      // filled length of the buffer
+    TimeSpec timeStamp;                 // timestamp
+    uint32_t status;                    // status of payload
+    PalCallbackBufferInfo cbBufInfo;    // buffer info
 };
 
 struct PalChannelVolKv {
@@ -371,4 +389,32 @@ struct PalMmapPosition {
     int64_t  time_nanoseconds; /**< timestamp in ns, CLOCK_MONOTONIC */
     int32_t  position_frames;  /**< increasing 32 bit frame count reset when stop()
                                     is called */
+};
+
+/**
+  * The message queue flags used to synchronize reads and writes from
+  * message queues used by PAL
+  */
+enum PalMessageQueueFlagBits : uint32_t {
+    NOT_EMPTY = 1 << 0,
+    NOT_FULL = 1 << 1
+};
+
+enum PalReadWriteDoneResult : int32_t {
+    OK,
+    NOT_INITIALIZED,
+    INVALID_ARGUMENTS,
+    INVALID_STATE,
+    NOT_SUPPORTED
+};
+
+/**
+  * Commands that can be executed on the driver read/write done thread.
+  */
+enum PalReadWriteDoneCommand : int32_t {
+    WRITE_READY,
+    DRAIN_READY,
+    PARTIAL_DRAIN_READY,
+    READ_DONE,
+    ERROR
 };

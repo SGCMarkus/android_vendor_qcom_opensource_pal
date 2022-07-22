@@ -3183,8 +3183,104 @@ bool isStreamActive(T s, std::list<T> &streams)
     return ret;
 }
 
-int ResourceManager::isActiveStream(Stream *s) {
-    return isStreamActive(s, mActiveStreams);
+int ResourceManager::isActiveStream(pal_stream_handle_t *handle) {
+    for (auto &s : mActiveStreams) {
+        if (handle == reinterpret_cast<uint64_t *>(s)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+int ResourceManager::initStreamUserCounter(Stream *s)
+{
+    mActiveStreamUserCounter.insert(std::make_pair(s, 0));
+    return 0;
+}
+
+int ResourceManager::deinitStreamUserCounter(Stream *s)
+{
+    std::map<Stream *, uint32_t>::iterator it;
+    printStreamUserCounter(s);
+    it = mActiveStreamUserCounter.find(s);
+    if (it != mActiveStreamUserCounter.end()) {
+        PAL_INFO(LOG_TAG, "stream %p is to be erased.", s);
+        mActiveStreamUserCounter.erase(it);
+        return 0;
+    } else {
+        PAL_ERR(LOG_TAG, "stream %p is not found.", s);
+        return -EINVAL;
+    }
+}
+
+int ResourceManager::increaseStreamUserCounter(Stream* s)
+{
+    std::map<Stream *, uint32_t>::iterator it;
+    printStreamUserCounter(s);
+    it = mActiveStreamUserCounter.find(s);
+    if (it != mActiveStreamUserCounter.end()) {
+        if (0 == it->second) {
+            s->waitStreamSmph();
+            PAL_DBG(LOG_TAG, "stream %p in use", s);
+        }
+        PAL_DBG(LOG_TAG, "stream %p counter was %d", s, it->second);
+        it->second = it->second + 1;
+        PAL_DBG(LOG_TAG, "stream %p counter increased to %d", s, it->second);
+        return 0;
+    } else {
+        PAL_ERR(LOG_TAG, "stream %p is not found.");
+        return -EINVAL;
+    }
+}
+
+int ResourceManager::decreaseStreamUserCounter(Stream* s)
+{
+    std::map<Stream *, uint32_t>::iterator it;
+    printStreamUserCounter(s);
+    it = mActiveStreamUserCounter.find(s);
+    if (it != mActiveStreamUserCounter.end()) {
+        PAL_DBG(LOG_TAG, "stream %p counter was %d", s, it->second);
+        if (0 == it->second) {
+            PAL_ERR(LOG_TAG, "counter of stream %p has already been 0.");
+            return -EINVAL;
+        }
+
+        it->second = it->second - 1;
+        if (0 == it->second) {
+            PAL_DBG(LOG_TAG, "stream %p not in use", s);
+            s->postStreamSmph();
+        }
+        PAL_DBG(LOG_TAG, "stream %p counter decreased to %d", s, it->second);
+        return 0;
+    } else {
+        PAL_ERR(LOG_TAG, "stream %p is not found.");
+        return -EINVAL;
+    }
+}
+
+int ResourceManager::getStreamUserCounter(Stream *s)
+{
+    std::map<Stream *, uint32_t>::iterator it;
+    printStreamUserCounter(s);
+    it = mActiveStreamUserCounter.find(s);
+    if (it != mActiveStreamUserCounter.end()) {
+        return it->second;
+    } else {
+        PAL_ERR(LOG_TAG, "stream %p is not found.");
+        return -EINVAL;
+    }
+}
+
+int ResourceManager::printStreamUserCounter(Stream *s)
+{
+    std::map<Stream *, uint32_t>::iterator it;
+    for (it = mActiveStreamUserCounter.begin();
+            it != mActiveStreamUserCounter.end(); it++) {
+        PAL_VERBOSE(LOG_TAG, "stream = %p count = %d",
+                    it->first, it->second);
+    }
+
+    return 0;
 }
 
 // check if any of the ec device supports external ec
@@ -6506,11 +6602,15 @@ bool ResourceManager::compareSharedBEStreamDevAttr(std::vector <std::tuple<Strea
                     sharedBEDevAttr = (struct pal_device *) calloc(1, sizeof(struct pal_device));
                     if (!sharedBEDevAttr) {
                         PAL_ERR(LOG_TAG, "failed to allocate memory for pal device");
+                        for (auto it = streamDevAttr.begin(); it != streamDevAttr.end(); it++)
+                            free((*it).second);
                         return switchStreams;
                     }
                     status = palDevices[i]->getTopPriorityDeviceAttr(sharedBEDevAttr, &sharedBEStreamPrio);
                     if (status == 0)
                         streamDevAttr.insert(std::make_pair(sharedBEStreamPrio, sharedBEDevAttr));
+                    else
+                        free(sharedBEDevAttr);
                 }
             }
             palDevices.clear();
@@ -6521,11 +6621,26 @@ bool ResourceManager::compareSharedBEStreamDevAttr(std::vector <std::tuple<Strea
          */
         if (!streamDevAttr.empty()) {
             auto it = streamDevAttr.begin();
+            bool skipDevAttrDiffer = false;
             ar_mem_cpy(newDevAttr, sizeof(struct pal_device),
                     (*it).second, sizeof(struct pal_device));
 
             curDev->getDeviceAttributes(&curDevAttr);
-            if (doDevAttrDiffer(newDevAttr, &curDevAttr))
+            /*
+             * special case for speaker, avoid restoredevice if only bit-width is different and
+             * the closed stream has higher bit-width.
+             * TODO: remove it when we confirm there is no any impact to add 24bit limit in RM.xml.
+             */
+            if (curDevAttr.id == newDevAttr->id &&
+                curDevAttr.id == PAL_DEVICE_OUT_SPEAKER &&
+                newDevAttr->config.bit_width < curDevAttr.config.bit_width &&
+                newDevAttr->config.sample_rate == curDevAttr.config.sample_rate &&
+                newDevAttr->config.ch_info.channels == curDevAttr.config.ch_info.channels) {
+                switchStreams = false;
+                skipDevAttrDiffer = true;
+            }
+
+            if (!skipDevAttrDiffer && doDevAttrDiffer(newDevAttr, &curDevAttr))
                 switchStreams = true;
 
             for (auto it = streamDevAttr.begin(); it != streamDevAttr.end(); it++)
@@ -8189,15 +8304,19 @@ int ResourceManager::getParameter(uint32_t param_id, void *param_payload,
         {
             bool match = false;
             std::list<Stream*>::iterator sIter;
-            mActiveStreamMutex.lock();
+            lockActiveStream();
             for(sIter = mActiveStreams.begin(); sIter != mActiveStreams.end(); sIter++) {
                 match = (*sIter)->checkStreamMatch(pal_device_id, pal_stream_type);
                 if (match) {
+                    increaseStreamUserCounter(*sIter);
+                    unlockActiveStream();
                     status = (*sIter)->getEffectParameters(param_payload);
+                    lockActiveStream();
+                    decreaseStreamUserCounter(*sIter);
                     break;
                 }
             }
-            mActiveStreamMutex.unlock();
+            unlockActiveStream();
             break;
         }
         default:
@@ -9011,19 +9130,22 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                        goto exit;
                     }
 
-                    stream = static_cast<Stream *>(activestreams[0]);
-                    stream->getStreamAttributes(&sAttr);
-                    if ((sAttr.direction == PAL_AUDIO_OUTPUT) &&
-                        ((sAttr.type == PAL_STREAM_LOW_LATENCY) ||
-                        (sAttr.type == PAL_STREAM_DEEP_BUFFER) ||
-                        (sAttr.type == PAL_STREAM_COMPRESSED) ||
-                        (sAttr.type == PAL_STREAM_PCM_OFFLOAD))) {
-                        stream->getAssociatedSession(&session);
-                        status = session->setParameters(stream, TAG_MODULE_MSPP, param_id, param_payload);
-                        if (0 != status) {
-                            PAL_ERR(LOG_TAG, "session setConfig failed with status %d", status);
-                            goto exit;
-                        }
+                    for (int j = 0; j < activestreams.size(); j++) {
+                       stream = static_cast<Stream *>(activestreams[j]);
+                       stream->getStreamAttributes(&sAttr);
+                       if ((sAttr.direction == PAL_AUDIO_OUTPUT) &&
+                           ((sAttr.type == PAL_STREAM_LOW_LATENCY) ||
+                           (sAttr.type == PAL_STREAM_DEEP_BUFFER) ||
+                           (sAttr.type == PAL_STREAM_COMPRESSED) ||
+                           (sAttr.type == PAL_STREAM_PCM_OFFLOAD))) {
+                           stream->getAssociatedSession(&session);
+                           status = session->setParameters(stream, TAG_MODULE_MSPP,
+                               param_id, param_payload);
+                           if (0 != status) {
+                               PAL_ERR(LOG_TAG, "session setConfig failed. stream: %d, status: %d",
+                                      sAttr.type, status);
+                           }
+                       }
                     }
                 }
             }
@@ -9087,7 +9209,7 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
         case PAL_PARAM_ID_UIEFFECT:
         {
             bool match = false;
-            mActiveStreamMutex.lock();
+            lockActiveStream();
             std::list<Stream*>::iterator sIter;
             for(sIter = mActiveStreams.begin(); sIter != mActiveStreams.end();
                     sIter++) {
@@ -9095,7 +9217,11 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                     match = (*sIter)->checkStreamMatch(pal_device_id,
                                                        pal_stream_type);
                     if (match) {
-                        status = (*sIter)->setEffectParameters(param_payload);
+                        increaseStreamUserCounter(*sIter);
+                        unlockActiveStream();
+                        status = (*sIter)->setParameters(param_id, param_payload);
+                        lockActiveStream();
+                        decreaseStreamUserCounter(*sIter);
                         if (status) {
                             PAL_ERR(LOG_TAG, "failed to set param for pal_device_id=%x stream_type=%x",
                                    pal_device_id, pal_stream_type);
@@ -9105,7 +9231,7 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                     PAL_ERR(LOG_TAG, "There is no active stream.");
                 }
             }
-            mActiveStreamMutex.unlock();
+            unlockActiveStream();
         }
         break;
         default:
@@ -9508,7 +9634,7 @@ int ResourceManager::handleDeviceConnectionChange(pal_param_device_connection_t 
             removePlugInDevice(device_id, connection_state);
         }
 
-        if (device_id) {
+        if (isValidDevId(device_id)) {
             auto iter =
                 std::find(avail_devices_.begin(), avail_devices_.end(),
                             device_id);
@@ -11108,6 +11234,11 @@ bool ResourceManager::doDevAttrDiffer(struct pal_device *inDevAttr,
 {
     bool ret = false;
     std::shared_ptr<Device> dev = nullptr;
+
+    if (!inDevAttr->id || !curDevAttr->id) {
+        PAL_DBG(LOG_TAG, "Invalid input or output device attribute");
+        goto exit;
+    }
 
     dev = Device::getInstance(curDevAttr, rm);
     if (!dev) {

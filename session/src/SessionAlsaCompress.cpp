@@ -665,7 +665,7 @@ void SessionAlsaCompress::offloadThreadLoop(SessionAlsaCompress* compressObj)
                 event_id = PAL_STREAM_CBK_EVENT_ERROR;
             }
             if (compressObj->sessionCb)
-                compressObj->sessionCb(compressObj->cbCookie, event_id, NULL, 0);
+                compressObj->sessionCb(compressObj->cbCookie, event_id, (void*)NULL, 0);
 
             lock.lock();
         }
@@ -1447,6 +1447,15 @@ int SessionAlsaCompress::start(Stream * s)
                 }
             }
 
+            if (!capture_started) {
+                status = compress_start(compress);
+                if (status) {
+                    PAL_ERR(LOG_TAG, "compress start failed with err %d", status);
+                    return status;
+                }
+                capture_started = true;
+            }
+
             break;
         default:
             break;
@@ -1639,9 +1648,6 @@ int SessionAlsaCompress::close(Stream * s)
             }
             PAL_DBG(LOG_TAG, "out of compress close");
 
-            rm->freeFrontEndIds(compressDevIds, sAttr, 0);
-            freeCustomPayload();
-
             // Deregister for mixer event callback
             if (isPauseRegistrationDone) {
                 status = rm->registerMixerEventCallback(compressDevIds, sessionCb, cbCookie,
@@ -1651,6 +1657,9 @@ int SessionAlsaCompress::close(Stream * s)
                     status = 0;
                 }
             }
+
+            rm->freeFrontEndIds(compressDevIds, sAttr, 0);
+            freeCustomPayload();
             break;
 
         case PAL_AUDIO_INPUT:
@@ -1702,15 +1711,6 @@ int SessionAlsaCompress::read(Stream *s, int tag __unused,
         return status;
     }
 
-    /* Upon first read start the the capture */
-    if (!capture_started) {
-        status = compress_start(compress);  // for capture usecase
-        if (status) {
-            PAL_ERR(LOG_TAG, "compress start failed with err %d", status);
-            return status;
-        }
-        capture_started = true;
-    }
 
     void *data = buf->buffer;
     data = static_cast<char *>(data) + offset;
@@ -1999,6 +1999,21 @@ int SessionAlsaCompress::setParameters(Stream *s __unused, int tagId, uint32_t p
             return 0;
         }
         break;
+        case PAL_PARAM_ID_VOLUME_CTRL_RAMP:
+        {
+            struct pal_vol_ctrl_ramp_param *rampParam = (struct pal_vol_ctrl_ramp_param *)payload;
+            status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
+                               rxAifBackEnds[0].second.data(), tagId, &miid);
+            builder->payloadVolumeCtrlRamp(&alsaParamData, &alsaPayloadSize,
+                 miid, rampParam->ramp_period_ms);
+            if (alsaPayloadSize) {
+                status = SessionAlsaUtils::setMixerParameter(mixer, device,
+                                               alsaParamData, alsaPayloadSize);
+                PAL_INFO(LOG_TAG, "mixer set vol ctrl ramp status=%d\n", status);
+                freeCustomPayload(&alsaParamData, &alsaPayloadSize);
+            }
+            break;
+        }
         default:
             PAL_INFO(LOG_TAG, "Unsupported param id %u", param_id);
         break;

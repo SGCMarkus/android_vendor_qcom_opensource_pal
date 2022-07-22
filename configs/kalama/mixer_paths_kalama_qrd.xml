@@ -598,6 +598,11 @@
         <path name="amic1" />
     </path>
 
+    <path name="handset-mic-unprocessed">
+        <path name="dmic2" />
+        <ctl name="TX_DEC2 Volume" value="102" />
+    </path>
+
     <path name="ultrasound-handset">
         <ctl name="WSA RX_MIX0 MUX" value="AIF_MIX1_PB" />
         <ctl name="WSA_RX0 MIX INP" value="RX_MIX0" />
@@ -784,6 +789,22 @@
 
     <path name="speaker-and-line-liquid">
         <path name="speaker-and-headphones-liquid" />
+    </path>
+
+    <path name="usb-headphones">
+    </path>
+
+    <path name="usb-headset">
+    </path>
+
+    <path name="speaker-and-usb-headphones">
+        <path name="speaker" />
+        <path name="usb-headphones" />
+    </path>
+
+    <path name="speaker-safe-and-usb-headphones">
+        <path name="speaker-safe" />
+        <path name="usb-headphones" />
     </path>
 
     <path name="bt-sco">
