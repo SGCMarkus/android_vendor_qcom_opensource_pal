@@ -171,7 +171,6 @@ error_exit:
     }
     model_list.clear();
 
-exit:
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
 }
@@ -321,7 +320,6 @@ error_exit:
         st_conf_levels_v2_ = nullptr;
     }
 
-exit:
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
 }

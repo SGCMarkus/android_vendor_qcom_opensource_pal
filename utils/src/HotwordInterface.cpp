@@ -88,7 +88,6 @@ error_exit:
     }
     model_list.clear();
 
-exit:
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
 }
