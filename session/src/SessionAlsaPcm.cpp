@@ -1195,6 +1195,35 @@ set_mixer:
                     PAL_ERR(LOG_TAG,"setMixerParameter failed for MSPP module");
                     goto pcm_start;
                 }
+
+                status = SessionAlsaUtils::getModuleInstanceId(mixer, pcmDevIds.at(0),
+                                                                rxAifBackEnds[0].second.data(), TAG_PAUSE, &miid);
+                if (status != 0) {
+                    PAL_ERR(LOG_TAG,"get Soft Pause ModuleInstanceId failed");
+                    goto pcm_start;
+                }
+                PAL_INFO(LOG_TAG, "miid : %x id = %d\n", miid, pcmDevIds.at(0));
+
+                builder->payloadSoftPauseConfig(&payload, &payloadSize, miid, MSPP_SOFT_PAUSE_DELAY);
+                if (payloadSize && payload) {
+                    status = updateCustomPayload(payload, payloadSize);
+                    free(payload);
+                    if (0 != status) {
+                        PAL_ERR(LOG_TAG,"updateCustomPayload Failed\n");
+                        goto pcm_start;
+                    }
+                }
+                status = SessionAlsaUtils::setMixerParameter(mixer, pcmDevIds.at(0),
+                                                             customPayload, customPayloadSize);
+                if (customPayload) {
+                    free(customPayload);
+                    customPayload = NULL;
+                    customPayloadSize = 0;
+                }
+                if (status != 0) {
+                    PAL_ERR(LOG_TAG,"setMixerParameter failed for soft Pause module");
+                    goto pcm_start;
+                }
             }
 
 pcm_start:
