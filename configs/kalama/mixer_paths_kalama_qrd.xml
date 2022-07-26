@@ -600,7 +600,7 @@
     </path>
 
     <path name="handset-mic-unprocessed">
-        <path name="dmic2" />
+        <path name="amic1" />
         <ctl name="TX_DEC2 Volume" value="102" />
     </path>
 
