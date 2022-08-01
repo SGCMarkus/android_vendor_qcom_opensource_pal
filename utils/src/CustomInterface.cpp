@@ -367,6 +367,8 @@ int32_t CustomInterface::ParseRecognitionConfig(Stream *s,
                 i, confidence_level[i], i, kw_user_enable[i]);
         }
 
+        if (sm_info_map_[s]->wakeup_config)
+            free(sm_info_map_[s]->wakeup_config);
         sm_info_map_[s]->wakeup_config = wakeup_payload;
         sm_info_map_[s]->wakeup_config_size = wakeup_payload_size;
 
@@ -384,6 +386,8 @@ int32_t CustomInterface::ParseRecognitionConfig(Stream *s,
 
         ar_mem_cpy(conf_levels, num_conf_levels,
             (uint8_t *)config + config->data_offset, num_conf_levels);
+        if (sm_info_map_[s]->wakeup_config)
+            free(sm_info_map_[s]->wakeup_config);
         sm_info_map_[s]->wakeup_config = conf_levels;
         sm_info_map_[s]->wakeup_config_size = num_conf_levels;
     }

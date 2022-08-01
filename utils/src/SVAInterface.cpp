@@ -307,6 +307,8 @@ int32_t SVAInterface::ParseRecognitionConfig(Stream *s,
     sm_info_map_[s]->hist_buffer_duration = hist_buffer_duration;
     sm_info_map_[s]->pre_roll_duration = pre_roll_duration;
 
+    if (sm_info_map_[s]->wakeup_config)
+        free(sm_info_map_[s]->wakeup_config);
     sm_info_map_[s]->wakeup_config = conf_levels;
     sm_info_map_[s]->wakeup_config_size = num_conf_levels;
 

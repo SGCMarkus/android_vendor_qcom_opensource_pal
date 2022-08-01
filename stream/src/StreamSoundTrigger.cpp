@@ -964,6 +964,8 @@ std::shared_ptr<SoundTriggerEngine> StreamSoundTrigger::HandleEngineLoad(
 error_exit:
     if (gsl_engine_model_)
         free(gsl_engine_model_);
+    if (vui_intf_)
+        vui_intf_->DeregisterModel(this);
 
     return nullptr;
 }
@@ -1388,8 +1390,6 @@ error_exit:
     }
 
 exit:
-    if (conf_levels)
-        free(conf_levels);
 
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
@@ -1774,7 +1774,8 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
             if(st_stream_.gsl_engine_)
                 st_stream_.gsl_engine_->DetachStream(&st_stream_, true);
             st_stream_.reader_list_.clear();
-
+            if (st_stream_.vui_intf_)
+                st_stream_.vui_intf_->DeregisterModel(&st_stream_);
             st_stream_.rm->resetStreamInstanceID(
                 &st_stream_,
                 st_stream_.mInstanceID);
@@ -1985,7 +1986,8 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
             st_stream_.engines_.clear();
             st_stream_.gsl_engine_->DetachStream(&st_stream_, true);
             st_stream_.reader_list_.clear();
-
+            if (st_stream_.vui_intf_)
+                st_stream_.vui_intf_->DeregisterModel(&st_stream_);
             st_stream_.rm->resetStreamInstanceID(
                 &st_stream_,
                 st_stream_.mInstanceID);
@@ -3305,6 +3307,8 @@ int32_t StreamSoundTrigger::StSSR::ProcessEvent(
             } else {
                 st_stream_.state_for_restore_ = ST_STATE_IDLE;
             }
+            if (st_stream_.vui_intf_)
+                st_stream_.vui_intf_->DeregisterModel(&st_stream_);
             break;
         }
         case ST_EV_RECOGNITION_CONFIG: {
