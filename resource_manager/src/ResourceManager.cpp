@@ -9586,6 +9586,7 @@ int ResourceManager::handleDeviceConnectionChange(pal_param_device_connection_t 
     struct pal_device_info devinfo = {};
     int32_t scoCount = is_connected ? 1 : -1;
     bool removeScoDevice = false;
+    bool updateAvailDevice = false;
 
     if (isBtScoDevice(device_id)) {
         PAL_DBG(LOG_TAG, "Enter: scoOutConnectCount=%d, scoInConnectCount=%d",
@@ -9641,12 +9642,16 @@ int ResourceManager::handleDeviceConnectionChange(pal_param_device_connection_t 
                 status = -EIO;
                 goto err;
             }
+            updateAvailDevice = true;
         }
-        PAL_DBG(LOG_TAG, "Mark device %d as available", device_id);
-        avail_devices_.push_back(device_id);
+        if (updateAvailDevice) {
+            PAL_DBG(LOG_TAG, "Mark device %d as available", device_id);
+            avail_devices_.push_back(device_id);
+        }
     } else if (!is_connected && device_available) {
         if (isPluginDevice(device_id) || isDpDevice(device_id)) {
             removePlugInDevice(device_id, connection_state);
+            updateAvailDevice = true;
         }
 
         if (isValidDevId(device_id)) {
@@ -9671,11 +9676,14 @@ int ResourceManager::handleDeviceConnectionChange(pal_param_device_connection_t 
 
                 dev->setDeviceAttributes(conn_device);
                 PAL_INFO(LOG_TAG, "device attribute cleared");
-                PAL_DBG(LOG_TAG, "Mark device %d as unavailable", device_id);
+                updateAvailDevice = true;
             }
         }
-        avail_devices_.erase(std::find(avail_devices_.begin(),
-                                avail_devices_.end(), device_id));
+        if (updateAvailDevice) {
+            PAL_DBG(LOG_TAG, "Mark device %d as unavailable", device_id);
+            avail_devices_.erase(std::find(avail_devices_.begin(),
+                                    avail_devices_.end(), device_id));
+        }
     } else if (!isBtScoDevice(device_id)) {
         status = -EINVAL;
         PAL_ERR(LOG_TAG, "Invalid operation, Device %d, connection state %d, device avalibilty %d",
