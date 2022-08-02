@@ -45,10 +45,19 @@ SVAInterface::SVAInterface(std::shared_ptr<VUIStreamConfig> sm_cfg) {
     sm_cfg_ = sm_cfg;
     hist_duration_ = 0;
     preroll_duration_ = 0;
+    st_conf_levels_ = nullptr;
+    st_conf_levels_v2_ = nullptr;
 }
 
 SVAInterface::~SVAInterface() {
-
+    if (st_conf_levels_) {
+        free(st_conf_levels_);
+        st_conf_levels_ = nullptr;
+    }
+    if (st_conf_levels_v2_) {
+        free(st_conf_levels_v2_);
+        st_conf_levels_v2_ = nullptr;
+    }
 }
 
 int32_t SVAInterface::ParseSoundModel(std::shared_ptr<VUIStreamConfig> sm_cfg,
@@ -311,6 +320,7 @@ int32_t SVAInterface::ParseRecognitionConfig(Stream *s,
         free(sm_info_map_[s]->wakeup_config);
     sm_info_map_[s]->wakeup_config = conf_levels;
     sm_info_map_[s]->wakeup_config_size = num_conf_levels;
+    goto exit;
 
 error_exit:
     if (st_conf_levels_) {
@@ -322,6 +332,7 @@ error_exit:
         st_conf_levels_v2_ = nullptr;
     }
 
+exit:
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
 }
@@ -690,15 +701,14 @@ int32_t SVAInterface::ParseOpaqueConfLevels(
         conf_levels = (struct st_confidence_levels_info *)
             ((char *)opaque_conf_levels + sizeof(struct st_param_header));
 
+        st_conf_levels_ = (struct st_confidence_levels_info *)realloc(st_conf_levels_,
+                sizeof(struct st_confidence_levels_info));
         if (!st_conf_levels_) {
-             st_conf_levels_ = (struct st_confidence_levels_info *)calloc(1,
-                                 sizeof(struct st_confidence_levels_info));
-             if (!st_conf_levels_) {
-                 PAL_ERR(LOG_TAG, "failed to alloc stream conf_levels_");
-                 status = -ENOMEM;
-                 goto exit;
-             }
+            PAL_ERR(LOG_TAG, "failed to alloc stream conf_levels_");
+            status = -ENOMEM;
+            goto exit;
         }
+
         /* Cache to use during detection event processing */
         ar_mem_cpy((uint8_t *)st_conf_levels_, sizeof(struct st_confidence_levels_info),
             (uint8_t *)conf_levels, sizeof(struct st_confidence_levels_info));
@@ -730,15 +740,14 @@ int32_t SVAInterface::ParseOpaqueConfLevels(
         conf_levels_v2 = (struct st_confidence_levels_info_v2 *)
             ((char *)opaque_conf_levels + sizeof(struct st_param_header));
 
+        st_conf_levels_v2_ = (struct st_confidence_levels_info_v2 *)realloc(st_conf_levels_v2_,
+            sizeof(struct st_confidence_levels_info_v2));
         if (!st_conf_levels_v2_) {
-            st_conf_levels_v2_ = (struct st_confidence_levels_info_v2 *)calloc(1,
-                sizeof(struct st_confidence_levels_info_v2));
-            if (!st_conf_levels_v2_) {
-                PAL_ERR(LOG_TAG, "failed to alloc stream conf_levels_");
-                status = -ENOMEM;
-                goto exit;
-            }
+            PAL_ERR(LOG_TAG, "failed to alloc stream conf_levels_");
+            status = -ENOMEM;
+            goto exit;
         }
+
         /* Cache to use during detection event processing */
         ar_mem_cpy((uint8_t *)st_conf_levels_v2_, sizeof(struct st_confidence_levels_info_v2),
             (uint8_t *)conf_levels_v2, sizeof(struct st_confidence_levels_info_v2));
