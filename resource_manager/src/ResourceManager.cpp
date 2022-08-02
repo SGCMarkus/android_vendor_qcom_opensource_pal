@@ -5396,10 +5396,12 @@ void ResourceManager::checkHapticsConcurrency(struct pal_device *deviceattr,
         deviceattr->id == PAL_DEVICE_OUT_WIRED_HEADPHONE) {
         struct pal_device hapticsDattr;
         std::shared_ptr<Device> hapticsDev = nullptr;
+        std::shared_ptr<Device>  hsDev = nullptr;
 
         hapticsDattr.id = PAL_DEVICE_OUT_HAPTICS_DEVICE;
         hapticsDev = Device::getInstance(&hapticsDattr, rm);
-        if (!hapticsDev) {
+        hsDev = Device::getInstance(deviceattr, rm);
+        if (!hapticsDev || !hsDev) {
             PAL_ERR(LOG_TAG, "Getting Device instance failed");
             return;
         }
@@ -5409,11 +5411,14 @@ void ResourceManager::checkHapticsConcurrency(struct pal_device *deviceattr,
             if ((deviceattr->config.sample_rate % SAMPLINGRATE_44K == 0) &&
                 (hapticsDattr.config.sample_rate % SAMPLINGRATE_44K != 0)) {
                 deviceattr->config.sample_rate = hapticsDattr.config.sample_rate;
+                hsDev->setSampleRate(hapticsDattr.config.sample_rate);
                 deviceattr->config.bit_width = hapticsDattr.config.bit_width;
                 deviceattr->config.aud_fmt_id =  bitWidthToFormat.at(deviceattr->config.bit_width);
                 PAL_DBG(LOG_TAG, "headset is coming, update headset to sr: %d bw: %d ",
                     deviceattr->config.sample_rate, deviceattr->config.bit_width);
             }
+        } else {
+               hsDev->setSampleRate(0);
         }
     } else if (deviceattr->id == PAL_DEVICE_OUT_HAPTICS_DEVICE) {
         // if haptics is coming, update headset sample rate if needed
@@ -11194,6 +11199,13 @@ void ResourceManager::restoreDevice(std::shared_ptr<Device> dev)
      * still need to check if haptics is active and keep headset sample rate as 48K
      */
     if (dev->getSndDeviceId() == PAL_DEVICE_OUT_WIRED_HEADSET) {
+        newDevAttr.id = PAL_DEVICE_OUT_WIRED_HEADSET;
+        dev = Device::getInstance(&newDevAttr, rm);
+        if (!dev) {
+            PAL_ERR(LOG_TAG, "Getting headset device instance failed");
+            goto exit;
+        }
+        dev->getDeviceAttributes(&newDevAttr);
         checkHapticsConcurrency(&newDevAttr, NULL, streamsToSwitch, NULL);
     }
 
