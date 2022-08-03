@@ -213,6 +213,7 @@ public:
     bool a2dpMuted = false;
     bool a2dpPaused = false;
     bool force_nlpi_vote = false;
+    bool isMMap = false;
     std::vector<pal_device_id_t> suspendedDevIds;
     virtual int32_t open() = 0;
     virtual int32_t close() = 0;

@@ -7802,11 +7802,13 @@ int32_t ResourceManager::a2dpSuspend(pal_device_id_t dev_id)
                 PAL_DBG(LOG_TAG, "Stream %pK is on combo device; Dont Pause/Mute", *sIter);
                 (*sIter)->suspendedDevIds.clear();
                 (*sIter)->suspendedDevIds.push_back(switchDevDattr.id);
+                (*sIter)->suspendedDevIds.push_back(a2dpDattr.id);
             } else if (!((*sIter)->a2dpMuted)) {
                 // only perform Mute/Pause for non combo use-case only.
                 struct pal_stream_attributes sAttr;
                 (*sIter)->getStreamAttributes(&sAttr);
                 (*sIter)->suspendedDevIds.clear();
+                (*sIter)->suspendedDevIds.push_back(a2dpDattr.id);
                 if (((sAttr.type == PAL_STREAM_COMPRESSED) ||
                      (sAttr.type == PAL_STREAM_PCM_OFFLOAD))) {
                     /* First mute & then pause
@@ -7865,7 +7867,6 @@ int32_t ResourceManager::a2dpSuspend(pal_device_id_t dev_id)
                     (*sIter)->a2dpPaused = false;
                 }
             }
-            (*sIter)->suspendedDevIds.push_back(a2dpDattr.id);
             (*sIter)->unlockStreamMutex();
         }
     }

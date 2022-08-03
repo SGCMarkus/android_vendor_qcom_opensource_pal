@@ -78,7 +78,6 @@ public:
    static int32_t isBitWidthSupported(uint32_t bitWidth);
 
 private:
-   bool isMMap = false;
     uint32_t volRampPeriodms;
 };
 
