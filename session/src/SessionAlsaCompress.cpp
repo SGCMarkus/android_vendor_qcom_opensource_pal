@@ -41,6 +41,9 @@
 #include <fstream>
 #include <agm/agm_api.h>
 
+#define CHS_2 2
+#define AACObjHE_PS 29
+
 void SessionAlsaCompress::updateCodecOptions(
     pal_param_payload *param_payload, pal_stream_direction_t stream_direction) {
 
@@ -1241,6 +1244,13 @@ int SessionAlsaCompress::start(Stream * s)
         case PAL_AUDIO_OUTPUT:
             /** create an offload thread for posting callbacks */
             worker_thread = std::make_unique<std::thread>(offloadThreadLoop, this);
+
+            if (SND_AUDIOCODEC_AAC == codec.id &&
+                codec.ch_in < CHS_2 &&
+                codec.options.generic.reserved[0] == AACObjHE_PS) {
+                codec.ch_in = CHS_2;
+                codec.ch_out = codec.ch_in;
+            }
             compress_config.fragment_size = out_buf_size;
             compress_config.fragments = out_buf_count;
             compress_config.codec = &codec;
