@@ -323,6 +323,7 @@ public:
     bool isMutexLockedbyRm() { return mutexLockedbyRm; }
     /* GetPalDevice only applies to Sound Trigger streams */
     std::shared_ptr<Device> GetPalDevice(Stream *streamHandle, pal_device_id_t dev_id);
+    void setCachedState(stream_state_t state);
 };
 
 class StreamNonTunnel : public Stream
