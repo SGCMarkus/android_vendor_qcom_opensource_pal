@@ -228,6 +228,7 @@ int32_t pal_stream_close(pal_stream_handle_t *stream_handle)
     rm->unlockActiveStream();
 
     s = reinterpret_cast<Stream *>(stream_handle);
+    s->setCachedState(STREAM_IDLE);
     status = s->close();
 
     s->waitStreamSmph();
@@ -320,6 +321,7 @@ int32_t pal_stream_stop(pal_stream_handle_t *stream_handle)
     s = reinterpret_cast<Stream *>(stream_handle);
     rm->increaseStreamUserCounter(s);
     rm->unlockActiveStream();
+    s->setCachedState(STREAM_STOPPED);
     status = s->stop();
 
     rm->lockActiveStream();
