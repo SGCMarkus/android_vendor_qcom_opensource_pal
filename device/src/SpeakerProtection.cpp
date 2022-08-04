@@ -1159,18 +1159,7 @@ SpeakerProtection::SpeakerProtection(struct pal_device *device,
     calibrationCallbackStatus = 0;
     mDspCallbackRcvd = false;
 
-    if (device->id == PAL_DEVICE_OUT_HANDSET) {
-        vi_device.channels = 1;
-        cps_device.channels = 1;
-        numberOfChannels = 1;
-
-        PAL_DBG(LOG_TAG, "Device id: %d vi_device.channels: %d, cps_device.channels: %d, numberOfChannels: %d",
-                                         device->id, vi_device.channels,
-                                         cps_device.channels, numberOfChannels);
-        goto exit;
-    }
-
-    rm->getDeviceInfo(PAL_DEVICE_OUT_SPEAKER, PAL_STREAM_PROXY, "", &devinfo);
+    rm->getDeviceInfo(device->id, PAL_STREAM_PROXY, "", &devinfo);
     numberOfChannels = devinfo.channels;
     PAL_DBG(LOG_TAG, "Number of Channels %d", numberOfChannels);
 
@@ -1192,6 +1181,14 @@ SpeakerProtection::SpeakerProtection(struct pal_device *device,
     status = rm->getHwAudioMixer(&hwMixer);
     if (status) {
         PAL_ERR(LOG_TAG,"hw mixer error %d", status);
+    }
+
+    if (device->id == PAL_DEVICE_OUT_HANDSET) {
+        vi_device.channels = 1;
+        cps_device.channels = 1;
+        PAL_DBG(LOG_TAG, "Device id: %d vi_device.channels: %d cps_device.channels: %d",
+                              device->id, vi_device.channels, cps_device.channels);
+        goto exit;
     }
 
     fp = fopen(PAL_SP_TEMP_PATH, "rb");
@@ -1918,8 +1915,6 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
             else
                 ch_info.ch_map[0] = PAL_CHMAP_CHANNEL_FR;
         }
-
-        rm->getChannelMap(&(ch_info.ch_map[0]), cps_device.channels);
 
         deviceCPS.config.ch_info = ch_info;
         deviceCPS.config.sample_rate = cps_device.samplerate;
