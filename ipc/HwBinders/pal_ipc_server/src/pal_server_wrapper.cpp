@@ -781,7 +781,7 @@ Return<int32_t> PAL::ipc_pal_stream_write(const uint64_t streamHandle,
 Return<void> PAL::ipc_pal_stream_read(const uint64_t streamHandle,
                                       const hidl_vec<PalBuffer>& inBuff_hidl,
                                       ipc_pal_stream_read_cb _hidl_cb) {
-    struct pal_buffer buf;
+    struct pal_buffer buf = {0};
     hidl_vec<PalBuffer> outBuff_hidl;
 
     buf.size = inBuff_hidl.data()->size;
@@ -907,7 +907,7 @@ Return<void> PAL::ipc_pal_stream_get_volume(const uint64_t streamHandle,
 Return<int32_t> PAL::ipc_pal_stream_set_volume(const uint64_t streamHandle,
                                     const hidl_vec<PalVolumeData> &vol)
 {
-    struct pal_volume_data *volume;
+    struct pal_volume_data *volume = nullptr;
     uint32_t noOfVolPairs = vol.data()->noOfVolPairs;
     int32_t ret = -ENOMEM;
     volume = (struct pal_volume_data *) calloc(1,
