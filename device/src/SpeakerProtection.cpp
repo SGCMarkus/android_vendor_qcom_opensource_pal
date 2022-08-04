@@ -153,13 +153,11 @@ std::string getDefaultSpkrTempCtrl(uint8_t spkr_pos)
     }
 }
 
-#if 0
 cps_reg_wr_values_t sp_cps_thrsh_values = {
     .value_normal_threshold = {0x8E003049, 0x1000304A, 0x0F003472},
     .value_lower_threshold_1 = {0x8F003049, 0xD000304A, 0x0F003472},
     .value_lower_threshold_2 = {0x8F003049, 0xD000304A, 0x18003472}
 };
-#endif
 
 /* Function to check if Speaker is in use or not.
  * It returns the time as well for which speaker is not in use.
@@ -1251,7 +1249,6 @@ SpeakerProtection::~SpeakerProtection()
     customPayloadSize = 0;
 }
 
-#if 0
 /*
  * CPS related custom payload
  */
@@ -1379,7 +1376,6 @@ exit:
        builder = NULL;
     }
 }
-#endif
 
 /*
  * Function to trigger Processing mode.
@@ -1925,6 +1921,29 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
             }
         }
 
+        switch(ResourceManager::cpsMode)
+        {
+            case 1:
+                goto cps_dev_setup;
+            case 2:
+
+                // wsa883x specific cps payload
+                updateCpsCustomPayload(miid);
+
+                enableDevice(audioRoute, mSndDeviceName_vi);
+                PAL_DBG(LOG_TAG, "pcm start for TX");
+                if (pcm_start(txPcm) < 0) {
+                    PAL_ERR(LOG_TAG, "pcm start failed for TX path");
+                    goto err_pcm_open;
+                }
+
+                // Free up the local variables
+                goto exit;
+            default:
+                goto exit;
+        }
+
+cps_dev_setup:
         enableDevice(audioRoute, mSndDeviceName_vi);
         PAL_DBG(LOG_TAG, "pcm start for TX");
         if (pcm_start(txPcm) < 0) {
