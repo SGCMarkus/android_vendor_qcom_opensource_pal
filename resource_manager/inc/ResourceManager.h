@@ -515,7 +515,7 @@ protected:
     std::vector <pal_device_id_t> avail_devices_;
     std::map<Stream*, uint32_t> mActiveStreamUserCounter;
     bool bOverwriteFlag;
-    bool screen_state_;
+    bool screen_state_ = true;
     bool charging_state_;
     bool is_charger_online_;
     bool is_concurrent_boost_state_;
