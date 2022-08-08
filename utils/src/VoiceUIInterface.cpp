@@ -159,6 +159,8 @@ void VoiceUIInterface::DeregisterModel(Stream *s) {
             free(sm_info_map_[s]->wakeup_config);
         if (sm_info_map_[s]->info)
             delete(sm_info_map_[s]->info);
+        sm_info_map_[s]->sec_threshold.clear();
+        sm_info_map_[s]->sec_det_level.clear();
         free(sm_info_map_[s]);
         sm_info_map_.erase(iter);
     } else {

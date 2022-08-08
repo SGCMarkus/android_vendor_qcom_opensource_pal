@@ -380,8 +380,18 @@ void SVAInterface::SetSecondStageDetLevels(Stream *s,
                                            listen_model_indicator_enum type,
                                            uint32_t level) {
 
+    bool sec_det_level_exist = false;
+
     if (sm_info_map_.find(s) != sm_info_map_.end() && sm_info_map_[s]) {
-        sm_info_map_[s]->sec_det_level.push_back(std::make_pair(type, level));
+        for (auto &iter: sm_info_map_[s]->sec_det_level) {
+            if (iter.first == type) {
+                iter.second = level;
+                sec_det_level_exist = true;
+                break;
+            }
+        }
+        if (!sec_det_level_exist)
+            sm_info_map_[s]->sec_det_level.push_back(std::make_pair(type, level));
     } else {
         PAL_ERR(LOG_TAG, "Stream not registered to interface");
     }
@@ -1560,7 +1570,7 @@ void SVAInterface::PackEventConfLevels(struct sound_model_info *sm_info,
                             sm_info->info->GetConfLevelsSize(), j);
 
                     PAL_INFO(LOG_TAG, "First stage KW Conf levels[%d]-%d",
-                        j, sm_info->info->GetDetConfLevels()[j])
+                        j, sm_info->info->GetDetConfLevels()[j]);
 
                     num_user_levels =
                         conf_levels_v2->conf_levels[i].kw_levels[j].num_user_levels;
@@ -1575,7 +1585,7 @@ void SVAInterface::PackEventConfLevels(struct sound_model_info *sm_info,
                                 sm_info->info->GetConfLevelsSize(), user_id);
 
                         PAL_INFO(LOG_TAG, "First stage User Conf levels[%d]-%d",
-                            k, sm_info->info->GetDetConfLevels()[user_id])
+                            k, sm_info->info->GetDetConfLevels()[user_id]);
                     }
                 }
             } else if (conf_levels_v2->conf_levels[i].sm_id & ST_SM_ID_SVA_S_STAGE_KWD ||
