@@ -477,11 +477,13 @@ int32_t StreamPCM::start()
             PAL_VERBOSE(LOG_TAG, "Inside PAL_AUDIO_INPUT device count - %zu",
                         mDevices.size());
 
+            rm->lockGraph();
             for (int32_t i=0; i < mDevices.size(); i++) {
                 status = mDevices[i]->start();
                 if (0 != status) {
                     PAL_ERR(LOG_TAG, "Tx device start is failed with status %d",
                             status);
+                    rm->unlockGraph();
                     goto exit;
                 }
             }
@@ -490,6 +492,7 @@ int32_t StreamPCM::start()
             if (0 != status) {
                 PAL_ERR(LOG_TAG, "Tx session prepare is failed with status %d",
                         status);
+                rm->unlockGraph();
                 goto session_fail;
             }
             PAL_VERBOSE(LOG_TAG, "session prepare successful");
@@ -502,13 +505,16 @@ int32_t StreamPCM::start()
                 }
                 status = 0;
                 cachedState = STREAM_STARTED;
+                rm->unlockGraph();
                 goto session_fail;
             }
             if (0 != status) {
                 PAL_ERR(LOG_TAG, "Tx session start is failed with status %d",
                         status);
+                rm->unlockGraph();
                 goto session_fail;
             }
+            rm->unlockGraph();
             PAL_VERBOSE(LOG_TAG, "session start successful");
             break;
         case PAL_AUDIO_OUTPUT | PAL_AUDIO_INPUT:
@@ -670,6 +676,7 @@ int32_t StreamPCM::stop()
             PAL_ERR(LOG_TAG, "In PAL_AUDIO_INPUT case, device count - %zu",
                         mDevices.size());
 
+            rm->lockGraph();
             for (int32_t i=0; i < mDevices.size(); i++) {
                 status = mDevices[i]->stop();
                 if (0 != status) {
@@ -681,8 +688,10 @@ int32_t StreamPCM::stop()
             status = session->stop(this);
             if (0 != status) {
                 PAL_ERR(LOG_TAG, "Tx session stop failed with status %d", status);
+                rm->unlockGraph();
                 goto exit;
             }
+            rm->unlockGraph();
             PAL_VERBOSE(LOG_TAG, "session stop successful");
             break;
 
