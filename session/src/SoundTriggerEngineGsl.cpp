@@ -660,7 +660,7 @@ int32_t SoundTriggerEngineGsl::AddSoundModel(Stream *s, uint8_t *data,
         return 0;
     }
 
-    if (!is_qcva_uuid_) {
+    if (!is_qcva_uuid_ && !vui_intf_->IsQCWakeUpConfigUsed()) {
         vui_intf_->GetSoundModelInfo(st)->SetModelData(data, data_size);
         *eng_sm_info_ = *(vui_intf_->GetSoundModelInfo(st));
         vui_intf_->SetSoundModelInfo(eng_sm_info_);

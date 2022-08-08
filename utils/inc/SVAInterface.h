@@ -46,6 +46,8 @@ class SVAInterface: public VoiceUIInterface {
 
     void UpdateFTRTData(void *data, uint32_t size) {}
 
+    bool IsQCWakeUpConfigUsed() { return true; }
+
   protected:
     int32_t ParseOpaqueConfLevels(struct sound_model_info *info,
                                   void *opaque_conf_levels,

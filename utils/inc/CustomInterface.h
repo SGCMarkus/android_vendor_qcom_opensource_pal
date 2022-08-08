@@ -46,6 +46,8 @@ class CustomInterface: public VoiceUIInterface {
 
     void UpdateFTRTData(void *data, uint32_t size) {}
 
+    bool IsQCWakeUpConfigUsed() { return use_qc_wakeup_config_; }
+
   protected:
     int32_t ParseOpaqueConfLevels(struct sound_model_info *info,
                                   void *opaque_conf_levels,
