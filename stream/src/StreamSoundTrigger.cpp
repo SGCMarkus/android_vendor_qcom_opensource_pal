@@ -127,6 +127,7 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
     gsl_engine_ = nullptr;
     vui_intf_ = nullptr;
     sm_cfg_ = nullptr;
+    ec_rx_dev_ = nullptr;
     mDevices.clear();
 
     // Setting default volume to unity
@@ -638,6 +639,13 @@ int32_t StreamSoundTrigger::setECRef_l(std::shared_ptr<Device> dev, bool is_enab
     status = cur_state_->ProcessEvent(ev_cfg);
     if (status) {
         PAL_ERR(LOG_TAG, "Failed to handle ec ref event");
+        goto exit;
+    }
+
+    if (is_enable) {
+        ec_rx_dev_ = dev;
+    } else {
+        ec_rx_dev_ = nullptr;
     }
 
 exit:
@@ -2345,7 +2353,7 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
                 (StECRefEventConfigData *)ev_cfg->data_.get();
             Stream *s = static_cast<Stream *>(&st_stream_);
             status = st_stream_.gsl_engine_->setECRef(s, data->dev_,
-                data->is_enable_);
+                data->is_enable_, st_stream_.ec_rx_dev_ == nullptr );
             if (status) {
                 PAL_ERR(LOG_TAG, "Failed to set EC Ref in gsl engine");
             }
@@ -2482,7 +2490,7 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
                 (StECRefEventConfigData *)ev_cfg->data_.get();
             Stream *s = static_cast<Stream *>(&st_stream_);
             status = st_stream_.gsl_engine_->setECRef(s, data->dev_,
-                data->is_enable_);
+                data->is_enable_, st_stream_.ec_rx_dev_ == nullptr);
             if (status) {
                 PAL_ERR(LOG_TAG, "Failed to set EC Ref in gsl engine");
             }
@@ -2865,7 +2873,7 @@ int32_t StreamSoundTrigger::StDetected::ProcessEvent(
                 (StECRefEventConfigData *)ev_cfg->data_.get();
             Stream *s = static_cast<Stream *>(&st_stream_);
             status = st_stream_.gsl_engine_->setECRef(s, data->dev_,
-                data->is_enable_);
+                data->is_enable_, st_stream_.ec_rx_dev_ == nullptr);
             if (status) {
                 PAL_ERR(LOG_TAG, "Failed to set EC Ref in gsl engine");
             }
@@ -3230,7 +3238,7 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
                 (StECRefEventConfigData *)ev_cfg->data_.get();
             Stream *s = static_cast<Stream *>(&st_stream_);
             status = st_stream_.gsl_engine_->setECRef(s, data->dev_,
-                data->is_enable_);
+                data->is_enable_, st_stream_.ec_rx_dev_ == nullptr);
             if (status) {
                 PAL_ERR(LOG_TAG, "Failed to set EC Ref in gsl engine");
             }
