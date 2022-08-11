@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -36,6 +37,7 @@
 #include "SessionAlsaUtils.h"
 #include <tinyalsa/asoundlib.h>
 #include <vector>
+#include <system/audio.h>
 
 #define USB_BUFF_SIZE           4096
 #define CHANNEL_NUMBER_STR      "Channels: "
@@ -90,6 +92,7 @@ public:
     int isCustomRateSupported(int requested_rate, unsigned int *best_rate);
     void setJackStatus(bool jack_status);
     bool getJackStatus();
+    unsigned int getSRMask(usb_usecase_type_t type) {return supported_sample_rates_mask_[type];} ;
 };
 
 class USBCardConfig {
@@ -97,6 +100,7 @@ protected:
     struct pal_usb_device_address address_;
     int endian_;
     std::vector <std::shared_ptr<USBDeviceConfig>> usb_device_config_list_;
+    unsigned int usb_supported_sample_rates_mask_[2];
     void usb_info_dump(char* read_buf, int type);
 public:
     USBCardConfig(struct pal_usb_device_address address);
@@ -106,9 +110,9 @@ public:
     int getMaxBitWidth(bool is_playback);
     int getMaxChannels(bool is_playback);
     unsigned int getFormatByBitWidth(int bitwidth);
-    unsigned int readDefaultFormat(bool is_playback);
-    unsigned int readDefaultSampleRate(bool is_playback);
-    unsigned int readDefaultChannelMask(bool is_playback);
+    unsigned int readSupportedFormat(bool is_playback, uint32_t *format);
+    unsigned int readSupportedSampleRate(bool is_playback, uint32_t *sample_rate);
+    unsigned int readSupportedChannelMask(bool is_playback, uint32_t *channel);
     int readSupportedConfig(dynamic_media_config_t *config, bool is_playback, int usb_card);
     int readBestConfig(struct pal_media_config *config,
                                     struct pal_stream_attributes *sattr,

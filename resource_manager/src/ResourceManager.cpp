@@ -1,6 +1,5 @@
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -28,37 +27,9 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * Changes from Qualcomm Innovation Center are provided under the following license:
+ *
  * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted (subject to the limitations in the
- * disclaimer below) provided that the following conditions are met:
- *
- *   * Redistributions of source code must retain the above copyright
- *     notice, this list of conditions and the following disclaimer.
- *
- *   * Redistributions in binary form must reproduce the above
- *     copyright notice, this list of conditions and the following
- *     disclaimer in the documentation and/or other materials provided
- *     with the distribution.
- *
- *   * Neither the name of Qualcomm Innovation Center, Inc. nor the names of its
- *     contributors may be used to endorse or promote products derived
- *     from this software without specific prior written permission.
- *
- * NO EXPRESS OR IMPLIED LICENSES TO ANY PARTY'S PATENT RIGHTS ARE
- * GRANTED BY THIS LICENSE. THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT
- * HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED
- * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
- * IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
- * ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE
- * GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
- * IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
- * OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
- * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ * SPDX-License-Identifier: BSD-3-Clause-Clear
  */
 
 #define LOG_TAG "PAL: ResourceManager"
@@ -188,8 +159,6 @@ char rmngr_xml_file_wo_variant[XML_PATH_MAX_LENGTH] = {0};
 char vendor_config_path[VENDOR_CONFIG_PATH_MAX_LENGTH] = {0};
 
 const std::vector<int> gSignalsOfInterest = {
-    SIGABRT,
-    SIGTERM,
     DEBUGGER_SIGNAL,
 };
 
@@ -532,8 +501,13 @@ int ResourceManager::max_voice_vol = -1;     /* Variable to store max volume ind
 
 bool ResourceManager::isSignalHandlerEnabled = false;
 #ifdef SOC_PERIPHERAL_PROT
+std::thread ResourceManager::socPerithread;
 bool ResourceManager::isTZSecureZone = false;
 void * ResourceManager::tz_handle = NULL;
+void * ResourceManager::socPeripheralLibHdl = NULL;
+getPeripheralStatusFnPtr ResourceManager::mGetPeripheralState = nullptr;
+registerPeripheralCBFnPtr ResourceManager::mRegisterPeripheralCb = nullptr;
+deregisterPeripheralCBFnPtr ResourceManager::mDeregisterPeripheralCb = nullptr;
 #define PRPHRL_REGSTR_RETRY_COUNT 10
 #endif
 //TODO:Needs to define below APIs so that functionality won't break
@@ -968,7 +942,7 @@ ResourceManager::ResourceManager()
         IsLPISupported(PAL_STREAM_ACD) ||
         IsLPISupported(PAL_STREAM_SENSOR_PCM_DATA);
 #ifdef SOC_PERIPHERAL_PROT
-    registertoPeripheral(CPeripheralAccessControl_AUDIO_UID);
+    socPerithread = std::thread(loadSocPeripheralLib);
 #endif
     PAL_INFO(LOG_TAG, "Exit: %p", this);
 }
@@ -1028,16 +1002,18 @@ int ResourceManager::registertoPeripheral(uint32_t pUID)
     int retry = PRPHRL_REGSTR_RETRY_COUNT;
     int state = PRPHRL_SUCCESS;
 
-    do {
-        /* register callback function with TZ service to get notifications of state change */
-        tz_handle = registerPeripheralCB(pUID, secureZoneEventCb);
-        if (tz_handle != NULL) {
-            PAL_INFO(LOG_TAG, "registered call back for audio peripheral[0x%x] to TZ", pUID);
-            break;
-        }
-        retry--;
-        usleep(1000);
-    } while(retry);
+    if (mRegisterPeripheralCb) {
+        do {
+            /* register callback function with TZ service to get notifications of state change */
+            tz_handle = mRegisterPeripheralCb(pUID, secureZoneEventCb);
+            if (tz_handle != NULL) {
+                PAL_INFO(LOG_TAG, "registered call back for audio peripheral[0x%x] to TZ", pUID);
+                break;
+            }
+            retry--;
+            usleep(1000);
+        } while(retry);
+    }
 
     if (retry == 0)
     {
@@ -1047,22 +1023,64 @@ int ResourceManager::registertoPeripheral(uint32_t pUID)
     }
 
     /** Getting current peripheral state after connection */
-    state = getPeripheralState(tz_handle);
-    if (state == PRPHRL_ERROR) {
-         PAL_ERR(LOG_TAG, "Failed to get Peripheral state from TZ");
-         state = PRPHRL_ERROR;
-         return state;
-    } else if (state == STATE_SECURE) {
-                ResourceManager::isTZSecureZone = true;
+    if (mGetPeripheralState) {
+        state = mGetPeripheralState(tz_handle);
+        if (state == PRPHRL_ERROR) {
+            PAL_ERR(LOG_TAG, "Failed to get Peripheral state from TZ");
+            state = PRPHRL_ERROR;
+            return state;
+        } else if (state == STATE_SECURE) {
+            ResourceManager::isTZSecureZone = true;
+        }
     }
+    PAL_DBG(LOG_TAG, "Soc peripheral thread exit");
     return state;
 }
 
 int ResourceManager::deregPeripheralCb(void *tz_handle)
 {
-    if (tz_handle)
-        return deregisterPeripheralCB(tz_handle);
+    if (tz_handle && mDeregisterPeripheralCb) {
+        mDeregisterPeripheralCb(tz_handle);
+        mRegisterPeripheralCb = nullptr;
+        mDeregisterPeripheralCb = nullptr;
+        dlclose(socPeripheralLibHdl);
+        socPeripheralLibHdl = nullptr;
+    }
+
     return -1;
+}
+
+void ResourceManager::loadSocPeripheralLib()
+{
+    if (access(SOC_PERIPHERAL_LIBRARY_PATH, R_OK) == 0) {
+        socPeripheralLibHdl = dlopen(SOC_PERIPHERAL_LIBRARY_PATH, RTLD_NOW);
+        if (socPeripheralLibHdl == NULL) {
+            PAL_ERR(LOG_TAG, "DLOPEN failed for %s %s", SOC_PERIPHERAL_LIBRARY_PATH, dlerror());
+        } else {
+            PAL_VERBOSE(LOG_TAG, "DLOPEN successful for %s", SOC_PERIPHERAL_LIBRARY_PATH);
+            mRegisterPeripheralCb = (registerPeripheralCBFnPtr)
+                dlsym(socPeripheralLibHdl, "registerPeripheralCB");
+            const char *dlsym_error = dlerror();
+            if (dlsym_error) {
+                 PAL_ERR(LOG_TAG, "cannot find registerPeripheralCB symbol");
+            }
+
+            mGetPeripheralState = (getPeripheralStatusFnPtr)
+                dlsym(socPeripheralLibHdl, "getPeripheralState");
+            dlsym_error = dlerror();
+            if (dlsym_error) {
+                 PAL_ERR(LOG_TAG, "cannot find getPeripheralState symbol");
+            }
+
+            mDeregisterPeripheralCb = (deregisterPeripheralCBFnPtr)
+                dlsym(socPeripheralLibHdl, "deregisterPeripheralCB");
+            dlsym_error = dlerror();
+            if (dlsym_error) {
+                 PAL_ERR(LOG_TAG, "cannot find deregisterPeripheralCB symbol");
+            }
+            registertoPeripheral(CPeripheralAccessControl_AUDIO_UID);
+        }
+    }
 }
 #endif
 
@@ -1368,6 +1386,7 @@ int ResourceManager::init_audio()
                     strstr(snd_card_name, "lahaina") ||
                     strstr(snd_card_name, "waipio") ||
                     strstr(snd_card_name, "kalama") ||
+                    strstr(snd_card_name, "anorak") ||
                     strstr(snd_card_name, "diwali") ||
                     strstr(snd_card_name, "bengal") ||
                     strstr(snd_card_name, "monaco")) {
@@ -2463,22 +2482,6 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
                     deviceattr->config.ch_info.channels);
             }
             break;
-        case PAL_DEVICE_IN_TELEPHONY_RX:
-            {
-            /* For PAL_DEVICE_IN_TELEPHONY_RX, copy all config from stream attributes */
-            if (!sAttr) {
-                PAL_ERR(LOG_TAG, "Invalid parameter.");
-                return -EINVAL;
-            }
-            deviceattr->config.ch_info = sAttr->in_media_config.ch_info;
-            deviceattr->config.bit_width = sAttr->in_media_config.bit_width;
-            deviceattr->config.aud_fmt_id = sAttr->in_media_config.aud_fmt_id;
-
-            PAL_DBG(LOG_TAG, "Device %d sample rate %d bitwidth %d",
-                    deviceattr->id, deviceattr->config.sample_rate,
-                    deviceattr->config.bit_width);
-            }
-            break;
         case PAL_DEVICE_OUT_AUX_DIGITAL:
         case PAL_DEVICE_OUT_AUX_DIGITAL_1:
         case PAL_DEVICE_OUT_HDMI:
@@ -3228,7 +3231,7 @@ int ResourceManager::increaseStreamUserCounter(Stream* s)
         PAL_DBG(LOG_TAG, "stream %p counter increased to %d", s, it->second);
         return 0;
     } else {
-        PAL_ERR(LOG_TAG, "stream %p is not found.");
+        PAL_ERR(LOG_TAG, "stream %p is not found.", s);
         return -EINVAL;
     }
 }
@@ -3241,7 +3244,7 @@ int ResourceManager::decreaseStreamUserCounter(Stream* s)
     if (it != mActiveStreamUserCounter.end()) {
         PAL_DBG(LOG_TAG, "stream %p counter was %d", s, it->second);
         if (0 == it->second) {
-            PAL_ERR(LOG_TAG, "counter of stream %p has already been 0.");
+            PAL_ERR(LOG_TAG, "counter of stream %p has already been 0.", s);
             return -EINVAL;
         }
 
@@ -3253,7 +3256,7 @@ int ResourceManager::decreaseStreamUserCounter(Stream* s)
         PAL_DBG(LOG_TAG, "stream %p counter decreased to %d", s, it->second);
         return 0;
     } else {
-        PAL_ERR(LOG_TAG, "stream %p is not found.");
+        PAL_ERR(LOG_TAG, "stream %p is not found.", s);
         return -EINVAL;
     }
 }
@@ -3266,7 +3269,7 @@ int ResourceManager::getStreamUserCounter(Stream *s)
     if (it != mActiveStreamUserCounter.end()) {
         return it->second;
     } else {
-        PAL_ERR(LOG_TAG, "stream %p is not found.");
+        PAL_ERR(LOG_TAG, "stream %p is not found.", s);
         return -EINVAL;
     }
 }
@@ -3477,7 +3480,9 @@ int ResourceManager::checkandEnableECForTXStream_l(std::shared_ptr<Device> tx_de
         }
         getActiveStream_l(activeStreams, rx_dev);
         for (auto& rx_str: activeStreams) {
-            if (!isDeviceActive_l(rx_dev, rx_str) || !rx_str->isActive())
+            if (!isDeviceActive_l(rx_dev, rx_str) ||
+                !(rx_str->getCurState() == STREAM_STARTED ||
+                  rx_str->getCurState() == STREAM_PAUSED))
                 continue;
             rx_str->getStreamAttributes(&rx_attr);
             if (rx_attr.direction != PAL_AUDIO_INPUT) {
@@ -4880,7 +4885,8 @@ std::shared_ptr<Device> ResourceManager::getActiveEchoReferenceRxDevices_l(
             rx_str->getAssociatedDevices(rx_device_list);
             for (int i = 0; i < rx_device_list.size(); i++) {
                 if (!isDeviceActive_l(rx_device_list[i], rx_str) ||
-                    !rx_str->isActive())
+                    !(rx_str->getCurState() == STREAM_STARTED ||
+                      rx_str->getCurState() == STREAM_PAUSED))
                     continue;
                 deviceId = rx_device_list[i]->getSndDeviceId();
                 if (deviceId > PAL_DEVICE_OUT_MIN &&
@@ -5888,6 +5894,11 @@ void ResourceManager::deinit()
     while (!msgQ.empty())
         msgQ.pop();
 
+#ifdef SOC_PERIPHERAL_PROT
+    if (socPerithread.joinable()) {
+        socPerithread.join();
+    }
+#endif
     rm = nullptr;
 }
 
@@ -7952,7 +7963,10 @@ int32_t ResourceManager::a2dpResume(pal_device_id_t dev_id)
                 (*sIter)->getAssociatedDevices(devices);
                 if (devices.size() > 0) {
                     for (auto device: devices) {
-                        streamDevDisconnect.push_back({(*sIter), device->getSndDeviceId()});
+                        if (device->getSndDeviceId() > PAL_DEVICE_OUT_MIN &&
+                            device->getSndDeviceId() < PAL_DEVICE_OUT_MAX) {
+                            streamDevDisconnect.push_back({ (*sIter), device->getSndDeviceId() });
+                        }
                     }
                 }
                 restoredStreams.push_back((*sIter));
@@ -8818,10 +8832,11 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
             param_bt_a2dp = (pal_param_bta2dp_t*)param_payload;
 
             if (param_bt_a2dp->a2dp_suspended == true) {
-                if (isDeviceActive(param_bt_a2dp->dev_id)) {
+                //TODO:Need to check for Broadcast and BLE unicast concurrency UC
+                if (isDeviceAvailable(param_bt_a2dp->dev_id)) {
                     a2dp_dattr.id = param_bt_a2dp->dev_id;
                 } else {
-                    PAL_ERR(LOG_TAG, "a2dp/ble device %d is inactive, set param %d failed",
+                    PAL_ERR(LOG_TAG, "a2dp/ble device %d is unavailable, set param %d failed",
                         param_bt_a2dp->dev_id, param_id);
                     status = -EIO;
                     goto exit_no_unlock;
@@ -9036,10 +9051,10 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
             param_bt_a2dp = (pal_param_bta2dp_t*)param_payload;
 
             if (param_bt_a2dp->a2dp_capture_suspended == true) {
-                if (isDeviceActive(param_bt_a2dp->dev_id)) {
+                if (isDeviceAvailable(param_bt_a2dp->dev_id)) {
                     a2dp_dattr.id = param_bt_a2dp->dev_id;
                 } else {
-                    PAL_ERR(LOG_TAG, "a2dp/ble device %d is inactive, set param %d failed",
+                    PAL_ERR(LOG_TAG, "a2dp/ble device %d is unavailable, set param %d failed",
                         param_bt_a2dp->dev_id, param_id);
                     status = -EIO;
                     goto exit_no_unlock;

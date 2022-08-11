@@ -1031,9 +1031,8 @@ int32_t Stream::disconnectStreamDevice_l(Stream* streamHandle, pal_device_id_t d
         if (dev_id == mDevices[i]->getSndDeviceId()) {
             PAL_DBG(LOG_TAG, "device %d name %s, going to stop",
                 mDevices[i]->getSndDeviceId(), mDevices[i]->getPALDeviceName().c_str());
-            if (currentState != STREAM_STOPPED && isDevRegistered) {
+            if (currentState != STREAM_STOPPED && rm->isDeviceActive_l(mDevices[i], this)) {
                 rm->deregisterDevice(mDevices[i], this);
-                isDevRegistered = false;
             }
             rm->lockGraph();
             status = session->disconnectSessionDevice(streamHandle, mStreamAttr->type, mDevices[i]);
@@ -1170,9 +1169,8 @@ int32_t Stream::connectStreamDevice_l(Stream* streamHandle, struct pal_device *d
         goto dev_stop;
     }
     rm->unlockGraph();
-    if (currentState != STREAM_STOPPED && !isDevRegistered) {
+    if (currentState != STREAM_STOPPED && !rm->isDeviceActive_l(dev, this)) {
         rm->registerDevice(dev, this);
-        isDevRegistered = true;
     }
 
     rm->checkAndSetDutyCycleParam();
@@ -1298,14 +1296,6 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
 
     rm->lockActiveStream();
     mStreamMutex.lock();
-
-    volume = (struct pal_volume_data *)calloc(1, (sizeof(uint32_t) +                                                          (sizeof(struct pal_channel_vol_kv) * (0xFFFF))));
-    if (!volume) {
-         PAL_ERR(LOG_TAG, "pal_volume_data memory allocation failure");
-         mStreamMutex.unlock();
-         rm->unlockActiveStream();
-         return -ENOMEM;
-    }
 
     if ((numDev == 0) || (numDev > PAL_DEVICE_IN_MAX) || (!newDevices) || (!streamHandle)) {
         PAL_ERR(LOG_TAG, "invalid param for device switch");
@@ -1631,6 +1621,14 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
 done:
     mStreamMutex.lock();
     if (a2dpMuted && !isNewDeviceA2dp) {
+        volume = (struct pal_volume_data *)calloc(1, (sizeof(uint32_t) +
+                              (sizeof(struct pal_channel_vol_kv) * (0xFFFF))));
+        if (!volume) {
+            PAL_ERR(LOG_TAG, "pal_volume_data memory allocation failure");
+            mStreamMutex.unlock();
+            rm->unlockActiveStream();
+            return -ENOMEM;
+        }
         status = streamHandle->getVolumeData(volume);
         if (status) {
             PAL_ERR(LOG_TAG, "getVolumeData failed %d", status);
@@ -1641,12 +1639,12 @@ done:
             PAL_ERR(LOG_TAG, "setVolume failed %d", status);
         }
         mute_l(false);
+        if (volume) {
+            free(volume);
+        }
         suspendedDevIds.clear();
     }
     mStreamMutex.unlock();
-    if (volume) {
-        free(volume);
-    }
     return status;
 }
 

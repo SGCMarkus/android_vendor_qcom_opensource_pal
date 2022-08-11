@@ -595,11 +595,9 @@ int32_t StreamPCM::start()
         mStreamMutex.unlock();
         rm->lockActiveStream();
         mStreamMutex.lock();
-        if (!isDevRegistered) {
-            for (int i = 0; i < mDevices.size(); i++) {
+        for (int i = 0; i < mDevices.size(); i++) {
+            if (!rm->isDeviceActive_l(mDevices[i], this))
                 rm->registerDevice(mDevices[i], this);
-            }
-            isDevRegistered = true;
         }
         rm->unlockActiveStream();
         rm->checkAndSetDutyCycleParam();
@@ -638,11 +636,9 @@ int32_t StreamPCM::stop()
         rm->lockActiveStream();
         mStreamMutex.lock();
         currentState = STREAM_STOPPED;
-        if (isDevRegistered) {
-            for (int i = 0; i < mDevices.size(); i++) {
+        for (int i = 0; i < mDevices.size(); i++) {
+            if (rm->isDeviceActive_l(mDevices[i], this))
                 rm->deregisterDevice(mDevices[i], this);
-            }
-            isDevRegistered = false;
         }
         rm->unlockActiveStream();
         switch (mStreamAttr->direction) {
@@ -934,9 +930,6 @@ int32_t StreamPCM::write(struct pal_buffer* buf)
 {
     int32_t status = 0;
     int32_t size = 0;
-    bool isA2dp = false;
-    bool isSpkr = false;
-    bool isA2dpSuspended = false;
     uint32_t frameSize = 0;
     uint32_t byteWidth = 0;
     uint32_t sampleRate = 0;
@@ -946,33 +939,6 @@ int32_t StreamPCM::write(struct pal_buffer* buf)
             session, currentState);
 
     mStreamMutex.lock();
-    for (int i = 0; i < mDevices.size(); i++) {
-        if (mDevices[i]->getSndDeviceId() == PAL_DEVICE_OUT_BLUETOOTH_A2DP ||
-            mDevices[i]->getSndDeviceId() == PAL_DEVICE_OUT_BLUETOOTH_BLE ||
-            mDevices[i]->getSndDeviceId() == PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST)
-            isA2dp = true;
-        if (mDevices[i]->getSndDeviceId() == PAL_DEVICE_OUT_SPEAKER)
-            isSpkr = true;
-    }
-
-    if (isA2dp && !isSpkr) {
-        pal_param_bta2dp_t *paramA2dp = NULL;
-        size_t paramSize = 0;
-        int ret = rm->getParameter(PAL_PARAM_ID_BT_A2DP_SUSPENDED,
-                (void **)&paramA2dp,
-                &paramSize,
-                NULL);
-        if (!ret && paramA2dp)
-            isA2dpSuspended = paramA2dp->a2dp_suspended;
-
-        if (isA2dpSuspended) {
-            PAL_ERR(LOG_TAG, "A2DP in suspended state");
-            mStreamMutex.unlock();
-            status = -EIO;
-            goto exit;
-        }
-    }
-
     // If cached state is not STREAM_IDLE, we are still processing SSR up.
     if ((mDevices.size() == 0)
             || (rm->cardState == CARD_STATUS_OFFLINE)
@@ -1024,11 +990,9 @@ int32_t StreamPCM::write(struct pal_buffer* buf)
         } else if (currentState == STREAM_PAUSED && !isPaused) {
             rm->lockActiveStream();
             mStreamMutex.lock();
-            if (!isDevRegistered) {
-                for (int i = 0; i < mDevices.size(); i++) {
+            for (int i = 0; i < mDevices.size(); i++) {
+                if (!rm->isDeviceActive_l(mDevices[i], this))
                     rm->registerDevice(mDevices[i], this);
-                }
-                isDevRegistered = true;
             }
             mStreamMutex.unlock();
             rm->unlockActiveStream();
@@ -1376,11 +1340,9 @@ int32_t StreamPCM::flush()
     mStreamMutex.unlock();
     rm->lockActiveStream();
     mStreamMutex.lock();
-    if (isDevRegistered) {
-        for (int i = 0; i < mDevices.size(); i++) {
+    for (int i = 0; i < mDevices.size(); i++) {
+        if (rm->isDeviceActive_l(mDevices[i], this))
             rm->deregisterDevice(mDevices[i], this);
-        }
-        isDevRegistered = false;
     }
     rm->unlockActiveStream();
 

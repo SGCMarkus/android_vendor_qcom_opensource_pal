@@ -46,6 +46,8 @@ CustomInterface::CustomInterface(std::shared_ptr<VUIStreamConfig> sm_cfg) {
     sm_cfg_ = sm_cfg;
     hist_duration_ = 0;
     preroll_duration_ = 0;
+    custom_event_ = nullptr;
+    custom_event_size_ = 0;
 
     /*
      * Check property vendor.audio.use_qc_wakeup_config
@@ -62,7 +64,8 @@ CustomInterface::CustomInterface(std::shared_ptr<VUIStreamConfig> sm_cfg) {
 }
 
 CustomInterface::~CustomInterface() {
-
+    if (custom_event_)
+        free(custom_event_);
 }
 
 int32_t CustomInterface::ParseSoundModel(std::shared_ptr<VUIStreamConfig> sm_cfg,
@@ -183,7 +186,6 @@ error_exit:
     }
     model_list.clear();
 
-exit:
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
 }
@@ -396,7 +398,6 @@ error_exit:
         st_conf_levels_v2_ = nullptr;
     }
 
-exit:
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
 }
@@ -454,12 +455,24 @@ void CustomInterface::SetSecondStageDetLevels(Stream *s,
 int32_t CustomInterface::ParseDetectionPayload(void *event, uint32_t size) {
     int32_t status = 0;
 
-    if (!IS_MODULE_TYPE_PDK(module_type_)) {
-        status = ParseDetectionPayloadGMM(event);
-        CheckAndSetDetectionConfLevels(GetDetectedStream());
+    if (use_qc_wakeup_config_) {
+        if (!IS_MODULE_TYPE_PDK(module_type_)) {
+            status = ParseDetectionPayloadGMM(event);
+            CheckAndSetDetectionConfLevels(GetDetectedStream());
+        } else {
+            status = ParseDetectionPayloadPDK(event);
+        }
     } else {
-        status = ParseDetectionPayloadPDK(event);
+        custom_event_ = (uint8_t *)realloc(custom_event_, size);
+        if (!custom_event_) {
+            PAL_ERR(LOG_TAG, "Failed to allocate memory for detection payload");
+            return -ENOMEM;
+        }
+
+        ar_mem_cpy(custom_event_, size, event, size);
+        custom_event_size_ = size;
     }
+
     if (status) {
         PAL_ERR(LOG_TAG, "Failed to parse detection payload, status %d",
                 status);
@@ -708,7 +721,8 @@ int32_t CustomInterface::GenerateCallbackEvent(Stream *s,
                 ((uint64_t)det_ev_info->detection_timestamp_msw << 32));
         }
     } else if (sm_info->type == PAL_SOUND_MODEL_TYPE_GENERIC) {
-        event_size = sizeof(struct pal_st_generic_recognition_event);
+        event_size = sizeof(struct pal_st_generic_recognition_event) +
+                     custom_event_size_;
         generic_event = (struct pal_st_generic_recognition_event *)
                        calloc(1, event_size);
         if (!generic_event) {
@@ -736,6 +750,10 @@ int32_t CustomInterface::GenerateCallbackEvent(Stream *s,
         (*event)->media_config.ch_info.channels =
             strAttr.in_media_config.ch_info.channels;
         (*event)->media_config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S16_LE;
+        // Filling Opaque data
+        opaque_data = (uint8_t *)generic_event +
+                       generic_event->common.data_offset;
+        ar_mem_cpy(opaque_data, custom_event_size_, custom_event_, custom_event_size_);
     }
     *size = event_size;
 exit:

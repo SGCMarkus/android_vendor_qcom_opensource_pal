@@ -193,7 +193,7 @@
     <ctl name="TX SMIC MUX7" value="ZERO" />
 
     <!-- Volume controls -->
-    <ctl name="WSA_RX0 Digital Volume" value="78" />
+    <ctl name="WSA_RX0 Digital Volume" value="84" />
     <ctl name="WSA_RX1 Digital Volume" value="84" />
     <ctl name="RX_RX0 Digital Volume" value="84" />
     <ctl name="RX_RX1 Digital Volume" value="84" />
@@ -589,6 +589,7 @@
         <ctl name="Idle Detect" value="1" />
         <ctl name="SpkrLeft COMP Switch" value="1" />
         <ctl name="SpkrLeft VISENSE Switch" value="1" />
+        <ctl name="SpkrLeft CPS Switch" value="1" />
         <ctl name="SpkrLeft SWR DAC_Port Switch" value="1" />
         <ctl name="EAR SPKR PA Gain" value="G_6_DB" />
         <ctl name="WSA_RX0 Digital Volume" value="60" />
@@ -599,7 +600,7 @@
     </path>
 
     <path name="handset-mic-unprocessed">
-        <path name="dmic2" />
+        <path name="amic1" />
         <ctl name="TX_DEC2 Volume" value="102" />
     </path>
 
@@ -1401,35 +1402,23 @@
         <ctl name="TX DEC3 MUX" value="SWR_MIC"/>
         <ctl name="TX DEC4 MUX" value="SWR_MIC"/>
         <ctl name="TX SMIC MUX1" value="SWR_MIC9"/>
-        <ctl name="TX SMIC MUX2" value="SWR_MIC9"/>
+        <ctl name="TX SMIC MUX2" value="SWR_MIC8"/>
         <ctl name="TX SMIC MUX3" value="SWR_MIC9"/>
-        <ctl name="TX SMIC MUX4" value="SWR_MIC9"/>
-        <ctl name="ADC3 MUX" value="INP4"/>
-        <ctl name="HDR12 MUX" value="NO_HDR12"/>
-        <ctl name="HDR34 MUX" value="NO_HDR34"/>
-        <ctl name="ADC4 MUX" value="INP5"/>
+        <ctl name="TX SMIC MUX4" value="SWR_MIC8"/>
+        <ctl name="HDR34 MUX" value="HDR34"/>
         <ctl name="TX2 MODE" value="ADC_HIFI"/>
-        <ctl name="TX0 MODE" value="ADC_HIFI"/>
         <ctl name="TX3 MODE" value="ADC_HIFI"/>
-        <ctl name="TX1 MODE" value="ADC_HIFI"/>
         <ctl name="ADC3 ChMap" value="SWRM_TX3_CH1"/>
-        <ctl name="ADC1 ChMap" value="SWRM_TX2_CH1"/>
         <ctl name="ADC4 ChMap" value="SWRM_TX3_CH2"/>
-        <ctl name="ADC2 ChMap" value="SWRM_TX2_CH2"/>
         <ctl name="ADC3_MIXER Switch" value="1"/>
-        <ctl name="ADC1_MIXER Switch" value="1"/>
         <ctl name="ADC4_MIXER Switch" value="1"/>
-        <ctl name="ADC2_MIXER Switch" value="1"/>
-        <ctl name="AMIC1_MIXER Switch" value="1"/>
         <ctl name="AMIC5_MIXER Switch" value="1"/>
         <ctl name="TX_DEC1 Volume" value="84"/>
         <ctl name="TX_DEC2 Volume" value="84"/>
         <ctl name="TX_DEC3 Volume" value="84"/>
         <ctl name="TX_DEC4 Volume" value="84"/>
-        <ctl name="ADC1 Volume" value="12"/>
-        <ctl name="ADC2 Volume" value="12"/>
-        <ctl name="ADC3 Volume" value="12"/>
-        <ctl name="ADC4 Volume" value="12"/>
+        <ctl name="ADC3 Volume" value="0"/>
+        <ctl name="ADC4 Volume" value="16"/>
     </path>
 
     <path name="unprocessed-hdr-mic-portrait">

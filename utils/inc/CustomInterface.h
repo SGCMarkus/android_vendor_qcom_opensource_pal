@@ -83,6 +83,8 @@ class CustomInterface: public VoiceUIInterface {
     struct detection_event_info detection_event_info_;
     struct detection_event_info_pdk detection_event_info_multi_model_;
     uint32_t det_model_id_;
+    uint8_t *custom_event_;
+    uint32_t custom_event_size_;
 };
 
 #endif

@@ -1360,7 +1360,7 @@ int SessionAlsaCompress::start(Stream * s)
                         volStatus = updateCustomPayload(payload, payloadSize);
                         free(payload);
                         if (0 != volStatus) {
-                            PAL_ERR(LOG_TAG,"Preetam updateCustomPayload Failed\n");
+                            PAL_ERR(LOG_TAG,"updateCustomPayload Failed\n");
                             break;
                         }
                     }
@@ -1372,7 +1372,36 @@ int SessionAlsaCompress::start(Stream * s)
                         customPayloadSize = 0;
                     }
                     if (volStatus != 0) {
-                        PAL_ERR(LOG_TAG,"Preetam setMixerParameter failed for MSPP module");
+                        PAL_ERR(LOG_TAG,"setMixerParameter failed for MSPP module");
+                        break;
+                    }
+
+                    //to set soft pause delay for MSPP use case.
+                    status = SessionAlsaUtils::getModuleInstanceId(mixer, compressDevIds.at(0),
+                                                                    rxAifBackEnds[0].second.data(), TAG_PAUSE, &miid);
+                    if (status != 0) {
+                        PAL_ERR(LOG_TAG,"get Soft Pause ModuleInstanceId failed");
+                        break;
+                    }
+
+                    builder->payloadSoftPauseConfig(&payload, &payloadSize, miid, MSPP_SOFT_PAUSE_DELAY);
+                    if (payloadSize && payload) {
+                        status = updateCustomPayload(payload, payloadSize);
+                        free(payload);
+                        if (0 != status) {
+                            PAL_ERR(LOG_TAG,"updateCustomPayload Failed\n");
+                            break;
+                        }
+                    }
+                    status = SessionAlsaUtils::setMixerParameter(mixer, compressDevIds.at(0),
+                                                                 customPayload, customPayloadSize);
+                    if (customPayload) {
+                        free(customPayload);
+                        customPayload = NULL;
+                        customPayloadSize = 0;
+                    }
+                    if (status != 0) {
+                        PAL_ERR(LOG_TAG,"setMixerParameter failed for soft Pause module");
                         break;
                     }
                 }

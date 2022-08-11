@@ -1195,6 +1195,35 @@ set_mixer:
                     PAL_ERR(LOG_TAG,"setMixerParameter failed for MSPP module");
                     goto pcm_start;
                 }
+
+                status = SessionAlsaUtils::getModuleInstanceId(mixer, pcmDevIds.at(0),
+                                                                rxAifBackEnds[0].second.data(), TAG_PAUSE, &miid);
+                if (status != 0) {
+                    PAL_ERR(LOG_TAG,"get Soft Pause ModuleInstanceId failed");
+                    goto pcm_start;
+                }
+                PAL_INFO(LOG_TAG, "miid : %x id = %d\n", miid, pcmDevIds.at(0));
+
+                builder->payloadSoftPauseConfig(&payload, &payloadSize, miid, MSPP_SOFT_PAUSE_DELAY);
+                if (payloadSize && payload) {
+                    status = updateCustomPayload(payload, payloadSize);
+                    free(payload);
+                    if (0 != status) {
+                        PAL_ERR(LOG_TAG,"updateCustomPayload Failed\n");
+                        goto pcm_start;
+                    }
+                }
+                status = SessionAlsaUtils::setMixerParameter(mixer, pcmDevIds.at(0),
+                                                             customPayload, customPayloadSize);
+                if (customPayload) {
+                    free(customPayload);
+                    customPayload = NULL;
+                    customPayloadSize = 0;
+                }
+                if (status != 0) {
+                    PAL_ERR(LOG_TAG,"setMixerParameter failed for soft Pause module");
+                    goto pcm_start;
+                }
             }
 
 pcm_start:
@@ -1893,10 +1922,9 @@ int SessionAlsaPcm::read(Stream *s, int tag __unused, struct pal_buffer *buf, in
 int SessionAlsaPcm::write(Stream *s, int tag, struct pal_buffer *buf, int * size,
                           int flag)
 {
-    int status = 0, bytesWritten = 0, bytesRemaining = 0, offset = 0;
-    uint32_t sizeWritten = 0;
+    int status = 0;
+    size_t bytesWritten = 0, bytesRemaining = 0, offset = 0, sizeWritten = 0;
     struct pal_stream_attributes sAttr;
-
 
     PAL_VERBOSE(LOG_TAG, "Enter buf:%p tag:%d flag:%d", buf, tag, flag);
 

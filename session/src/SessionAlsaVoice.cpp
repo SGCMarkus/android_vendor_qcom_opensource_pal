@@ -105,6 +105,53 @@ SessionAlsaVoice::~SessionAlsaVoice()
 
 }
 
+struct mixer_ctl* SessionAlsaVoice::getFEMixerCtl(const char *controlName, int *device, pal_stream_direction_t dir)
+{
+    std::ostringstream CntrlName;
+    struct mixer_ctl *ctl;
+    char *stream = (char*)"VOICEMMODE1p";
+
+    if (dir == PAL_AUDIO_OUTPUT) {
+        if (pcmDevRxIds.size()) {
+            *device = pcmDevRxIds.at(0);
+        } else {
+            PAL_ERR(LOG_TAG, "frontendIDs is not available.");
+            return NULL;
+        }
+    } else if (dir == PAL_AUDIO_INPUT) {
+        if (pcmDevTxIds.size()) {
+            *device = pcmDevTxIds.at(0);
+        } else {
+            PAL_ERR(LOG_TAG, "frontendIDs is not available.");
+            return NULL;
+        }
+    }
+
+    if (vsid == VOICEMMODE1 ||
+        vsid == VOICELBMMODE1) {
+        if (dir == PAL_AUDIO_INPUT) {
+            stream = (char*)"VOICEMMODE1c";
+        } else {
+            stream = (char*)"VOICEMMODE1p";
+        }
+    } else {
+        if (dir == PAL_AUDIO_INPUT) {
+            stream = (char*)"VOICEMMODE2c";
+        } else {
+            stream = (char*)"VOICEMMODE2p";
+        }
+    }
+
+    CntrlName << stream << " " << controlName;
+    ctl = mixer_get_ctl_by_name(mixer, CntrlName.str().data());
+    if (!ctl) {
+        PAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", CntrlName.str().data());
+        return NULL;
+    }
+
+    return ctl;
+}
+
 uint32_t SessionAlsaVoice::getMIID(const char *backendName, uint32_t tagId, uint32_t *miid)
 {
     int status = 0;
@@ -1255,7 +1302,7 @@ int SessionAlsaVoice::setConfig(Stream * s, configType type __unused, int tag, i
         goto exit;
     }
 
-    PAL_VERBOSE(LOG_TAG, "%x - payload and %zu size", *paramData , paramSize);
+    PAL_VERBOSE(LOG_TAG, "%pK - payload and %zu size", paramData , paramSize);
 
 exit:
     freeCustomPayload();
