@@ -450,6 +450,8 @@ typedef enum {
     PAL_STREAM_LOOPBACK_COMPRESS,
     PAL_STREAM_LOOPBACK_FM,
     PAL_STREAM_LOOPBACK_KARAOKE,
+    PAL_STREAM_LOOPBACK_PLAYBACK_ONLY,
+    PAL_STREAM_LOOPBACK_CAPTURE_ONLY,
 } pal_stream_loopback_type_t;
 
 typedef enum {
@@ -636,12 +638,14 @@ const std::map<uint32_t, std::string> vsidLUT {
 };
 
 const std::map<uint32_t, std::string> loopbackLUT {
-    {PAL_STREAM_LOOPBACK_PCM,        std::string{ "PAL_STREAM_LOOPBACK_PCM" } },
-    {PAL_STREAM_LOOPBACK_HFP_RX,     std::string{ "PAL_STREAM_LOOPBACK_HFP_RX" } },
-    {PAL_STREAM_LOOPBACK_HFP_TX,     std::string{ "PAL_STREAM_LOOPBACK_HFP_TX" } },
-    {PAL_STREAM_LOOPBACK_COMPRESS,   std::string{ "PAL_STREAM_LOOPBACK_COMPRESS" } },
-    {PAL_STREAM_LOOPBACK_FM,         std::string{ "PAL_STREAM_LOOPBACK_FM" } },
-    {PAL_STREAM_LOOPBACK_KARAOKE,    std::string{ "PAL_STREAM_LOOPBACK_KARAOKE" }},
+    {PAL_STREAM_LOOPBACK_PCM,           std::string{ "PAL_STREAM_LOOPBACK_PCM" } },
+    {PAL_STREAM_LOOPBACK_HFP_RX,        std::string{ "PAL_STREAM_LOOPBACK_HFP_RX" } },
+    {PAL_STREAM_LOOPBACK_HFP_TX,        std::string{ "PAL_STREAM_LOOPBACK_HFP_TX" } },
+    {PAL_STREAM_LOOPBACK_COMPRESS,      std::string{ "PAL_STREAM_LOOPBACK_COMPRESS" } },
+    {PAL_STREAM_LOOPBACK_FM,            std::string{ "PAL_STREAM_LOOPBACK_FM" } },
+    {PAL_STREAM_LOOPBACK_KARAOKE,       std::string{ "PAL_STREAM_LOOPBACK_KARAOKE" }},
+    {PAL_STREAM_LOOPBACK_PLAYBACK_ONLY, std::string{ "PAL_STREAM_LOOPBACK_PLAYBACK_ONLY" } },
+    {PAL_STREAM_LOOPBACK_CAPTURE_ONLY,  std::string{ "PAL_STREAM_LOOPBACK_CAPTURE_ONLY" } },
 };
 
 const std::map<uint32_t, std::string> hapticsLUT {

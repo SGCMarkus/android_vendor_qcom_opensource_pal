@@ -249,7 +249,7 @@ int32_t  StreamPCM::open()
             }
         }
         currentState = STREAM_INIT;
-        PAL_DBG(LOG_TAG, "streamLL opened. state %d", currentState);
+        PAL_DBG(LOG_TAG, "stream pcm opened. state %d", currentState);
     } else if (currentState == STREAM_INIT) {
         PAL_INFO(LOG_TAG, "Stream is already opened, state %d", currentState);
         status = 0;
