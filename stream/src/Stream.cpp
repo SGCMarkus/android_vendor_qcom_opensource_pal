@@ -935,6 +935,17 @@ int32_t Stream::handleBTDeviceNotReady(bool& a2dpSuspend)
                     rm->unlockGraph();
                     goto exit;
                 }
+                /* Special handling for aaudio usecase on A2DP/BLE.
+                * A2DP/BLE device starts even when stream is not in START state,
+                * hence stop A2DP/BLE device to match device start&stop count.
+                */
+                if (((mDevices[i]->getSndDeviceId() == PAL_DEVICE_OUT_BLUETOOTH_A2DP) ||
+                    (mDevices[i]->getSndDeviceId() == PAL_DEVICE_OUT_BLUETOOTH_BLE)) && isMMap) {
+                    status = mDevices[i]->stop();
+                    if (0 != status) {
+                        PAL_ERR(LOG_TAG, "BT A2DP/BLE device stop failed with status %d", status);
+                        }
+                }
                 status = mDevices[i]->close();
                 if (0 != status) {
                     PAL_ERR(LOG_TAG, "device close failed with status %d", status);
