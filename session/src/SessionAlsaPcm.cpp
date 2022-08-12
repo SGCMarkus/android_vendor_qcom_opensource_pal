@@ -816,29 +816,30 @@ void SessionAlsaPcm::releaseAdmFocus(Stream *s)
 
 int SessionAlsaPcm::start(Stream * s)
 {
-    struct pcm_config config;
-    struct pal_stream_attributes sAttr;
+    struct pcm_config config = {};
+    struct pal_stream_attributes sAttr = {};
     int32_t status = 0;
     std::vector<std::shared_ptr<Device>> associatedDevices;
-    struct pal_device dAttr;
-    struct pal_media_config codecConfig;
-    struct sessionToPayloadParam streamData;
+    struct pal_device dAttr = {};
+    struct pal_media_config codecConfig = {};
+    struct sessionToPayloadParam streamData = {};
     uint8_t* payload = NULL;
     size_t payloadSize = 0;
     uint32_t miid;
     int payload_size = 0;
-    struct agm_event_reg_cfg event_cfg;
+    struct agm_event_reg_cfg event_cfg = {};
     struct agm_event_reg_cfg *acd_event_cfg = nullptr;
     int tagId = 0;
     int DeviceId;
-    struct disable_lpm_info lpm_info;
+    struct disable_lpm_info lpm_info = {};
     bool isStreamAvail = false;
-    struct volume_set_param_info vol_set_param_info;
+    struct volume_set_param_info vol_set_param_info = {};
     uint16_t volSize = 0;
     uint8_t *volPayload = nullptr;
 
     PAL_DBG(LOG_TAG, "Enter");
 
+    memset(&dAttr, 0, sizeof(struct pal_device));
     rm->voteSleepMonitor(s, true);
     status = s->getStreamAttributes(&sAttr);
     if (status != 0) {

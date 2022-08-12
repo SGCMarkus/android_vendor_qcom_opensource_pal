@@ -67,6 +67,7 @@ StreamCommon::StreamCommon(const struct pal_stream_attributes *sattr, struct pal
     currentState = STREAM_IDLE;
     //Modify cached values only at time of SSR down.
     cachedState = STREAM_IDLE;
+    cookie_ = 0;
     bool isDeviceConfigUpdated = false;
 
     PAL_DBG(LOG_TAG, "Enter");

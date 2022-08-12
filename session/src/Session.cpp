@@ -435,13 +435,17 @@ int Session::setEffectParametersNonTKV(Stream *s __unused, effect_pal_payload_t 
 
     PAL_DBG(LOG_TAG, "Enter.");
 
+    if (!effectPayload) {
+        PAL_ERR(LOG_TAG, "Invalid effectPayload address.\n");
+        return -EINVAL;
+    }
+
     /* This is set param call, find out miid first */
     status = getModuleInfo(control, effectPayload->tag, &miid, NULL, &device);
     if (status || !miid) {
         PAL_ERR(LOG_TAG, "failed to look for module with tagID 0x%x, status = %d",
                     effectPayload->tag, status);
-        status = -EINVAL;
-        goto exit;
+        return -EINVAL;
     }
 
     /* Now we got the miid, build set param payload */
