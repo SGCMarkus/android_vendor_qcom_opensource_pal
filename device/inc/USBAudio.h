@@ -71,6 +71,7 @@
 #include <tinyalsa/asoundlib.h>
 #include <vector>
 #include <system/audio.h>
+#include <map>
 
 #define USB_BUFF_SIZE           4096
 #define CHANNEL_NUMBER_STR      "Channels: "
@@ -117,7 +118,7 @@ public:
     unsigned long getInterval();
     unsigned int getDefaultRate();
     int getSampleRates(int type, char *rates_str);
-    int getBestRate(int requested_rate, unsigned int *best_rate);
+    int getBestRate(int requested_rate, int candidate_rate, unsigned int *best_rate);
     int getBestChInfo(struct pal_channel_info *requested_ch_info,
                         struct pal_channel_info *best);
     int getServiceInterval(const char *interval_str_start);
@@ -132,6 +133,7 @@ class USBCardConfig {
 protected:
     struct pal_usb_device_address address_;
     int endian_;
+    std::multimap<uint32_t, std::shared_ptr<USBDeviceConfig>> format_list_map;
     std::vector <std::shared_ptr<USBDeviceConfig>> usb_device_config_list_;
     unsigned int usb_supported_sample_rates_mask_[2];
     void usb_info_dump(char* read_buf, int type);
