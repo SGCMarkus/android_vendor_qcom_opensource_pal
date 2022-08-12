@@ -614,7 +614,8 @@ int SessionAlsaPcm::setConfig(Stream * s, configType type, int tag)
                     // Currently Playback only and Capture only loopback don't
                     // support volume
                     PAL_DBG(LOG_TAG, "RX/TX only Loopback don't support volume");
-                    return -EINVAL;
+                    status = -EINVAL;
+                    goto exit;
                 }
 
                 if (pcmDevRxIds.size() > 0)
