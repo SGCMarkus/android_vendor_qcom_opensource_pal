@@ -778,6 +778,15 @@ ResourceManager::ResourceManager()
 
     vsidInfo.loopback_delay = 0;
 
+    //Initialize class members in the construct
+    cardState = CARD_STATUS_OFFLINE;
+    bOverwriteFlag = false;
+    cookie = 0;
+    memset(&this->linear_gain, 0, sizeof(pal_param_mspp_linear_gain_t));
+    memset(&this->mSpkrProtModeValue, 0, sizeof(pal_spkr_prot_payload));
+    mHighestPriorityActiveStream = nullptr;
+    mPriorityHighestPriorityActiveStream = 0;
+
     ret = ResourceManager::XmlParser(SNDPARSER);
     if (ret) {
         PAL_ERR(LOG_TAG, "error in snd xml parsing ret %d", ret);
@@ -3432,7 +3441,7 @@ int ResourceManager::getECEnableSetting(std::shared_ptr<Device> tx_dev,
         break;
     }
 exit:
-    PAL_DBG(TAG_LOG,"ec_enable_setting:%d, status:%d", *ec_enable, status);
+    PAL_DBG(TAG_LOG,"ec_enable_setting:%d, status:%d", ec_enable ? *ec_enable : 0, status);
     return status;
 }
 
