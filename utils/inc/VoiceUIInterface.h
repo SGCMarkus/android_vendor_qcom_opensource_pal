@@ -181,6 +181,13 @@ class VoiceUIInterface {
     virtual void UpdateFTRTData(void *data, uint32_t size) = 0;
 
     /*
+     * @brief check if qc wakeup config is used
+     * @caller SoundTriggerEngineGsl
+     * @note used for 3rd party path with QC wakeup config
+     */
+    virtual bool IsQCWakeUpConfigUsed() = 0;
+
+    /*
      * @brief get history/preroll duration with max value
      * @note for multiple stream case
      */
