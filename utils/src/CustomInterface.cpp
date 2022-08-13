@@ -342,18 +342,16 @@ int32_t CustomInterface::ParseRecognitionConfig(Stream *s,
 
     if (use_qc_wakeup_config_) {
         // construct custom config
-        if (wakeup_config.mode != recognition_mode) {
-            wakeup_config.mode |= recognition_mode;
-            wakeup_config.custom_payload_size = config->data_size;
-            wakeup_config.num_active_models = num_conf_levels;
-            wakeup_config.reserved = 0;
-            for (int i = 0; i < wakeup_config.num_active_models; i++) {
+        wakeup_config.mode |= recognition_mode;
+        wakeup_config.custom_payload_size = config->data_size;
+        wakeup_config.num_active_models = num_conf_levels;
+        wakeup_config.reserved = 0;
+        for (int i = 0; i < wakeup_config.num_active_models; i++) {
             wakeup_config.confidence_levels[i] = conf_levels[i];
             wakeup_config.keyword_user_enables[i] =
                 (wakeup_config.confidence_levels[i] == 100) ? 0 : 1;
             PAL_INFO(LOG_TAG, "cf levels[%d] = %d", i,
                     wakeup_config.confidence_levels[i]);
-            }
         }
 
         fixed_wakeup_payload_size =
@@ -362,6 +360,12 @@ int32_t CustomInterface::ParseRecognitionConfig(Stream *s,
         wakeup_payload_size = fixed_wakeup_payload_size +
             wakeup_config.num_active_models * 2;
         wakeup_payload = (uint8_t *)calloc(1, wakeup_payload_size);
+        if (!wakeup_payload) {
+            PAL_ERR(LOG_TAG, "Failed to allocate memory for wakeup payload");
+            status = -ENOMEM;
+            goto error_exit;
+        }
+
         ar_mem_cpy(wakeup_payload, fixed_wakeup_payload_size,
             &wakeup_config, fixed_wakeup_payload_size);
         confidence_level = wakeup_payload +
@@ -1798,3 +1802,4 @@ void CustomInterface::CheckAndSetDetectionConfLevels(Stream *s) {
         PAL_INFO(LOG_TAG, "det_cf_levels[%d]-%d", i,
             sm_info_map_[s]->info->GetDetConfLevels()[i]);
 }
+
