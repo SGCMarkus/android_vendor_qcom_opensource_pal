@@ -836,10 +836,22 @@ int SessionAlsaPcm::start(Stream * s)
     struct volume_set_param_info vol_set_param_info = {};
     uint16_t volSize = 0;
     uint8_t *volPayload = nullptr;
+    pal_stream_handle_t *stream_handle = reinterpret_cast<pal_stream_handle_t *>(s);
 
     PAL_DBG(LOG_TAG, "Enter");
 
     memset(&dAttr, 0, sizeof(struct pal_device));
+
+    rm->lockActiveStream();
+    if (!rm->isActiveStream(stream_handle)) {
+        rm->unlockActiveStream();
+        PAL_ERR(LOG_TAG, "Invalid stream handle.\n");
+        return -EINVAL;
+    }
+
+    rm->increaseStreamUserCounter(s);
+    rm->unlockActiveStream();
+
     rm->voteSleepMonitor(s, true);
     status = s->getStreamAttributes(&sAttr);
     if (status != 0) {
@@ -1561,6 +1573,9 @@ pcm_start:
 exit:
     if (status != 0)
         rm->voteSleepMonitor(s, false);
+    rm->lockActiveStream();
+    rm->decreaseStreamUserCounter(s);
+    rm->unlockActiveStream();
     PAL_DBG(LOG_TAG, "Exit status: %d", status);
     return status;
 }
