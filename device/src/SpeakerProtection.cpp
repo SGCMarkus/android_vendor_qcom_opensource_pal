@@ -1,6 +1,5 @@
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -25,6 +24,40 @@
  * BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
  * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
  * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
+ * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Changes from Qualcomm Innovation Center are provided under the following license:
+ *
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted (subject to the limitations in the
+ * disclaimer below) provided that the following conditions are met:
+ *
+ *   * Redistributions of source code must retain the above copyright
+ *     notice, this list of conditions and the following disclaimer.
+ *
+ *   * Redistributions in binary form must reproduce the above
+ *     copyright notice, this list of conditions and the following
+ *     disclaimer in the documentation and/or other materials provided
+ *     with the distribution.
+ *
+ *   * Neither the name of Qualcomm Innovation Center, Inc. nor the names of its
+ *     contributors may be used to endorse or promote products derived
+ *     from this software without specific prior written permission.
+ *
+ * NO EXPRESS OR IMPLIED LICENSES TO ANY PARTY'S PATENT RIGHTS ARE
+ * GRANTED BY THIS LICENSE. THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT
+ * HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED
+ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+ * IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
+ * ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE
+ * GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
+ * IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+ * OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
@@ -120,13 +153,11 @@ std::string getDefaultSpkrTempCtrl(uint8_t spkr_pos)
     }
 }
 
-#if 0
 cps_reg_wr_values_t sp_cps_thrsh_values = {
     .value_normal_threshold = {0x8E003049, 0x1000304A, 0x0F003472},
     .value_lower_threshold_1 = {0x8F003049, 0xD000304A, 0x0F003472},
     .value_lower_threshold_2 = {0x8F003049, 0xD000304A, 0x18003472}
 };
-#endif
 
 /* Function to check if Speaker is in use or not.
  * It returns the time as well for which speaker is not in use.
@@ -1159,18 +1190,7 @@ SpeakerProtection::SpeakerProtection(struct pal_device *device,
     calibrationCallbackStatus = 0;
     mDspCallbackRcvd = false;
 
-    if (device->id == PAL_DEVICE_OUT_HANDSET) {
-        vi_device.channels = 1;
-        cps_device.channels = 1;
-        numberOfChannels = 1;
-
-        PAL_DBG(LOG_TAG, "Device id: %d vi_device.channels: %d, cps_device.channels: %d, numberOfChannels: %d",
-                                         device->id, vi_device.channels,
-                                         cps_device.channels, numberOfChannels);
-        goto exit;
-    }
-
-    rm->getDeviceInfo(PAL_DEVICE_OUT_SPEAKER, PAL_STREAM_PROXY, "", &devinfo);
+    rm->getDeviceInfo(device->id, PAL_STREAM_PROXY, "", &devinfo);
     numberOfChannels = devinfo.channels;
     PAL_DBG(LOG_TAG, "Number of Channels %d", numberOfChannels);
 
@@ -1192,6 +1212,14 @@ SpeakerProtection::SpeakerProtection(struct pal_device *device,
     status = rm->getHwAudioMixer(&hwMixer);
     if (status) {
         PAL_ERR(LOG_TAG,"hw mixer error %d", status);
+    }
+
+    if (device->id == PAL_DEVICE_OUT_HANDSET) {
+        vi_device.channels = 1;
+        cps_device.channels = 1;
+        PAL_DBG(LOG_TAG, "Device id: %d vi_device.channels: %d cps_device.channels: %d",
+                              device->id, vi_device.channels, cps_device.channels);
+        goto exit;
     }
 
     fp = fopen(PAL_SP_TEMP_PATH, "rb");
@@ -1221,7 +1249,6 @@ SpeakerProtection::~SpeakerProtection()
     customPayloadSize = 0;
 }
 
-#if 0
 /*
  * CPS related custom payload
  */
@@ -1349,7 +1376,6 @@ exit:
        builder = NULL;
     }
 }
-#endif
 
 /*
  * Function to trigger Processing mode.
@@ -1895,6 +1921,29 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
             }
         }
 
+        switch(ResourceManager::cpsMode)
+        {
+            case 1:
+                goto cps_dev_setup;
+            case 2:
+
+                // wsa883x specific cps payload
+                updateCpsCustomPayload(miid);
+
+                enableDevice(audioRoute, mSndDeviceName_vi);
+                PAL_DBG(LOG_TAG, "pcm start for TX");
+                if (pcm_start(txPcm) < 0) {
+                    PAL_ERR(LOG_TAG, "pcm start failed for TX path");
+                    goto err_pcm_open;
+                }
+
+                // Free up the local variables
+                goto exit;
+            default:
+                goto exit;
+        }
+
+cps_dev_setup:
         enableDevice(audioRoute, mSndDeviceName_vi);
         PAL_DBG(LOG_TAG, "pcm start for TX");
         if (pcm_start(txPcm) < 0) {
@@ -1918,8 +1967,6 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
             else
                 ch_info.ch_map[0] = PAL_CHMAP_CHANNEL_FR;
         }
-
-        rm->getChannelMap(&(ch_info.ch_map[0]), cps_device.channels);
 
         deviceCPS.config.ch_info = ch_info;
         deviceCPS.config.sample_rate = cps_device.samplerate;

@@ -306,7 +306,7 @@ int32_t  Stream::getStreamAttributes(struct pal_stream_attributes *sAttr)
 {
     int32_t status = 0;
 
-    if (!sAttr) {
+    if (!sAttr || !mStreamAttr) {
         status = -EINVAL;
         PAL_ERR(LOG_TAG, "Invalid stream attribute pointer, status %d", status);
         goto exit;
@@ -884,6 +884,17 @@ int32_t Stream::handleBTDeviceNotReady(bool& a2dpSuspend)
         if (rm->isDeviceAvailable(mDevices, PAL_DEVICE_OUT_SPEAKER)) {
             // If it's a2dp + speaker combo device, route to speaker.
             PAL_INFO(LOG_TAG, "BT A2DP/BLE output device is not ready, route to speaker");
+
+            /* In combo use case, if ringtone routed to a2dp + spkr and at that time a2dp/ble
+             * device is in suspended state, so during resume ringtone won't be able to route
+             * to BLE device. In that case, add both speaker and a2dp/ble into suspended devices
+             * list so that a2dp/ble will be restored during a2dpResume without removing speaker
+             * from stream
+             */
+            suspendedDevIds.clear();
+            suspendedDevIds.push_back(PAL_DEVICE_OUT_SPEAKER);
+            suspendedDevIds.push_back(dattr.id);
+
             for (auto iter = mDevices.begin(); iter != mDevices.end();) {
                 if ((*iter)->getSndDeviceId() == PAL_DEVICE_OUT_SPEAKER) {
                     iter++;

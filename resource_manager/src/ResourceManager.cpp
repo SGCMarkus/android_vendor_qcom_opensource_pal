@@ -481,7 +481,7 @@ static int max_session_num;
 bool ResourceManager::isSpeakerProtectionEnabled = false;
 bool ResourceManager::isHandsetProtectionEnabled = false;
 bool ResourceManager::isChargeConcurrencyEnabled = false;
-bool ResourceManager::isCpsEnabled = false;
+int ResourceManager::cpsMode = 0;
 bool ResourceManager::isVbatEnabled = false;
 static int max_nt_sessions;
 bool ResourceManager::isRasEnabled = false;
@@ -5396,10 +5396,12 @@ void ResourceManager::checkHapticsConcurrency(struct pal_device *deviceattr,
         deviceattr->id == PAL_DEVICE_OUT_WIRED_HEADPHONE) {
         struct pal_device hapticsDattr;
         std::shared_ptr<Device> hapticsDev = nullptr;
+        std::shared_ptr<Device>  hsDev = nullptr;
 
         hapticsDattr.id = PAL_DEVICE_OUT_HAPTICS_DEVICE;
         hapticsDev = Device::getInstance(&hapticsDattr, rm);
-        if (!hapticsDev) {
+        hsDev = Device::getInstance(deviceattr, rm);
+        if (!hapticsDev || !hsDev) {
             PAL_ERR(LOG_TAG, "Getting Device instance failed");
             return;
         }
@@ -5409,11 +5411,14 @@ void ResourceManager::checkHapticsConcurrency(struct pal_device *deviceattr,
             if ((deviceattr->config.sample_rate % SAMPLINGRATE_44K == 0) &&
                 (hapticsDattr.config.sample_rate % SAMPLINGRATE_44K != 0)) {
                 deviceattr->config.sample_rate = hapticsDattr.config.sample_rate;
+                hsDev->setSampleRate(hapticsDattr.config.sample_rate);
                 deviceattr->config.bit_width = hapticsDattr.config.bit_width;
                 deviceattr->config.aud_fmt_id =  bitWidthToFormat.at(deviceattr->config.bit_width);
                 PAL_DBG(LOG_TAG, "headset is coming, update headset to sr: %d bw: %d ",
                     deviceattr->config.sample_rate, deviceattr->config.bit_width);
             }
+        } else {
+               hsDev->setSampleRate(0);
         }
     } else if (deviceattr->id == PAL_DEVICE_OUT_HAPTICS_DEVICE) {
         // if haptics is coming, update headset sample rate if needed
@@ -7963,8 +7968,9 @@ int32_t ResourceManager::a2dpResume(pal_device_id_t dev_id)
                 (*sIter)->getAssociatedDevices(devices);
                 if (devices.size() > 0) {
                     for (auto device: devices) {
-                        if (device->getSndDeviceId() > PAL_DEVICE_OUT_MIN &&
-                            device->getSndDeviceId() < PAL_DEVICE_OUT_MAX) {
+                        if ((device->getSndDeviceId() > PAL_DEVICE_OUT_MIN &&
+                            device->getSndDeviceId() < PAL_DEVICE_OUT_MAX) &&
+                            ((*sIter)->suspendedDevIds.size() == 1 /* non combo */)) {
                             streamDevDisconnect.push_back({ (*sIter), device->getSndDeviceId() });
                         }
                     }
@@ -9403,14 +9409,9 @@ int ResourceManager::handleDeviceRotationChange (pal_param_device_rotation_t
                     // Need to set the rotation now.
                     status = (*sIter)->setParameters(PAL_PARAM_ID_DEVICE_ROTATION,
                                                      (void*)&rotation_type);
-                    if(0 != status) {
-                       PAL_ERR(LOG_TAG,"setParameters Failed");
-                       goto error;
+                    if (0 != status) {
+                        PAL_ERR(LOG_TAG,"setParameters Failed for stream %d", streamType);
                     }
-                    /** As we are configuring MFC on DevicePP, so handling device rotation
-                     * for first stream will handle it for all other streams.
-                     */
-                    break;
                 }
             }
         }
@@ -9642,8 +9643,16 @@ int ResourceManager::handleDeviceConnectionChange(pal_param_device_connection_t 
                 goto err;
             }
         }
-        PAL_DBG(LOG_TAG, "Mark device %d as available", device_id);
-        avail_devices_.push_back(device_id);
+        if (!dev) {
+            dAttr.id = device_id;
+            dev = Device::getInstance(&dAttr, rm);
+            if (!dev)
+                PAL_ERR(LOG_TAG, "get dev instance for %d failed", device_id);
+        }
+        if (dev) {
+            PAL_DBG(LOG_TAG, "Mark device %d as available", device_id);
+            avail_devices_.push_back(device_id);
+        }
     } else if (!is_connected && device_available) {
         if (isPluginDevice(device_id) || isDpDevice(device_id)) {
             removePlugInDevice(device_id, connection_state);
@@ -9674,8 +9683,11 @@ int ResourceManager::handleDeviceConnectionChange(pal_param_device_connection_t 
                 PAL_DBG(LOG_TAG, "Mark device %d as unavailable", device_id);
             }
         }
-        avail_devices_.erase(std::find(avail_devices_.begin(),
-                                avail_devices_.end(), device_id));
+        auto iter =
+            std::find(avail_devices_.begin(), avail_devices_.end(),
+                        device_id);
+        if (iter != avail_devices_.end())
+            avail_devices_.erase(iter);
     } else if (!isBtScoDevice(device_id)) {
         status = -EINVAL;
         PAL_ERR(LOG_TAG, "Invalid operation, Device %d, connection state %d, device avalibilty %d",
@@ -10543,9 +10555,8 @@ void ResourceManager::process_device_info(struct xml_userdata *data, const XML_C
         } else if (!strcmp(tag_name, "Charge_concurrency_enabled")) {
             if (atoi(data->data_buf))
                 isChargeConcurrencyEnabled = true;
-        } else if (!strcmp(tag_name, "cps_enabled")) {
-            if (atoi(data->data_buf))
-                isCpsEnabled = true;
+        } else if (!strcmp(tag_name, "cps_mode")) {
+            cpsMode = atoi(data->data_buf);
         } else if (!strcmp(tag_name, "supported_bit_format")) {
             size = deviceInfo.size() - 1;
             if(!strcmp(data->data_buf, "PAL_AUDIO_FMT_PCM_S24_3LE"))
@@ -11194,6 +11205,13 @@ void ResourceManager::restoreDevice(std::shared_ptr<Device> dev)
      * still need to check if haptics is active and keep headset sample rate as 48K
      */
     if (dev->getSndDeviceId() == PAL_DEVICE_OUT_WIRED_HEADSET) {
+        newDevAttr.id = PAL_DEVICE_OUT_WIRED_HEADSET;
+        dev = Device::getInstance(&newDevAttr, rm);
+        if (!dev) {
+            PAL_ERR(LOG_TAG, "Getting headset device instance failed");
+            goto exit;
+        }
+        dev->getDeviceAttributes(&newDevAttr);
         checkHapticsConcurrency(&newDevAttr, NULL, streamsToSwitch, NULL);
     }
 
@@ -11345,7 +11363,9 @@ bool ResourceManager::doDevAttrDiffer(struct pal_device *inDevAttr,
         ((inDevAttr->id == PAL_DEVICE_OUT_BLUETOOTH_BLE) &&
         (curDevAttr->id == PAL_DEVICE_OUT_BLUETOOTH_BLE)) ||
         ((inDevAttr->id == PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST) &&
-        (curDevAttr->id == PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST))) {
+        (curDevAttr->id == PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST)) ||
+        ((inDevAttr->id == PAL_DEVICE_IN_BLUETOOTH_BLE) &&
+        (curDevAttr->id == PAL_DEVICE_IN_BLUETOOTH_BLE))) {
         pal_param_bta2dp_t *param_bt_a2dp = nullptr;
 
         if (isDeviceAvailable(inDevAttr->id)) {

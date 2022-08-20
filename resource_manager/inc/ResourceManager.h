@@ -1,6 +1,5 @@
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -516,7 +515,7 @@ protected:
     std::vector <pal_device_id_t> avail_devices_;
     std::map<Stream*, uint32_t> mActiveStreamUserCounter;
     bool bOverwriteFlag;
-    bool screen_state_;
+    bool screen_state_ = true;
     bool charging_state_;
     bool is_charger_online_;
     bool is_concurrent_boost_state_;
@@ -620,7 +619,7 @@ public:
     static bool isSpeakerProtectionEnabled;
     static bool isHandsetProtectionEnabled;
     static bool isChargeConcurrencyEnabled;
-    static bool isCpsEnabled;
+    static int cpsMode;
     static bool isVbatEnabled;
     static bool isRasEnabled;
     static bool isGaplessEnabled;
