@@ -25,6 +25,10 @@
  * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
  * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Changes from Qualcomm Innovation Center are provided under the following license:
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause-Clear
  */
 
 #define LOG_TAG "PAL: StreamSensorPCMData"
@@ -375,6 +379,11 @@ void StreamSensorPCMData::GetUUID(class SoundTriggerUUID *uuid,
 /* Use below UUID for Sensor PCM Data usecase */
 static const struct st_uuid qc_sensor_pcm_data_uuid =
     { 0xc88a2c89, 0x7a55, 0x498c, 0x836f, { 0x5d, 0x7e, 0xc8, 0x58, 0x29, 0x90 } };
+
+struct st_uuid StreamSensorPCMData::GetVendorUuid()
+{
+    return qc_sensor_pcm_data_uuid;
+}
 
 int32_t StreamSensorPCMData::SetupStreamConfig(const struct st_uuid *vendor_uuid)
 {

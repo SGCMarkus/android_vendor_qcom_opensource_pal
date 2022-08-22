@@ -121,7 +121,8 @@ LOCAL_HEADER_LIBRARIES := \
     libagm_headers \
     libacdb_headers \
     liblisten_headers \
-    libarosal_headers
+    libarosal_headers \
+    libvui_dmgr_headers
 
 LOCAL_SHARED_LIBRARIES := \
     libar-gsl\
