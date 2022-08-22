@@ -1846,3 +1846,11 @@ exit:
     PAL_DBG(LOG_TAG, "Exit");
     return device;
 }
+
+void Stream::setCachedState(stream_state_t state)
+{
+    mStreamMutex.lock();
+    cachedState = state;
+    PAL_DBG(LOG_TAG, "set cachedState to %d", cachedState);
+    mStreamMutex.unlock();
+}
