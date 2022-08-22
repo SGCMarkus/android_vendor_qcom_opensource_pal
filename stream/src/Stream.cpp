@@ -1070,7 +1070,16 @@ int32_t Stream::disconnectStreamDevice_l(Stream* streamHandle, pal_device_id_t d
                 rm->unlockGraph();
                 goto exit;
             }
-            if (currentState != STREAM_INIT && currentState != STREAM_STOPPED) {
+            /* Special handling for aaudio usecase on A2DP/BLE.
+             * A2DP/BLE device starts even when stream is not in START state,
+             * hence stop A2DP/BLE device to match device start&stop count.
+             */
+
+            if ((currentState != STREAM_INIT && currentState != STREAM_STOPPED) ||
+                (currentState == STREAM_INIT &&
+                ((mDevices[i]->getSndDeviceId() == PAL_DEVICE_OUT_BLUETOOTH_A2DP) ||
+                (mDevices[i]->getSndDeviceId() == PAL_DEVICE_OUT_BLUETOOTH_BLE)) &&
+                 isMMap)) {
                 status = mDevices[i]->stop();
                 if (0 != status) {
                     PAL_ERR(LOG_TAG, "device stop failed with status %d", status);
