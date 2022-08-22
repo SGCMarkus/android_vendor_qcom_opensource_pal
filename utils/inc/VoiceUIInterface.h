@@ -296,9 +296,10 @@ class VoiceUIInterface {
 
     SoundModelInfo *sound_model_info_;
 
-    uint32_t start_index_;
-    uint32_t end_index_;
-    uint32_t ftrt_size_;
+    uint32_t start_index_ = 0;
+    uint32_t end_index_ = 0;
+    uint32_t ftrt_size_ = 0;
 };
 
 #endif
+
