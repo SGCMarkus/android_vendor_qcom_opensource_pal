@@ -691,14 +691,13 @@ int SessionAlsaCompress::open(Stream * s)
     // Register for  mixer event callback
     status = rm->registerMixerEventCallback(compressDevIds, sessionCb, cbCookie,
                     true);
-    if (status != 0) {
+    if (status == 0) {
+        isMixerEventCbRegd = true;
+    } else {
         // Not a fatal error. Only pop noise will come for Soft pause use case
         PAL_ERR(LOG_TAG, "Failed to register callback to rm");
         status = 0;
-        isPauseRegistrationDone = false;
     }
-    else
-        isPauseRegistrationDone = true;
 
 exit:
     PAL_DBG(LOG_TAG, "Exit status: %d", status);
@@ -1212,7 +1211,7 @@ int SessionAlsaCompress::start(Stream * s)
                     }
                 }
 
-                if (!status && isPauseRegistrationDone) {
+                if (!status && isMixerEventCbRegd && !isPauseRegistrationDone) {
                     // Register for callback for Soft Pause
                     size_t payload_size = 0;
                     struct agm_event_reg_cfg event_cfg;
@@ -1224,10 +1223,12 @@ int SessionAlsaCompress::start(Stream * s)
                     status = SessionAlsaUtils::registerMixerEvent(mixer,
                                     compressDevIds.at(0), rxAifBackEnds[0].second.data(),
                                     TAG_PAUSE, (void *)&event_cfg, payload_size);
-                    if (status != 0) {
-                        PAL_DBG(LOG_TAG, "Unable to register callback for pause\n");
+                    if (status == 0) {
+                        isPauseRegistrationDone = true;
+                    } else {
+                        // Not a fatal error
+                        PAL_ERR(LOG_TAG, "Pause callback registration failed");
                         status = 0;
-                        isPauseRegistrationDone = false;
                     }
                 }
             }
@@ -1311,10 +1312,16 @@ int SessionAlsaCompress::stop(Stream * s __unused)
         event_cfg.event_id = EVENT_ID_SOFT_PAUSE_PAUSE_COMPLETE;
         event_cfg.event_config_payload_size = 0;
         event_cfg.is_register = 0;
-        SessionAlsaUtils::registerMixerEvent(mixer, compressDevIds.at(0),
+        status = SessionAlsaUtils::registerMixerEvent(mixer, compressDevIds.at(0),
                     rxAifBackEnds[0].second.data(), TAG_PAUSE, (void *)&event_cfg,
                     payload_size);
-        isPauseRegistrationDone = false;
+        if (status == 0) {
+            isPauseRegistrationDone = false;
+        } else {
+            // Not a fatal error
+            PAL_ERR(LOG_TAG, "Pause callback deregistration failed\n");
+            status = 0;
+        }
     }
 
     PAL_DBG(LOG_TAG, "Enter");
@@ -1393,10 +1400,13 @@ int SessionAlsaCompress::close(Stream * s)
     freeCustomPayload();
 
     // Deregister for mixer event callback
-    if (isPauseRegistrationDone) {
+    if (isMixerEventCbRegd) {
         status = rm->registerMixerEventCallback(compressDevIds, sessionCb, cbCookie,
                         false);
-        if (status != 0) {
+        if (status == 0) {
+            isMixerEventCbRegd = false;
+        } else {
+            // Not a fatal error
             PAL_ERR(LOG_TAG, "Failed to deregister callback to rm");
             status = 0;
         }
