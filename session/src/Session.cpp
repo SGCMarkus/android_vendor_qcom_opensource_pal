@@ -82,6 +82,7 @@ std::mutex Session::extECMutex;
 
 Session::Session()
 {
+    isMixerEventCbRegd = false;
     isPauseRegistrationDone = false;
 
 }
