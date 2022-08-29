@@ -340,8 +340,6 @@ int SessionAlsaPcm::setConfig(Stream * s, configType type, uint32_t tag1,
             }
             status = SessionAlsaUtils::getTagMetadata(tagsent, tkv, tagConfig);
             if (0 != status) {
-                if (tagConfig)
-                    free(tagConfig);
                 goto exit;
             }
             if (pcmDevIds.size() > 0) {
@@ -354,17 +352,14 @@ int SessionAlsaPcm::setConfig(Stream * s, configType type, uint32_t tag1,
             ctl = mixer_get_ctl_by_name(mixer, tagCntrlName.str().data());
             if (!ctl) {
                 PAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", tagCntrlName.str().data());
-                if (tagConfig)
-                    free(tagConfig);
-                return -ENOENT;
+                status = -ENOENT;
+                goto exit;
             }
 
             tkv_size = tkv.size() * sizeof(struct agm_key_value);
             status = mixer_ctl_set_array(ctl, tagConfig, sizeof(struct agm_tag_config) + tkv_size);
             if (status != 0) {
                 PAL_ERR(LOG_TAG, "failed to set the tag calibration %d", status);
-                if (tagConfig)
-                    free(tagConfig);
                 goto exit;
             }
             ctl = NULL;
