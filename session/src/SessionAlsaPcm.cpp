@@ -2466,6 +2466,8 @@ int SessionAlsaPcm::setParameters(Stream *streamHandle, int tagId, uint32_t para
 
             status = SessionAlsaUtils::getTagMetadata(TAG_DUTY_CYCLE, tkv, tagConfig);
             if (0 != status) {
+                if (tagConfig)
+                    free(tagConfig);
                 goto exit;
             }
 
@@ -2475,6 +2477,8 @@ int SessionAlsaPcm::setParameters(Stream *streamHandle, int tagId, uint32_t para
             if (!ctl) {
                 PAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", tagCntrlNameRx.str().data());
                 status = -EINVAL;
+                if (tagConfig)
+                    free(tagConfig);
                 goto exit;
             }
             tkv_size = tkv.size()*sizeof(struct agm_key_value);
@@ -2489,12 +2493,16 @@ int SessionAlsaPcm::setParameters(Stream *streamHandle, int tagId, uint32_t para
             if (!ctl) {
                 PAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", tagCntrlNameTx.str().data());
                 status = -EINVAL;
+                if (tagConfig)
+                    free(tagConfig);
                 goto exit;
             }
             status = mixer_ctl_set_array(ctl, tagConfig, sizeof(struct agm_tag_config) + tkv_size);
             if (status != 0) {
                 PAL_ERR(LOG_TAG, "failed to set the TX duty cycle calibration %d", status);
             }
+            if (tagConfig)
+                free(tagConfig);
             return 0;
         }
         case PAL_PARAM_ID_ULTRASOUND_RAMPDOWN:
