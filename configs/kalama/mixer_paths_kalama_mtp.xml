@@ -537,6 +537,11 @@
         <ctl name="WSA_RX0 Digital Volume" value="70" />
     </path>
 
+    <path name="handset-vbat">
+       <path name="handset" />
+       <ctl name="WSA_RX INT0 VBAT WSA RX0 VBAT Enable" value="1" />
+    </path>
+
     <path name="handset-mic">
         <path name="dmic2" />
     </path>
@@ -554,7 +559,13 @@
         <ctl name="SpkrLeft COMP Switch" value="1" />
         <ctl name="SpkrLeft VISENSE Switch" value="1" />
         <ctl name="SpkrLeft SWR DAC_Port Switch" value="1" />
+        <ctl name="WSA PBR Enable" value="1" />
         <ctl name="WSA_RX0 Digital Volume" value="50" />
+    </path>
+
+    <path name="ultrasound-handset-vbat">
+       <path name="ultrasound-handset" />
+       <ctl name="WSA_RX INT0 VBAT WSA RX0 VBAT Enable" value="1" />
     </path>
 
     <path name="ultrasound-mic">
