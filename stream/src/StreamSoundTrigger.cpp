@@ -2915,6 +2915,9 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
             }
             if (st_stream_.reader_)
                 st_stream_.reader_->updateState(READER_DISABLED);
+
+            // post delayed stop in case client does not send next start
+            st_stream_.PostDelayedStop();
             break;
         }
         case ST_EV_START_RECOGNITION: {
