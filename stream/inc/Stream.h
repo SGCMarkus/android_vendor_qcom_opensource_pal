@@ -189,10 +189,10 @@ protected:
     uint32_t mNoOfModifiers;
     std::string mStreamSelector;
     std::string mDevPPSelector;
-    size_t inBufSize;
-    size_t outBufSize;
-    size_t inBufCount;
-    size_t outBufCount;
+    size_t inBufSize = BUF_SIZE_CAPTURE;
+    size_t outBufSize = BUF_SIZE_PLAYBACK;
+    size_t inBufCount = NO_OF_BUF;
+    size_t outBufCount = NO_OF_BUF;
     size_t outMaxMetadataSz;
     size_t inMaxMetadataSz;
     stream_state_t currentState;

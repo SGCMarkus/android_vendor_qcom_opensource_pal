@@ -58,10 +58,6 @@ StreamPCM::StreamPCM(const struct pal_stream_attributes *sattr, struct pal_devic
     mGainLevel = -1;
     std::shared_ptr<Device> dev = nullptr;
     mStreamAttr = (struct pal_stream_attributes *)nullptr;
-    inBufSize = BUF_SIZE_CAPTURE;
-    outBufSize = BUF_SIZE_PLAYBACK;
-    inBufCount = NO_OF_BUF;
-    outBufCount = NO_OF_BUF;
     mDevices.clear();
     currentState = STREAM_IDLE;
     //Modify cached values only at time of SSR down.

@@ -99,10 +99,6 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
     reader_ = nullptr;
     detection_state_ = ENGINE_IDLE;
     notification_state_ = ENGINE_IDLE;
-    inBufSize = BUF_SIZE_CAPTURE;
-    outBufSize = BUF_SIZE_PLAYBACK;
-    inBufCount = NO_OF_BUF;
-    outBufCount = NO_OF_BUF;
     model_id_ = 0;
     sm_config_ = nullptr;
     rec_config_ = nullptr;
