@@ -8,7 +8,7 @@
 #include "VoiceUIInterface.h"
 #include "SVAInterface.h"
 #include "HotwordInterface.h"
-#include "CustomInterface.h"
+#include "CustomVAInterface.h"
 
 std::shared_ptr<VoiceUIInterface> VoiceUIInterface::Create(
     std::shared_ptr<VUIStreamConfig> sm_cfg) {
@@ -33,7 +33,7 @@ std::shared_ptr<VoiceUIInterface> VoiceUIInterface::Create(
             break;
         case ST_MODULE_TYPE_CUSTOM_1:
         case ST_MODULE_TYPE_CUSTOM_2:
-            interface = std::make_shared<CustomInterface>(sm_cfg);
+            interface = std::make_shared<CustomVAInterface>(sm_cfg);
             break;
         default:
             PAL_ERR(LOG_TAG, "Invalid VUI module type");
@@ -67,7 +67,7 @@ int32_t VoiceUIInterface::ParseSoundModel(
             break;
         case ST_MODULE_TYPE_CUSTOM_1:
         case ST_MODULE_TYPE_CUSTOM_2:
-            status = CustomInterface::ParseSoundModel(sm_cfg,
+            status = CustomVAInterface::ParseSoundModel(sm_cfg,
                                                       sound_model,
                                                       first_stage_type,
                                                       model_list);

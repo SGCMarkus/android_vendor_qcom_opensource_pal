@@ -31,9 +31,9 @@
  * SPDX-License-Identifier: BSD-3-Clause-Clear
  */
 
-#define LOG_TAG "PAL: CustomInterface"
+#define LOG_TAG "PAL: CustomVAInterface"
 
-#include "CustomInterface.h"
+#include "CustomVAInterface.h"
 #include "detection_cmn_api.h"
 
 #include <cutils/properties.h>
@@ -42,14 +42,20 @@
 #define CUSTOM_CONFIG_OPAQUE_DATA_SIZE 12
 #define CONF_LEVELS_INTF_VERSION_0002 0x02
 
-CustomInterface::CustomInterface(std::shared_ptr<VUIStreamConfig> sm_cfg) {
+CustomVAInterface::CustomVAInterface(std::shared_ptr<VUIStreamConfig> sm_cfg) {
     sm_cfg_ = sm_cfg;
     hist_duration_ = 0;
     preroll_duration_ = 0;
+    conf_levels_intf_version_ = 0;
     st_conf_levels_ = nullptr;
     st_conf_levels_v2_ = nullptr;
     custom_event_ = nullptr;
     custom_event_size_ = 0;
+    det_model_id_ = 0;
+    std::memset(&detection_event_info_, 0,
+                sizeof(struct detection_event_info));
+    std::memset(&detection_event_info_multi_model_, 0,
+                sizeof(struct detection_event_info_pdk));
 
     /*
      * Check property vendor.audio.use_qc_wakeup_config
@@ -65,7 +71,7 @@ CustomInterface::CustomInterface(std::shared_ptr<VUIStreamConfig> sm_cfg) {
 #endif
 }
 
-CustomInterface::~CustomInterface() {
+CustomVAInterface::~CustomVAInterface() {
     if (custom_event_)
         free(custom_event_);
     if (st_conf_levels_) {
@@ -78,7 +84,7 @@ CustomInterface::~CustomInterface() {
     }
 }
 
-int32_t CustomInterface::ParseSoundModel(std::shared_ptr<VUIStreamConfig> sm_cfg,
+int32_t CustomVAInterface::ParseSoundModel(std::shared_ptr<VUIStreamConfig> sm_cfg,
                                          struct pal_st_sound_model *sound_model,
                                          st_module_type_t &first_stage_type,
                                          std::vector<sm_pair_t> &model_list) {
@@ -200,7 +206,7 @@ error_exit:
     return status;
 }
 
-int32_t CustomInterface::ParseRecognitionConfig(Stream *s,
+int32_t CustomVAInterface::ParseRecognitionConfig(Stream *s,
     struct pal_st_recognition_config *config) {
 
     int32_t status = 0;
@@ -422,7 +428,7 @@ exit:
     return status;
 }
 
-void CustomInterface::GetWakeupConfigs(Stream *s,
+void CustomVAInterface::GetWakeupConfigs(Stream *s,
                                        void **config,
                                        uint32_t *size) {
 
@@ -434,7 +440,7 @@ void CustomInterface::GetWakeupConfigs(Stream *s,
     }
 }
 
-void CustomInterface::GetBufferingConfigs(Stream *s,
+void CustomVAInterface::GetBufferingConfigs(Stream *s,
                                           uint32_t *hist_duration,
                                           uint32_t *preroll_duration) {
 
@@ -446,7 +452,7 @@ void CustomInterface::GetBufferingConfigs(Stream *s,
     }
 }
 
-void CustomInterface::GetSecondStageConfLevels(Stream *s,
+void CustomVAInterface::GetSecondStageConfLevels(Stream *s,
                                                listen_model_indicator_enum type,
                                                uint32_t *level) {
 
@@ -461,7 +467,7 @@ void CustomInterface::GetSecondStageConfLevels(Stream *s,
     }
 }
 
-void CustomInterface::SetSecondStageDetLevels(Stream *s,
+void CustomVAInterface::SetSecondStageDetLevels(Stream *s,
                                               listen_model_indicator_enum type,
                                               uint32_t level) {
 
@@ -482,7 +488,7 @@ void CustomInterface::SetSecondStageDetLevels(Stream *s,
     }
 }
 
-int32_t CustomInterface::ParseDetectionPayload(void *event, uint32_t size) {
+int32_t CustomVAInterface::ParseDetectionPayload(void *event, uint32_t size) {
     int32_t status = 0;
 
     if (use_qc_wakeup_config_) {
@@ -511,7 +517,7 @@ int32_t CustomInterface::ParseDetectionPayload(void *event, uint32_t size) {
     return status;
 }
 
-Stream* CustomInterface::GetDetectedStream() {
+Stream* CustomVAInterface::GetDetectedStream() {
     Stream *st = nullptr;
     struct sound_model_info *sm_info = nullptr;
 
@@ -572,14 +578,14 @@ Stream* CustomInterface::GetDetectedStream() {
     return nullptr;
 }
 
-void* CustomInterface::GetDetectionEventInfo() {
+void* CustomVAInterface::GetDetectionEventInfo() {
     if (IS_MODULE_TYPE_PDK(module_type_)) {
        return &detection_event_info_multi_model_;
     }
     return &detection_event_info_;
 }
 
-int32_t CustomInterface::GenerateCallbackEvent(Stream *s,
+int32_t CustomVAInterface::GenerateCallbackEvent(Stream *s,
                                                struct pal_st_recognition_event **event,
                                                uint32_t *size,
                                                bool detection) {
@@ -792,7 +798,7 @@ exit:
 }
 
 // Protected APIs
-int32_t CustomInterface::ParseOpaqueConfLevels(
+int32_t CustomVAInterface::ParseOpaqueConfLevels(
     struct sound_model_info *info,
     void *opaque_conf_levels,
     uint32_t version,
@@ -900,7 +906,7 @@ exit:
     return status;
 }
 
-int32_t CustomInterface::FillConfLevels(
+int32_t CustomVAInterface::FillConfLevels(
     struct sound_model_info *info,
     struct pal_st_recognition_config *config,
     uint8_t **out_conf_levels,
@@ -1037,7 +1043,7 @@ exit:
     return status;
 }
 
-int32_t CustomInterface::FillOpaqueConfLevels(
+int32_t CustomVAInterface::FillOpaqueConfLevels(
     uint32_t model_id,
     const void *sm_levels_generic,
     uint8_t **out_payload,
@@ -1282,7 +1288,7 @@ exit:
     return status;
 }
 
-int32_t CustomInterface::ParseDetectionPayloadPDK(void *event_data) {
+int32_t CustomVAInterface::ParseDetectionPayloadPDK(void *event_data) {
     int32_t status = 0;
     uint32_t payload_size = 0;
     uint32_t parsed_size = 0;
@@ -1455,7 +1461,7 @@ exit :
     return status;
 }
 
-int32_t CustomInterface::ParseDetectionPayloadGMM(void *event_data) {
+int32_t CustomVAInterface::ParseDetectionPayloadGMM(void *event_data) {
     int32_t status = 0;
     int32_t i = 0;
     uint32_t parsed_size = 0;
@@ -1584,7 +1590,7 @@ exit:
     return status;
 }
 
-void CustomInterface::UpdateKeywordIndex(uint64_t kwd_start_timestamp,
+void CustomVAInterface::UpdateKeywordIndex(uint64_t kwd_start_timestamp,
                                       uint64_t kwd_end_timestamp,
                                       uint64_t ftrt_start_timestamp) {
 
@@ -1605,7 +1611,7 @@ void CustomInterface::UpdateKeywordIndex(uint64_t kwd_start_timestamp,
         start_index_, end_index_);
 }
 
-void CustomInterface::PackEventConfLevels(struct sound_model_info *sm_info,
+void CustomVAInterface::PackEventConfLevels(struct sound_model_info *sm_info,
                                        uint8_t *opaque_data) {
 
     struct st_confidence_levels_info *conf_levels = nullptr;
@@ -1710,7 +1716,7 @@ void CustomInterface::PackEventConfLevels(struct sound_model_info *sm_info,
     PAL_VERBOSE(LOG_TAG, "Exit");
 }
 
-void CustomInterface::FillCallbackConfLevels(struct sound_model_info *sm_info,
+void CustomVAInterface::FillCallbackConfLevels(struct sound_model_info *sm_info,
                                           uint8_t *opaque_data,
                                           uint32_t det_keyword_id,
                                           uint32_t best_conf_level) {
@@ -1777,7 +1783,7 @@ void CustomInterface::FillCallbackConfLevels(struct sound_model_info *sm_info,
     }
 }
 
-void CustomInterface::CheckAndSetDetectionConfLevels(Stream *s) {
+void CustomVAInterface::CheckAndSetDetectionConfLevels(Stream *s) {
     PAL_DBG(LOG_TAG, "Enter");
 
     if (!s) {

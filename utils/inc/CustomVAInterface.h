@@ -3,16 +3,16 @@
  * SPDX-License-Identifier: BSD-3-Clause-Clear
  */
 
-#ifndef CUSTOM_INTERFACE_H
-#define CUSTOM_INTERFACE_H
+#ifndef CUSTOM_VA_INTERFACE_H
+#define CUSTOM_VA_INTERFACE_H
 
 #include "VoiceUIInterface.h"
 #include "SoundTriggerEngine.h"
 
-class CustomInterface: public VoiceUIInterface {
+class CustomVAInterface: public VoiceUIInterface {
   public:
-    CustomInterface(std::shared_ptr<VUIStreamConfig> sm_cfg);
-    ~CustomInterface();
+    CustomVAInterface(std::shared_ptr<VUIStreamConfig> sm_cfg);
+    ~CustomVAInterface();
 
     static int32_t ParseSoundModel(std::shared_ptr<VUIStreamConfig> sm_cfg,
                                    struct pal_st_sound_model *sound_model,

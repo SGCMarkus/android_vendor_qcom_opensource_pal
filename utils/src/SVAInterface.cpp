@@ -45,8 +45,14 @@ SVAInterface::SVAInterface(std::shared_ptr<VUIStreamConfig> sm_cfg) {
     sm_cfg_ = sm_cfg;
     hist_duration_ = 0;
     preroll_duration_ = 0;
+    conf_levels_intf_version_ = 0;
     st_conf_levels_ = nullptr;
     st_conf_levels_v2_ = nullptr;
+    det_model_id_ = 0;
+    std::memset(&detection_event_info_, 0,
+                sizeof(struct detection_event_info));
+    std::memset(&detection_event_info_multi_model_, 0,
+                sizeof(struct detection_event_info_pdk));
 }
 
 SVAInterface::~SVAInterface() {
