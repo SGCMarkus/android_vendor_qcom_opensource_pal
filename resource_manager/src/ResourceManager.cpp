@@ -3356,21 +3356,26 @@ int ResourceManager::isActiveStream(pal_stream_handle_t *handle) {
 
 int ResourceManager::initStreamUserCounter(Stream *s)
 {
+    lockActiveStream();
     mActiveStreamUserCounter.insert(std::make_pair(s, 0));
+    unlockActiveStream();
     return 0;
 }
 
 int ResourceManager::deinitStreamUserCounter(Stream *s)
 {
     std::map<Stream *, uint32_t>::iterator it;
+    lockActiveStream();
     printStreamUserCounter(s);
     it = mActiveStreamUserCounter.find(s);
     if (it != mActiveStreamUserCounter.end()) {
         PAL_INFO(LOG_TAG, "stream %p is to be erased.", s);
         mActiveStreamUserCounter.erase(it);
+        unlockActiveStream();
         return 0;
     } else {
         PAL_ERR(LOG_TAG, "stream %p is not found.", s);
+        unlockActiveStream();
         return -EINVAL;
     }
 }
