@@ -8126,6 +8126,7 @@ int32_t ResourceManager::a2dpResume(pal_device_id_t dev_id)
 
     // retry all streams which failed to switch to desired device previously.
     for (sIter = retryStreams.begin(); sIter != retryStreams.end(); sIter++) {
+        (*sIter)->lockStreamMutex();
         if (std::find((*sIter)->suspendedDevIds.begin(), (*sIter)->suspendedDevIds.end(),
                     a2dpDattr.id) != (*sIter)->suspendedDevIds.end()) {
             std::vector<std::shared_ptr<Device>> devices;
@@ -8143,6 +8144,7 @@ int32_t ResourceManager::a2dpResume(pal_device_id_t dev_id)
             restoredStreams.push_back((*sIter));
             streamDevConnect.push_back({(*sIter), &a2dpDattr});
         }
+        (*sIter)->unlockStreamMutex();
     }
 
     if (restoredStreams.empty()) {
