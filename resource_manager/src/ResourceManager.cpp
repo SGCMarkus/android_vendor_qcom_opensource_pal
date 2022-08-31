@@ -3702,8 +3702,7 @@ int ResourceManager::checkandEnableECForTXStream_l(std::shared_ptr<Device> tx_de
     if (ec_on) {
         rx_dev = getActiveEchoReferenceRxDevices_l(tx_stream);
         if (!rx_dev) {
-            PAL_ERR(LOG_TAG, "RX device empty.");
-            status = -EINVAL;
+            PAL_VERBOSE(LOG_TAG, "EC device not found, skip EC set");
             goto exit;
         }
         getActiveStream_l(activeStreams, rx_dev);
