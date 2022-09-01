@@ -258,6 +258,8 @@ public:
     uint32_t getLatency();
     int32_t getAssociatedDevices(std::vector <std::shared_ptr<Device>> &adevices);
     int32_t getPalDevices(std::vector <std::shared_ptr<Device>> &PalDevices);
+    void clearOutPalDevices(Stream *streamHandle);
+    void addPalDevice(Stream* streamHandle, struct pal_device *dattr);
     int32_t getSoundCardId();
     int32_t getAssociatedSession(Session** session);
     int32_t setBufInfo(pal_buffer_config *in_buffer_config,
