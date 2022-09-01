@@ -3788,23 +3788,24 @@ int ResourceManager::checkandEnableEC_l(std::shared_ptr<Device> d, Stream *s, bo
         status = checkandEnableECForTXStream_l(d, s, enable);
     } else if (sAttr.direction == PAL_AUDIO_OUTPUT) {
         status = checkandEnableECForRXStream_l(d, s, enable);
-    } else if (sAttr.direction == PAL_AUDIO_INPUT_OUTPUT &&
-               sAttr.type == PAL_STREAM_VOICE_CALL) {
+    } else if (sAttr.direction == PAL_AUDIO_INPUT_OUTPUT) {
         if (d->getSndDeviceId() < PAL_DEVICE_OUT_MAX) {
-            status = s->setECRef_l(d, enable);
-            s->getAssociatedDevices(tx_devices);
-            if (status || tx_devices.empty()) {
-                PAL_ERR(LOG_TAG, "Failed to set EC Ref with status %d"
-                        "or tx_devices with size %zu", status, tx_devices.size());
-                if (status == -ENODEV) {
-                    status = 0;
-                    PAL_VERBOSE(LOG_TAG, "Failed to enable EC Ref because of -ENODEV");
-                }
-            } else {
-                for (auto& tx_device: tx_devices) {
-                    if (tx_device->getSndDeviceId() > PAL_DEVICE_IN_MIN &&
-                        tx_device->getSndDeviceId() < PAL_DEVICE_IN_MAX) {
-                        updateECDeviceMap(d, tx_device, s, enable ? 1 : 0, false);
+            if (sAttr.type == PAL_STREAM_VOICE_CALL) {
+                status = s->setECRef_l(d, enable);
+                s->getAssociatedDevices(tx_devices);
+                if (status || tx_devices.empty()) {
+                    PAL_ERR(LOG_TAG, "Failed to set EC Ref with status %d"
+                            "or tx_devices with size %zu", status, tx_devices.size());
+                    if (status == -ENODEV) {
+                        status = 0;
+                        PAL_VERBOSE(LOG_TAG, "Failed to enable EC Ref because of -ENODEV");
+                    }
+                } else {
+                    for (auto& tx_device: tx_devices) {
+                        if (tx_device->getSndDeviceId() > PAL_DEVICE_IN_MIN &&
+                            tx_device->getSndDeviceId() < PAL_DEVICE_IN_MAX) {
+                            updateECDeviceMap(d, tx_device, s, enable ? 1 : 0, false);
+                        }
                     }
                 }
             }
