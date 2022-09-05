@@ -292,6 +292,19 @@ StreamSoundTrigger::~StreamSoundTrigger() {
         st_conf_levels_v2_ = nullptr;
     }
 
+    if (st_idle_)
+        delete st_idle_;
+    if (st_loaded_)
+        delete st_loaded_;
+    if (st_active)
+        delete st_active;
+    if (st_detected_)
+        delete st_detected_;
+    if (st_buffering_)
+        delete st_buffering_;
+    if (st_ssr_)
+        delete st_ssr_;
+
     mDevices.clear();
     PAL_DBG(LOG_TAG, "Exit");
 }
