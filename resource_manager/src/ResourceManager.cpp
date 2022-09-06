@@ -8281,8 +8281,8 @@ exit:
 int32_t ResourceManager::a2dpCaptureResume(pal_device_id_t dev_id)
 {
     int status = 0;
-    std::shared_ptr<Device> handsetmicDev = nullptr;
-    struct pal_device handsetmicDattr;
+    std::shared_ptr<Device> activeDev = nullptr;
+    struct pal_device activeDattr;
     struct pal_device a2dpDattr;
     struct pal_device_info devinfo = {};
     std::vector <Stream*>::iterator sIter;
@@ -8295,8 +8295,8 @@ int32_t ResourceManager::a2dpCaptureResume(pal_device_id_t dev_id)
 
     PAL_DBG(LOG_TAG, "enter");
 
-    handsetmicDattr.id = PAL_DEVICE_IN_HANDSET_MIC;
-    handsetmicDev = Device::getInstance(&handsetmicDattr, rm);
+    activeDattr.id = PAL_DEVICE_IN_HANDSET_MIC;
+    activeDev = Device::getInstance(&activeDattr, rm);
     a2dpDattr.id = dev_id;
 
     status = getDeviceConfig(&a2dpDattr, NULL);
@@ -8305,7 +8305,19 @@ int32_t ResourceManager::a2dpCaptureResume(pal_device_id_t dev_id)
     }
 
     mActiveStreamMutex.lock();
-    getActiveStream_l(activeStreams, handsetmicDev);
+    getActiveStream_l(activeStreams, activeDev);
+
+    /* No-Streams active on Handset-mic - possibly streams are
+     * associated speaker-mic device (due to camorder app UC) and
+     * device switch did not happen for all the streams
+     */
+    if (activeStreams.empty()) {
+        // Hence try to check speaker-mic device as well.
+        activeDattr.id = PAL_DEVICE_IN_SPEAKER_MIC;
+        activeDev = Device::getInstance(&activeDattr, rm);
+        getActiveStream_l(activeStreams, activeDev);
+    }
+
     getOrphanStream_l(orphanStreams, retryStreams);
     if (activeStreams.empty() && orphanStreams.empty()) {
         PAL_DBG(LOG_TAG, "no active streams found");
@@ -8319,7 +8331,7 @@ int32_t ResourceManager::a2dpCaptureResume(pal_device_id_t dev_id)
         if (std::find((*sIter)->suspendedDevIds.begin(), (*sIter)->suspendedDevIds.end(),
                     a2dpDattr.id) != (*sIter)->suspendedDevIds.end()) {
             restoredStreams.push_back((*sIter));
-            streamDevDisconnect.push_back({ (*sIter), handsetmicDattr.id });
+            streamDevDisconnect.push_back({ (*sIter), activeDattr.id });
             streamDevConnect.push_back({ (*sIter), &a2dpDattr });
         }
     }
