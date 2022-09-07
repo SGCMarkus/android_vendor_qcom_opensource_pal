@@ -137,7 +137,8 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
     int32_t setECRef(
         Stream *s,
         std::shared_ptr<Device> dev,
-        bool is_enable) override;
+        bool is_enable,
+        bool setECForFirstTime = false) override;
     ChronoSteadyClock_t GetDetectedTime() {
         return detection_time_;
     }
@@ -222,6 +223,7 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
     std::mutex eos_mutex_;
     static std::mutex eng_create_mutex_;
     static int32_t engine_count_;
+    std::shared_ptr<Device> rx_ec_dev_;
     std::mutex ec_ref_mutex_;
 };
 #endif  // SOUNDTRIGGERENGINEGSL_H

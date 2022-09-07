@@ -560,6 +560,7 @@ private:
     st_state_id_t state_for_restore_;
     std::map<uint32_t, StState*> st_states_;
     std::shared_ptr<CaptureProfile> cap_prof_;
+    std::shared_ptr<Device> ec_rx_dev_;
     uint32_t conf_levels_intf_version_;
     std::vector<PalRingBufferReader *> reader_list_;
     st_confidence_levels_info *st_conf_levels_;

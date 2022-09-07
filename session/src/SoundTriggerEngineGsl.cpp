@@ -377,6 +377,7 @@ SoundTriggerEngineGsl::SoundTriggerEngineGsl(
     sm_data_ = nullptr;
     reader_ = nullptr;
     buffer_ = nullptr;
+    rx_ec_dev_ = nullptr;
     is_qcva_uuid_ = false;
     custom_data = nullptr;
     custom_data_size = 0;
@@ -2243,27 +2244,57 @@ void SoundTriggerEngineGsl::SetCaptureRequested(bool is_requested) {
         is_requested, capture_requested_);
 }
 
-int32_t SoundTriggerEngineGsl::setECRef(Stream *s, std::shared_ptr<Device> dev, bool is_enable) {
-
+int32_t SoundTriggerEngineGsl::setECRef(Stream *s, std::shared_ptr<Device> dev, bool is_enable,
+                                        bool setECForFirstTime) {
     int32_t status = 0;
+    bool force_enable = false;
 
     if (!session_) {
         PAL_ERR(LOG_TAG, "Invalid session");
         return -EINVAL;
     }
     PAL_DBG(LOG_TAG, "Enter, EC ref count : %d, enable : %d", ec_ref_count_, is_enable);
+    PAL_DBG(LOG_TAG, "Rx device : %s, stream is setting EC for first time : %d",
+            dev ? dev->getPALDeviceName().c_str() :  "Null", setECForFirstTime);
     std::unique_lock<std::mutex> lck(ec_ref_mutex_);
     if (is_enable) {
-        ec_ref_count_++;
-        if (ec_ref_count_ == 1)
-            status = session_->setECRef(s, dev, is_enable);
-    } else {
-        if (ec_ref_count_ > 0) {
-            ec_ref_count_--;
-            if (ec_ref_count_ == 0)
-                status = session_->setECRef(s, dev, is_enable);
+        if (setECForFirstTime) {
+            ec_ref_count_++;
+        } else if (rx_ec_dev_!=dev ){
+            force_enable = true;
         } else {
-            PAL_DBG(LOG_TAG, "Skipping EC disable, as ref count is 0");
+            return status;
+        }
+        rx_ec_dev_ = dev;
+        if (force_enable || ec_ref_count_ == 1) {
+            status = session_->setECRef(s, dev, is_enable);
+            if (status) {
+                PAL_ERR(LOG_TAG, "Failed to set EC Ref for rx device %s",
+                        dev ?  dev->getPALDeviceName().c_str() : "Null");
+                if (setECForFirstTime) {
+                    ec_ref_count_--;
+                }
+                if (force_enable || ec_ref_count_ == 0) {
+                    rx_ec_dev_ = nullptr;
+                }
+            }
+        }
+    } else {
+        if (!dev || dev == rx_ec_dev_) {
+            if (ec_ref_count_ > 0) {
+                ec_ref_count_--;
+                if (ec_ref_count_ == 0) {
+                    rx_ec_dev_ = nullptr;
+                    status = session_->setECRef(s, dev, is_enable);
+                    if (status) {
+                        PAL_ERR(LOG_TAG, "Failed to reset EC Ref");
+                    }
+                }
+            } else {
+                PAL_DBG(LOG_TAG, "Skipping EC disable, as ref count is 0");
+            }
+        } else {
+            PAL_DBG(LOG_TAG, "Skipping EC disable, as EC disable is not for correct device");
         }
     }
     PAL_DBG(LOG_TAG, "Exit, EC ref count : %d", ec_ref_count_);
