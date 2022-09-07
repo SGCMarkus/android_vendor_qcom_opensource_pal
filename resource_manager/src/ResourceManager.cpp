@@ -642,12 +642,13 @@ pal_stream_type_t ResourceManager::getStreamType(std::string stream_name)
 int32_t ResourceManager::secureZoneEventCb(const uint32_t peripheral,
                                            const uint8_t secureState) {
     struct mixer_ctl *ctl;
+    int ret = 0;
 
-   PAL_INFO(LOG_TAG,"Received Notification from TZ... secureState: %d", secureState);
+    PAL_INFO(LOG_TAG,"Received Notification from TZ... secureState: %d", secureState);
 
     ctl = mixer_get_ctl_by_name(audio_hw_mixer, "VOTE Against Sleep");
     if (!ctl) {
-       PAL_ERR(LOG_TAG, "Invalid mixer control");
+       PAL_ERR(LOG_TAG, "Invalid mixer control: VOTE Against Sleep");
        return -ENOENT;
     }
 
@@ -655,32 +656,44 @@ int32_t ResourceManager::secureZoneEventCb(const uint32_t peripheral,
         case STATE_SECURE:
             ResourceManager::isTZSecureZone = true;
             PAL_DBG(LOG_TAG, "Enter Secure zone successfully, vote for LPASS core");
-            mixer_ctl_set_enum_by_string(ctl, "Enable");
+            ret = mixer_ctl_set_enum_by_string(ctl, "Enable");
+            if (ret)
+                PAL_ERR(LOG_TAG, "Could not Enable ctl for mixer cmd - %s ret %d\n",
+                        "VOTE Against Sleep", ret);
             break;
         case STATE_POST_CHANGE:
             PAL_DBG(LOG_TAG, "Entered Secure zone successfully, unvote for LPASS core");
-            mixer_ctl_set_enum_by_string(ctl, "Disable");
+            ret = mixer_ctl_set_enum_by_string(ctl, "Disable");
+            if (ret)
+                PAL_ERR(LOG_TAG, "Could not Disable ctl for mixer cmd - %s ret %d\n",
+                        "VOTE Against Sleep", ret);
             break;
         case STATE_PRE_CHANGE:
             PAL_DBG(LOG_TAG, "Before the exit from secure zone, vote for LPASS core");
-            mixer_ctl_set_enum_by_string(ctl, "Enable");
+            ret = mixer_ctl_set_enum_by_string(ctl, "Enable");
+            if (ret)
+                PAL_ERR(LOG_TAG, "Could not Enable ctl for mixer cmd - %s ret %d\n",
+                        "VOTE Against Sleep", ret);
             break;
         case STATE_NONSECURE:
             ResourceManager::isTZSecureZone = false;
             PAL_DBG(LOG_TAG, "Exited Secure zone successfully, unvote for LPASS core");
-            mixer_ctl_set_enum_by_string(ctl, "Disable");
+            ret = mixer_ctl_set_enum_by_string(ctl, "Disable");
+            if (ret)
+                PAL_ERR(LOG_TAG, "Could not Disable ctl for mixer cmd - %s ret %d\n",
+                        "VOTE Against Sleep", ret);
             break;
         case STATE_RESET_CONNECTION:
             /* Handling the state where connection got broken to get
                 state change notification */
             PAL_INFO(LOG_TAG, "ssgtzd link got broken..re-registering to TZ");
-            registertoPeripheral(CPeripheralAccessControl_AUDIO_UID);
+            ret = registertoPeripheral(CPeripheralAccessControl_AUDIO_UID);
             break;
         default :
             PAL_ERR(LOG_TAG, "Invalid secureState = %d", secureState);
             return -EINVAL;
     }
-    return 0;
+    return ret;
 }
 #endif
 
