@@ -951,7 +951,6 @@ int USBCardConfig::readBestConfig(struct pal_media_config *config,
             }
         }
         if (!candidate_config) {
-            PAL_INFO(LOG_TAG,"devinfo->samplerate=%d",target_sample_rate);
             for (auto iter = fmt_iter.first; iter != fmt_iter.second; ++iter) {
                 auto cfg_iter = iter->second;
                 if(cfg_iter->getType() != is_playback)
@@ -990,7 +989,7 @@ getBestCh:
 
 const unsigned int USBDeviceConfig::supported_sample_rates_[] =
     {384000, 352800, 192000, 176400, 96000, 88200, 64000,
-     48000, 44100, 32000, 22050, 16000, 11025, 8000};
+     48000, 44100, 32000, 24000, 22050, 16000, 11025, 8000};
 
 void USBDeviceConfig::setBitWidth(unsigned int bit_width) {
     bit_width_ = bit_width;
@@ -1041,47 +1040,57 @@ int USBDeviceConfig::isCustomRateSupported(int requested_rate, unsigned int *bes
     int i = 0;
     int cur_rate = 0;
 
-    for (i = 0; i < rate_size_; i++) {
-        if (i < MAX_SAMPLE_RATE_SIZE) {
-            cur_rate = rates_[i];
-            if (requested_rate == cur_rate) {
-                *best_rate = requested_rate;
-                return 0;
-            }
-        }
+    if (find(rates_.begin(),rates_.end(),requested_rate) != rates_.end()) {
+        *best_rate = requested_rate;
+        return 0;
     }
     PAL_INFO(LOG_TAG, "requested rate not supported = %d", requested_rate);
     return -EINVAL;
 }
 
-// return 0 if match, else return -EINVAL with default sample rate
-int USBDeviceConfig::getBestRate(int requested_rate, int candidate_rate, unsigned int *best_rate) {
-    int i = 0;
-    int nearestRate = 0;
-    int diff = requested_rate > candidate_rate ? requested_rate : candidate_rate;
-    int cur_rate = 0;
-
-    for (i = 0; i < rate_size_; i++) {
-        if (i < MAX_SAMPLE_RATE_SIZE) {
-            cur_rate = rates_[i];
-            if (requested_rate == cur_rate) {
-                *best_rate = requested_rate;
-                return 0;
-            } else if (abs(double(requested_rate - cur_rate)) <= diff) {
-                nearestRate = cur_rate;
-                diff = abs(double(requested_rate - cur_rate));
-            }
+void USBDeviceConfig::usb_find_sample_rate_candidate(int base, int requested_rate,
+                                    int cur_rate, int candidate_rate, unsigned int *best_rate) {
+    if (cur_rate % base == 0 && candidate_rate % base != 0) {
+        *best_rate = cur_rate;
+    } else if ((cur_rate % base == 0 && candidate_rate % base == 0) ||
+               (cur_rate % base != 0 && candidate_rate % base != 0)) {
+        if (abs(double(requested_rate - candidate_rate)) >
+            abs(double(requested_rate - cur_rate))) {
+            *best_rate = cur_rate;
+        } else if (abs(double(requested_rate - candidate_rate)) ==
+                   abs(double(requested_rate - cur_rate)) && (cur_rate > candidate_rate)) {
+            *best_rate = cur_rate;
+        } else {
+            *best_rate = candidate_rate;
         }
     }
-    if (abs(double(requested_rate - candidate_rate)) < diff) {
-        nearestRate = candidate_rate;
-    }
-    if (nearestRate == 0)
-        nearestRate = rates_[0];
-    PAL_VERBOSE(LOG_TAG, "nearestRate %d, requested_rate %d", nearestRate, requested_rate);
-    *best_rate = nearestRate;
+}
+// return 0 if match, else return -EINVAL with USB best sample rate
+int USBDeviceConfig::getBestRate(int requested_rate, int candidate_rate, unsigned int *best_rate) {
 
-    return 0;
+    for (int cur_rate : rates_) {
+        if (requested_rate == cur_rate) {
+            *best_rate = requested_rate;
+            return 0;
+        }
+        if (candidate_rate == 0) {
+            candidate_rate = cur_rate;
+        }
+        PAL_DBG(LOG_TAG, "candidate_rate %d, cur_rate %d, requested_rate %d",
+                           candidate_rate, cur_rate, requested_rate);
+        if (requested_rate % SAMPLINGRATE_8K == 0) {
+            usb_find_sample_rate_candidate(SAMPLINGRATE_8K, requested_rate,
+                                      cur_rate, candidate_rate, best_rate);
+            candidate_rate = *best_rate;
+        } else {
+            usb_find_sample_rate_candidate(SAMPLINGRATE_22K, requested_rate,
+                                      cur_rate, candidate_rate, best_rate);
+            candidate_rate = *best_rate;
+        }
+    }
+    PAL_DBG(LOG_TAG, "requested_rate %d, best_rate %u", requested_rate, *best_rate);
+
+    return -EINVAL;
 }
 
 // return 0 if match, else return -EINVAL with default sample rate
@@ -1136,7 +1145,7 @@ int USBDeviceConfig::getSampleRates(int type, char *rates_str) {
                 if ((supported_sample_rates_[i] > SAMPLE_RATE_192000) &&
                         (type == USB_CAPTURE))
                     continue;
-                rates_[sr_size++] = supported_sample_rates_[i];
+                rates_.push_back(supported_sample_rates_[i]);
                 supported_sample_rates_mask_[type] |= (1<<i);
                 PAL_DBG(LOG_TAG, "continuous sample rate supported_sample_rates_[%d] %d",
                         i, supported_sample_rates_[i]);
@@ -1155,14 +1164,13 @@ int USBDeviceConfig::getSampleRates(int type, char *rates_str) {
                 if (supported_sample_rates_[i] == sr) {
                     PAL_DBG(LOG_TAG, "sr %d, supported_sample_rates_[%d] %d -> matches!!",
                               sr, i, supported_sample_rates_[i]);
-                    rates_[sr_size++] = supported_sample_rates_[i];
+                    rates_.push_back(supported_sample_rates_[i]);
                     supported_sample_rates_mask_[type] |= (1<<i);
                 }
             }
             next_sr_string = strtok_r(NULL, " ,.-", &temp_ptr);
         } while (next_sr_string != NULL);
     }
-    rate_size_ = sr_size;
     return 0;
 }
 
