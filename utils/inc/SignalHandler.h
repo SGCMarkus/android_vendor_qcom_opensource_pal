@@ -48,6 +48,8 @@
 #endif
 
 static const constexpr int DEBUGGER_SIGNAL = (__SIGRTMIN + 3);
+static const constexpr uint32_t kDefaultSignalPendingTries = 10;
+static const constexpr uint32_t kDefaultRegistrationDelayMs = 500;
 
 struct SignalHandler {
     static std::shared_ptr<SignalHandler> getInstance();

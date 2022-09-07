@@ -1255,24 +1255,25 @@ int SessionAlsaCompress::configureEarlyEOSDelay(void)
 
 int SessionAlsaCompress::start(Stream * s)
 {
-    struct compr_config compress_config;
-    struct pal_stream_attributes sAttr;
+    struct compr_config compress_config = {};
+    struct pal_stream_attributes sAttr = {};
     int32_t status = 0;
     size_t in_buf_size, in_buf_count, out_buf_size, out_buf_count;
     std::vector<std::shared_ptr<Device>> associatedDevices;
-    struct pal_device dAttr;
-    struct volume_set_param_info vol_set_param_info;
+    struct pal_device dAttr = {};
+    struct volume_set_param_info vol_set_param_info = {};
     bool isStreamAvail = false;
     uint16_t volSize = 0;
     uint8_t *volPayload = nullptr;
     uint32_t miid;
     uint8_t* payload = NULL;
     size_t payloadSize = 0;
-    struct sessionToPayloadParam streamData;
+    struct sessionToPayloadParam streamData = {};
     memset(&streamData, 0, sizeof(struct sessionToPayloadParam));
 
     PAL_DBG(LOG_TAG, "Enter");
 
+    memset(&dAttr, 0, sizeof(struct pal_device));
     rm->voteSleepMonitor(s, true);
     s->getStreamAttributes(&sAttr);
     getSndCodecParam(codec, sAttr);
@@ -1300,6 +1301,13 @@ int SessionAlsaCompress::start(Stream * s)
             if (!compress) {
                 PAL_ERR(LOG_TAG, "compress open failed");
                 status = -EINVAL;
+                {
+                    // send the exit command to the waiting thread
+                    auto msg = std::make_shared<offload_msg>(OFFLOAD_CMD_EXIT);
+                    std::lock_guard<std::mutex> lock(cv_mutex_);
+                    msg_queue_.push(msg);
+                    cv_.notify_all();
+                }
                 worker_thread->join();
                 worker_thread.reset(NULL);
                 goto exit;

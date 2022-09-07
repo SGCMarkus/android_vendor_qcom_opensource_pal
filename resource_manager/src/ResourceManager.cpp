@@ -460,6 +460,11 @@ void* ResourceManager::cl_lib_handle = NULL;
 cl_init_t ResourceManager::cl_init = NULL;
 cl_deinit_t ResourceManager::cl_deinit = NULL;
 cl_set_boost_state_t ResourceManager::cl_set_boost_state = NULL;
+
+void* ResourceManager::vui_dmgr_lib_handle = NULL;
+vui_dmgr_init_t ResourceManager::vui_dmgr_init = NULL;
+vui_dmgr_deinit_t ResourceManager::vui_dmgr_deinit = NULL;
+
 std::mutex ResourceManager::cvMutex;
 std::queue<card_status_t> ResourceManager::msgQ;
 std::condition_variable ResourceManager::cv;
@@ -777,6 +782,15 @@ ResourceManager::ResourceManager()
     btSlimClockSrcMap.clear();
 
     vsidInfo.loopback_delay = 0;
+
+    //Initialize class members in the construct
+    cardState = CARD_STATUS_OFFLINE;
+    bOverwriteFlag = false;
+    cookie = 0;
+    memset(&this->linear_gain, 0, sizeof(pal_param_mspp_linear_gain_t));
+    memset(&this->mSpkrProtModeValue, 0, sizeof(pal_spkr_prot_payload));
+    mHighestPriorityActiveStream = nullptr;
+    mPriorityHighestPriorityActiveStream = 0;
 
     ret = ResourceManager::XmlParser(SNDPARSER);
     if (ret) {
@@ -1468,6 +1482,148 @@ exit:
     return status;
 }
 
+template <class T>
+void getMatchingStStreams(std::list<T> &active_streams, std::vector<Stream*> &st_streams, vui_dmgr_uuid_t &uuid)
+{
+    int ret = 0;
+    struct st_uuid st_uuid;
+
+    for (auto st : active_streams) {
+        st_uuid = st->GetVendorUuid();
+        if (!memcmp(&st_uuid, &uuid, sizeof(uuid))) {
+            PAL_INFO(LOG_TAG, "vendor uuid matched");
+            st_streams.push_back(static_cast<Stream*>(st));
+        }
+    }
+}
+
+int32_t ResourceManager::voiceuiDmgrRestartUseCases(vui_dmgr_param_restart_usecases_t *uc_info)
+{
+    int status = 0;
+    std::vector<Stream*> st_streams;
+    pal_stream_type_t st_type;
+
+    for (int i = 0; i < uc_info->num_usecases; i++) {
+        if (uc_info->usecases[i].stream_type == PAL_STREAM_VOICE_UI && active_streams_st.size()) {
+            PAL_INFO(LOG_TAG, "get matching streams for VoiceUI");
+            getMatchingStStreams(active_streams_st, st_streams, uc_info->usecases[i].vendor_uuid);
+        }
+        else if (uc_info->usecases[i].stream_type == PAL_STREAM_ACD && active_streams_acd.size()) {
+            PAL_INFO(LOG_TAG, "get matching streams for acd");
+            getMatchingStStreams(active_streams_acd, st_streams, uc_info->usecases[i].vendor_uuid);
+        }
+        else if (uc_info->usecases[i].stream_type == PAL_STREAM_SENSOR_PCM_DATA && active_streams_sensor_pcm_data.size()) {
+            PAL_INFO(LOG_TAG, "get matching streams for sensor");
+            getMatchingStStreams(active_streams_sensor_pcm_data, st_streams, uc_info->usecases[i].vendor_uuid);
+        }
+    }
+
+    // Reuse SSR mechanism for stream teardown and bring up.
+    PAL_INFO(LOG_TAG, "restart %d streams", st_streams.size());
+    for (auto &st : st_streams) {
+        st->getStreamType(&st_type);
+        status = st->ssrDownHandler();
+        if (status) {
+            PAL_ERR(LOG_TAG, "stream teardown failed %d", st_type);
+        }
+        status = st->ssrUpHandler();
+        if (status) {
+            PAL_ERR(LOG_TAG, "strem bring up failed %d", st_type);
+        }
+    }
+    return status;
+}
+
+int32_t ResourceManager::voiceuiDmgrPalCallback(int32_t param_id, void *payload, size_t payload_size)
+{
+    int status = 0;
+
+    PAL_DBG(LOG_TAG, "Enter param id: %d", param_id);
+    if (!payload) {
+        PAL_ERR(LOG_TAG, "Null payload");
+        return -EINVAL;
+    }
+    if (!rm) {
+        PAL_ERR(LOG_TAG, "null resource manager");
+        return -EINVAL;
+    }
+
+    switch (param_id) {
+        case VUI_DMGR_PARAM_ID_RESTART_USECASES:
+        {
+            vui_dmgr_param_restart_usecases_t *uc_info = (vui_dmgr_param_restart_usecases_t *)payload;
+            if (payload_size != sizeof(vui_dmgr_param_restart_usecases_t)) {
+                PAL_ERR(LOG_TAG, "Incorrect payload size %zu", payload_size);
+                status = -EINVAL;
+                break;
+            }
+            if (rm) {
+                mActiveStreamMutex.lock();
+                rm->voiceuiDmgrRestartUseCases(uc_info);
+                mActiveStreamMutex.unlock();
+            }
+        }
+        break;
+        default:
+            PAL_ERR(LOG_TAG, "Unknown param id: %d", param_id);
+            break;
+    }
+
+    PAL_DBG(LOG_TAG, "Exit status: %d", status);
+    return status;
+}
+
+void ResourceManager::voiceuiDmgrManagerInit()
+{
+    int status = 0;
+
+    vui_dmgr_lib_handle = dlopen(VUI_DMGR_LIB_PATH, RTLD_NOW);
+
+    if (!vui_dmgr_lib_handle) {
+        PAL_ERR(LOG_TAG, "dlopen failed for voiceui dmgr %s", dlerror());
+        return;
+    }
+
+    vui_dmgr_init = (vui_dmgr_init_t)dlsym(vui_dmgr_lib_handle, "vui_dmgr_init");
+    if (!vui_dmgr_init) {
+        PAL_ERR(LOG_TAG, "dlsym for vui_dmgr_init failed %s", dlerror());
+        goto exit;
+    }
+    vui_dmgr_deinit = (vui_dmgr_deinit_t)dlsym(vui_dmgr_lib_handle, "vui_dmgr_deinit");
+    if (!vui_dmgr_deinit) {
+        PAL_ERR(LOG_TAG, "dlsym for voiceui dmgr failed %s", dlerror());
+        goto exit;
+    }
+    status = vui_dmgr_init(voiceuiDmgrPalCallback);
+    if (status) {
+        PAL_DBG(LOG_TAG, "voiceui dmgr failed to initialize, status %d", status);
+        goto exit;
+    }
+    PAL_INFO(LOG_TAG, "voiceui dgmr initialized");
+    return;
+
+exit:
+    if (vui_dmgr_lib_handle) {
+        dlclose(vui_dmgr_lib_handle);
+        vui_dmgr_lib_handle = NULL;
+    }
+    vui_dmgr_init = NULL;
+    vui_dmgr_deinit = NULL;
+}
+
+void ResourceManager::voiceuiDmgrManagerDeInit()
+{
+    if (vui_dmgr_deinit)
+        vui_dmgr_deinit();
+
+    if (vui_dmgr_lib_handle) {
+        dlclose(vui_dmgr_lib_handle);
+        vui_dmgr_lib_handle = NULL;
+    }
+    vui_dmgr_init = NULL;
+    vui_dmgr_deinit = NULL;
+}
+
 int ResourceManager::initContextManager()
 {
     int ret = 0;
@@ -1511,6 +1667,9 @@ int ResourceManager::init()
     }
     else
         PAL_DBG(LOG_TAG, "Speaker instance not created");
+
+    PAL_INFO(LOG_TAG, "Initialize voiceui dmgr");
+    voiceuiDmgrManagerInit();
 
     return 0;
 }
@@ -3432,7 +3591,7 @@ int ResourceManager::getECEnableSetting(std::shared_ptr<Device> tx_dev,
         break;
     }
 exit:
-    PAL_DBG(TAG_LOG,"ec_enable_setting:%d, status:%d", *ec_enable, status);
+    PAL_DBG(TAG_LOG,"ec_enable_setting:%d, status:%d", ec_enable ? *ec_enable : 0, status);
     return status;
 }
 
@@ -3495,16 +3654,20 @@ int ResourceManager::checkandEnableECForTXStream_l(std::shared_ptr<Device> tx_de
             }
         }
     }
-    updateECDeviceMap(rx_dev, tx_dev, tx_stream, rxdevcount, !ec_on);
-    mResourceManagerMutex.unlock();
-    status = tx_stream->setECRef_l(rx_dev, ec_on);
-    mResourceManagerMutex.lock();
-    if (status == -ENODEV) {
-        PAL_VERBOSE(LOG_TAG, "operation is not supported by device, error: %d.", status);
-        status = 0;
-    } else if (status && ec_on) {
-        // reset ec map if set ec failed for tx device
-        updateECDeviceMap(rx_dev, tx_dev, tx_stream, 0, ec_on);
+    rxdevcount = updateECDeviceMap(rx_dev, tx_dev, tx_stream, rxdevcount, !ec_on);
+    if (rxdevcount <= 0 && ec_on) {
+        PAL_DBG(LOG_TAG, "No need to enable EC ref");
+    } else {
+        mResourceManagerMutex.unlock();
+        status = tx_stream->setECRef_l(rx_dev, ec_on);
+        mResourceManagerMutex.lock();
+        if (status == -ENODEV) {
+            PAL_VERBOSE(LOG_TAG, "operation is not supported by device, error: %d.", status);
+            status = 0;
+        } else if (status && ec_on) {
+            // reset ec map if set ec failed for tx device
+            updateECDeviceMap(rx_dev, tx_dev, tx_stream, 0, ec_on);
+        }
     }
 exit:
     PAL_DBG(LOG_TAG, "Exit. status: %d", status);
@@ -5890,6 +6053,8 @@ void ResourceManager::deinit()
    if (isChargeConcurrencyEnabled)
        chargerListenerDeinit();
 
+    voiceuiDmgrManagerDeInit();
+
     cvMutex.lock();
     msgQ.push(state);
     cvMutex.unlock();
@@ -7802,11 +7967,13 @@ int32_t ResourceManager::a2dpSuspend(pal_device_id_t dev_id)
                 PAL_DBG(LOG_TAG, "Stream %pK is on combo device; Dont Pause/Mute", *sIter);
                 (*sIter)->suspendedDevIds.clear();
                 (*sIter)->suspendedDevIds.push_back(switchDevDattr.id);
+                (*sIter)->suspendedDevIds.push_back(a2dpDattr.id);
             } else if (!((*sIter)->a2dpMuted)) {
                 // only perform Mute/Pause for non combo use-case only.
                 struct pal_stream_attributes sAttr;
                 (*sIter)->getStreamAttributes(&sAttr);
                 (*sIter)->suspendedDevIds.clear();
+                (*sIter)->suspendedDevIds.push_back(a2dpDattr.id);
                 if (((sAttr.type == PAL_STREAM_COMPRESSED) ||
                      (sAttr.type == PAL_STREAM_PCM_OFFLOAD))) {
                     /* First mute & then pause
@@ -7865,7 +8032,6 @@ int32_t ResourceManager::a2dpSuspend(pal_device_id_t dev_id)
                     (*sIter)->a2dpPaused = false;
                 }
             }
-            (*sIter)->suspendedDevIds.push_back(a2dpDattr.id);
             (*sIter)->unlockStreamMutex();
         }
     }

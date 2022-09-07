@@ -46,6 +46,8 @@ class HotwordInterface: public VoiceUIInterface {
 
     void UpdateFTRTData(void *data, uint32_t size) {}
 
+    bool IsQCWakeUpConfigUsed() { return false; }
+
   protected:
     uint8_t *custom_event_;
     uint32_t custom_event_size_;

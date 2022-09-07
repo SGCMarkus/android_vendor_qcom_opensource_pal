@@ -613,7 +613,8 @@
         </in-device>
         <in-device>
             <id>PAL_DEVICE_IN_EXT_EC_REF</id>
-            <back_end_name>MI2S-LPAIF-TX-TERTIARY</back_end_name>
+            <!-- The below back_end_name is for internal testing purpose only, needs to be modified to appropriate value if TDM/MI2S -->
+            <back_end_name>CODEC_DMA-LPAIF_WSA-TX-1</back_end_name>
             <snd_device_name>ext_ec_ref_tx</snd_device_name>
             <max_channels>2</max_channels>
             <channels>2</channels>

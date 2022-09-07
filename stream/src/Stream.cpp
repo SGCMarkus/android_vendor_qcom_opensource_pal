@@ -474,6 +474,9 @@ uint32_t Stream::getRenderLatency()
     case PAL_STREAM_ULTRA_LOW_LATENCY:
         delayMs = PAL_ULL_PLATFORM_DELAY / 1000;
         break;
+    case PAL_STREAM_VOIP_RX:
+        delayMs = PAL_VOIP_PLATFORM_DELAY / 1000;
+        break;
     default:
         break;
     }
@@ -511,6 +514,10 @@ uint32_t Stream::getLatency()
     case PAL_STREAM_PCM_OFFLOAD:
         latencyMs = PAL_PCM_OFFLOAD_OUTPUT_PERIOD_DURATION *
             PAL_PCM_OFFLOAD_PLAYBACK_PERIOD_COUNT;
+        break;
+    case PAL_STREAM_VOIP_RX:
+        latencyMs = PAL_VOIP_OUTPUT_PERIOD_DURATION *
+            PAL_VOIP_PLAYBACK_PERIOD_COUNT;
         break;
     default:
         break;
@@ -935,6 +942,17 @@ int32_t Stream::handleBTDeviceNotReady(bool& a2dpSuspend)
                     rm->unlockGraph();
                     goto exit;
                 }
+                /* Special handling for aaudio usecase on A2DP/BLE.
+                * A2DP/BLE device starts even when stream is not in START state,
+                * hence stop A2DP/BLE device to match device start&stop count.
+                */
+                if (((mDevices[i]->getSndDeviceId() == PAL_DEVICE_OUT_BLUETOOTH_A2DP) ||
+                    (mDevices[i]->getSndDeviceId() == PAL_DEVICE_OUT_BLUETOOTH_BLE)) && isMMap) {
+                    status = mDevices[i]->stop();
+                    if (0 != status) {
+                        PAL_ERR(LOG_TAG, "BT A2DP/BLE device stop failed with status %d", status);
+                        }
+                }
                 status = mDevices[i]->close();
                 if (0 != status) {
                     PAL_ERR(LOG_TAG, "device close failed with status %d", status);
@@ -1052,7 +1070,16 @@ int32_t Stream::disconnectStreamDevice_l(Stream* streamHandle, pal_device_id_t d
                 rm->unlockGraph();
                 goto exit;
             }
-            if (currentState != STREAM_INIT && currentState != STREAM_STOPPED) {
+            /* Special handling for aaudio usecase on A2DP/BLE.
+             * A2DP/BLE device starts even when stream is not in START state,
+             * hence stop A2DP/BLE device to match device start&stop count.
+             */
+
+            if ((currentState != STREAM_INIT && currentState != STREAM_STOPPED) ||
+                (currentState == STREAM_INIT &&
+                ((mDevices[i]->getSndDeviceId() == PAL_DEVICE_OUT_BLUETOOTH_A2DP) ||
+                (mDevices[i]->getSndDeviceId() == PAL_DEVICE_OUT_BLUETOOTH_BLE)) &&
+                 isMMap)) {
                 status = mDevices[i]->stop();
                 if (0 != status) {
                     PAL_ERR(LOG_TAG, "device stop failed with status %d", status);
@@ -1563,6 +1590,24 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
                 }
                 if (voice_call_switch) {
                     for (const auto &elem : sharedBEStreamDev) {
+                        struct pal_stream_attributes sAttr;
+                        Stream *strm = std::get<0>(elem);
+                        pal_device_id_t newDeviceId = newDevices[newDeviceSlots[i]].id;
+                        int status = strm->getStreamAttributes(&sAttr);
+
+                        if (status) {
+                            PAL_ERR(LOG_TAG,"getStreamAttributes Failed \n");
+                            mStreamMutex.unlock();
+                            rm->unlockActiveStream();
+                            goto done;
+                        }
+
+                        if (sAttr.type == PAL_STREAM_ULTRASOUND &&
+                             (newDeviceId != PAL_DEVICE_OUT_HANDSET && newDeviceId != PAL_DEVICE_OUT_SPEAKER)) {
+                            PAL_DBG(LOG_TAG, "Ultrasound stream running on speaker/handset. Not switching to device (%d)", newDeviceId);
+                            continue;
+                        }
+
                         streamDevDisconnect.push_back(elem);
                         StreamDevConnect.push_back({std::get<0>(elem), &newDevices[newDeviceSlots[i]]});
                     }
@@ -1800,4 +1845,12 @@ std::shared_ptr<Device> Stream::GetPalDevice(Stream *streamHandle, pal_device_id
 exit:
     PAL_DBG(LOG_TAG, "Exit");
     return device;
+}
+
+void Stream::setCachedState(stream_state_t state)
+{
+    mStreamMutex.lock();
+    cachedState = state;
+    PAL_DBG(LOG_TAG, "set cachedState to %d", cachedState);
+    mStreamMutex.unlock();
 }

@@ -173,12 +173,36 @@ int SessionAlsaPcm::open(Stream * s)
             goto exit;
         }
     } else {
-        pcmDevRxIds = rm->allocateFrontEndIds(sAttr, RX_HOSTLESS);
-        pcmDevTxIds = rm->allocateFrontEndIds(sAttr, TX_HOSTLESS);
-        if (!pcmDevRxIds.size() || !pcmDevTxIds.size()) {
-            PAL_ERR(LOG_TAG, "allocateFrontEndIds failed");
-            status = -EINVAL;
-            goto exit;
+        if ((sAttr.type == PAL_STREAM_LOOPBACK) &&
+            (sAttr.info.opt_stream_info.loopback_type ==
+             PAL_STREAM_LOOPBACK_PLAYBACK_ONLY)) {
+            // Loopback for RX path
+            pcmDevRxIds = rm->allocateFrontEndIds(sAttr, RX_HOSTLESS);
+            if (!pcmDevRxIds.size()) {
+                PAL_ERR(LOG_TAG, "allocateFrontEndIds for RX loopback failed");
+                status = -EINVAL;
+                goto exit;
+            }
+        }
+        else if ((sAttr.type == PAL_STREAM_LOOPBACK) &&
+                 (sAttr.info.opt_stream_info.loopback_type ==
+                  PAL_STREAM_LOOPBACK_CAPTURE_ONLY)) {
+            // Loopback for TX path
+            pcmDevTxIds = rm->allocateFrontEndIds(sAttr, TX_HOSTLESS);
+            if (!pcmDevTxIds.size()) {
+                PAL_ERR(LOG_TAG, "allocateFrontEndIds failed");
+                status = -EINVAL;
+                goto exit;
+            }
+        }
+        else {
+            pcmDevRxIds = rm->allocateFrontEndIds(sAttr, RX_HOSTLESS);
+            pcmDevTxIds = rm->allocateFrontEndIds(sAttr, TX_HOSTLESS);
+            if (!pcmDevRxIds.size() || !pcmDevTxIds.size()) {
+                PAL_ERR(LOG_TAG, "allocateFrontEndIds failed");
+                status = -EINVAL;
+                goto exit;
+            }
         }
     }
     frontEndIdAllocated = true;
@@ -218,13 +242,33 @@ int SessionAlsaPcm::open(Stream * s)
             }
             break;
         case PAL_AUDIO_INPUT | PAL_AUDIO_OUTPUT:
-            status = SessionAlsaUtils::open(s, rm, pcmDevRxIds, pcmDevTxIds,
-                    rxAifBackEnds, txAifBackEnds);
-            if (status) {
-                PAL_ERR(LOG_TAG, "session alsa open failed with %d", status);
-                rm->freeFrontEndIds(pcmDevRxIds, sAttr, RX_HOSTLESS);
-                rm->freeFrontEndIds(pcmDevTxIds, sAttr, TX_HOSTLESS);
-                frontEndIdAllocated = false;
+            if (sAttr.info.opt_stream_info.loopback_type ==
+                    PAL_STREAM_LOOPBACK_CAPTURE_ONLY) {
+                status = SessionAlsaUtils::open(s, rm, pcmDevTxIds, txAifBackEnds);
+                if (status) {
+                    PAL_ERR(LOG_TAG, "session alsa open failed with %d", status);
+                    rm->freeFrontEndIds(pcmDevIds, sAttr, TX_HOSTLESS);
+                    frontEndIdAllocated = false;
+                }
+            }
+            else if (sAttr.info.opt_stream_info.loopback_type ==
+                        PAL_STREAM_LOOPBACK_PLAYBACK_ONLY) {
+                status = SessionAlsaUtils::open(s, rm, pcmDevRxIds, rxAifBackEnds);
+                if (status) {
+                    PAL_ERR(LOG_TAG, "session alsa open failed with %d", status);
+                    rm->freeFrontEndIds(pcmDevIds, sAttr, RX_HOSTLESS);
+                    frontEndIdAllocated = false;
+                }
+            }
+            else {
+                status = SessionAlsaUtils::open(s, rm, pcmDevRxIds, pcmDevTxIds,
+                        rxAifBackEnds, txAifBackEnds);
+                if (status) {
+                    PAL_ERR(LOG_TAG, "session alsa open failed with %d", status);
+                    rm->freeFrontEndIds(pcmDevRxIds, sAttr, RX_HOSTLESS);
+                    rm->freeFrontEndIds(pcmDevTxIds, sAttr, TX_HOSTLESS);
+                    frontEndIdAllocated = false;
+                }
             }
             break;
         default:
@@ -562,6 +606,18 @@ int SessionAlsaPcm::setConfig(Stream * s, configType type, int tag)
 
             status = SessionAlsaUtils::getCalMetadata(ckv, calConfig);
             if (PAL_STREAM_LOOPBACK == sAttr.type) {
+
+                if ((sAttr.info.opt_stream_info.loopback_type ==
+                                PAL_STREAM_LOOPBACK_PLAYBACK_ONLY) ||
+                    (sAttr.info.opt_stream_info.loopback_type ==
+                                PAL_STREAM_LOOPBACK_CAPTURE_ONLY)) {
+                    // Currently Playback only and Capture only loopback don't
+                    // support volume
+                    PAL_DBG(LOG_TAG, "RX/TX only Loopback don't support volume");
+                    status = -EINVAL;
+                    goto exit;
+                }
+
                 if (pcmDevRxIds.size() > 0)
                     calCntrlName << stream << pcmDevRxIds.at(0) << " " << setCalibrationControl;
             } else {
@@ -760,29 +816,30 @@ void SessionAlsaPcm::releaseAdmFocus(Stream *s)
 
 int SessionAlsaPcm::start(Stream * s)
 {
-    struct pcm_config config;
-    struct pal_stream_attributes sAttr;
+    struct pcm_config config = {};
+    struct pal_stream_attributes sAttr = {};
     int32_t status = 0;
     std::vector<std::shared_ptr<Device>> associatedDevices;
-    struct pal_device dAttr;
-    struct pal_media_config codecConfig;
-    struct sessionToPayloadParam streamData;
+    struct pal_device dAttr = {};
+    struct pal_media_config codecConfig = {};
+    struct sessionToPayloadParam streamData = {};
     uint8_t* payload = NULL;
     size_t payloadSize = 0;
     uint32_t miid;
     int payload_size = 0;
-    struct agm_event_reg_cfg event_cfg;
+    struct agm_event_reg_cfg event_cfg = {};
     struct agm_event_reg_cfg *acd_event_cfg = nullptr;
     int tagId = 0;
     int DeviceId;
-    struct disable_lpm_info lpm_info;
+    struct disable_lpm_info lpm_info = {};
     bool isStreamAvail = false;
-    struct volume_set_param_info vol_set_param_info;
+    struct volume_set_param_info vol_set_param_info = {};
     uint16_t volSize = 0;
     uint8_t *volPayload = nullptr;
 
     PAL_DBG(LOG_TAG, "Enter");
 
+    memset(&dAttr, 0, sizeof(struct pal_device));
     rm->voteSleepMonitor(s, true);
     status = s->getStreamAttributes(&sAttr);
     if (status != 0) {
@@ -876,36 +933,39 @@ int SessionAlsaPcm::start(Stream * s)
                 }
                 break;
             case PAL_AUDIO_INPUT | PAL_AUDIO_OUTPUT:
-                if (!pcmDevRxIds.size() || !pcmDevTxIds.size()) {
-                    PAL_ERR(LOG_TAG, "pcmDevRxIds or pcmDevTxIds not found.");
-                    status = -EINVAL;
-                    goto exit;
-                }
-                pcmRx = pcm_open(rm->getVirtualSndCard(), pcmDevRxIds.at(0), PCM_OUT, &config);
-                if (!pcmRx) {
-                    PAL_ERR(LOG_TAG, "pcm-rx open failed");
-                    status = errno;
-                    goto exit;
-                }
+                if (!pcmDevRxIds.empty()) {
+                    pcmRx = pcm_open(rm->getVirtualSndCard(), pcmDevRxIds.at(0), PCM_OUT, &config);
+                    if (!pcmRx) {
+                        PAL_ERR(LOG_TAG, "pcm-rx open failed");
+                        status = errno;
+                        goto exit;
+                    }
 
-                if (!pcm_is_ready(pcmRx)) {
-                    PAL_ERR(LOG_TAG, "pcm-rx open not ready");
-                    status = errno;
-                    goto exit;
+                    if (!pcm_is_ready(pcmRx)) {
+                        PAL_ERR(LOG_TAG, "pcm-rx open not ready");
+                        status = errno;
+                        goto exit;
+                    }
                 }
-                pcmTx = pcm_open(rm->getVirtualSndCard(), pcmDevTxIds.at(0), PCM_IN, &config);
-                if (!pcmTx) {
-                    PAL_ERR(LOG_TAG, "pcm-tx open failed");
-                    status = errno;
-                    goto exit;
-                }
+                if (!pcmDevTxIds.empty()) {
+                    pcmTx = pcm_open(rm->getVirtualSndCard(), pcmDevTxIds.at(0), PCM_IN, &config);
+                    if (!pcmTx) {
+                        PAL_ERR(LOG_TAG, "pcm-tx open failed");
+                        status = errno;
+                        goto exit;
+                    }
 
-                if (!pcm_is_ready(pcmTx)) {
-                    PAL_ERR(LOG_TAG, "pcm-tx open not ready");
-                    status = errno;
-                    goto exit;
+                    if (!pcm_is_ready(pcmTx)) {
+                        PAL_ERR(LOG_TAG, "pcm-tx open not ready");
+                        status = errno;
+                        goto exit;
+                    }
                 }
                 break;
+            default :
+                PAL_ERR(LOG_TAG, "Exit pcm open failed. Invalid direction");
+                status = -EINVAL;
+                goto exit;
         }
         mState = SESSION_OPENED;
 
@@ -1808,8 +1868,11 @@ int SessionAlsaPcm::close(Stream * s)
                 status = errno;
                PAL_ERR(LOG_TAG, "pcm_close - tx failed %d", status);
             }
-            rm->freeFrontEndIds(pcmDevRxIds, sAttr, RX_HOSTLESS);
-            rm->freeFrontEndIds(pcmDevTxIds, sAttr, TX_HOSTLESS);
+
+            if (pcmDevRxIds.size())
+                rm->freeFrontEndIds(pcmDevRxIds, sAttr, RX_HOSTLESS);
+            if (pcmDevTxIds.size())
+                rm->freeFrontEndIds(pcmDevTxIds, sAttr, TX_HOSTLESS);
             pcmRx = NULL;
             pcmTx = NULL;
             break;

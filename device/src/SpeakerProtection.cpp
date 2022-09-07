@@ -2790,7 +2790,9 @@ int32_t SpeakerFeedback::start()
     ResourceManager::isVIRecordStarted = true;
     // Do the customPayload configuration for VI path and call the Device::start
     PAL_DBG(LOG_TAG," Feedback start\n");
-    updateVIcustomPayload();
+    if (rm->isSpeakerProtectionEnabled)
+        updateVIcustomPayload();
+
     Device::start();
 
     return 0;
@@ -2813,5 +2815,10 @@ std::shared_ptr<Device> SpeakerFeedback::getInstance(struct pal_device *device,
         std::shared_ptr<Device> sp(new SpeakerFeedback(device, Rm));
         obj = sp;
     }
+    return obj;
+}
+
+std::shared_ptr<Device> SpeakerFeedback::getObject()
+{
     return obj;
 }

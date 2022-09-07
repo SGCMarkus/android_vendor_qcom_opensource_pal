@@ -207,6 +207,9 @@ std::shared_ptr<Device> Device::getObject(pal_device_id_t dev_id)
     case PAL_DEVICE_OUT_SPEAKER:
         PAL_VERBOSE(LOG_TAG, "speaker device");
         return Speaker::getObject();
+    case PAL_DEVICE_IN_VI_FEEDBACK:
+        PAL_VERBOSE(LOG_TAG, "speaker feedback device");
+        return SpeakerFeedback::getObject();
     case PAL_DEVICE_OUT_WIRED_HEADSET:
     case PAL_DEVICE_OUT_WIRED_HEADPHONE:
         PAL_VERBOSE(LOG_TAG, "headphone device");

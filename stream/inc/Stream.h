@@ -166,7 +166,7 @@ typedef enum {
 /*
  * The sleep is required for mute to ramp down.
  */
-#define MUTE_RAMP_PERIOD (30*1000)
+#define MUTE_RAMP_PERIOD (40*1000)
 
 class Device;
 class ResourceManager;
@@ -213,6 +213,7 @@ public:
     bool a2dpMuted = false;
     bool a2dpPaused = false;
     bool force_nlpi_vote = false;
+    bool isMMap = false;
     std::vector<pal_device_id_t> suspendedDevIds;
     virtual int32_t open() = 0;
     virtual int32_t close() = 0;
@@ -322,6 +323,7 @@ public:
     bool isMutexLockedbyRm() { return mutexLockedbyRm; }
     /* GetPalDevice only applies to Sound Trigger streams */
     std::shared_ptr<Device> GetPalDevice(Stream *streamHandle, pal_device_id_t dev_id);
+    void setCachedState(stream_state_t state);
 };
 
 class StreamNonTunnel : public Stream

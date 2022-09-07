@@ -310,6 +310,7 @@ int32_t SoundTriggerEngineCapi::StartKeywordDetection()
             goto exit;
         }
 
+        det_conf_score_ = result_cfg_ptr->best_confidence;
         if (result_cfg_ptr->is_detected) {
             exit_buffering_ = true;
             detection_state_ = KEYWORD_DETECTION_SUCCESS;
@@ -317,15 +318,16 @@ int32_t SoundTriggerEngineCapi::StartKeywordDetection()
                                    buffer_start_, &start_idx);
             __builtin_add_overflow(result_cfg_ptr->end_position * CNN_FRAME_SIZE,
                                    buffer_start_, &end_idx);
+            vui_intf_->SetSecondStageDetLevels(stream_handle_,
+                engine_type_, det_conf_score_);
             PAL_INFO(LOG_TAG, "KW Second Stage Detected, start index %zu, end index %zu",
                 start_idx, end_idx);
         } else if (bytes_processed_ >= buffer_end_ - buffer_start_) {
             detection_state_ = KEYWORD_DETECTION_REJECT;
+            vui_intf_->SetSecondStageDetLevels(stream_handle_,
+                engine_type_, det_conf_score_);
             PAL_INFO(LOG_TAG, "KW Second Stage rejected");
         }
-        det_conf_score_ = result_cfg_ptr->best_confidence;
-        vui_intf_->SetSecondStageDetLevels(stream_handle_,
-            engine_type_, det_conf_score_);
         PAL_INFO(LOG_TAG, "KW second stage conf level %d", det_conf_score_);
 
         if (!first_buffer_processed) {
@@ -586,17 +588,19 @@ int32_t SoundTriggerEngineCapi::StartUserVerification()
             goto exit;
         }
 
+        det_conf_score_ = (int32_t)result_cfg_ptr->final_user_score;
         if (result_cfg_ptr->is_detected) {
             exit_buffering_ = true;
             detection_state_ = USER_VERIFICATION_SUCCESS;
+            vui_intf_->SetSecondStageDetLevels(stream_handle_,
+                engine_type_, det_conf_score_);
             PAL_INFO(LOG_TAG, "UV Second Stage Detected");
         } else if (bytes_processed_ >= buffer_end_ - buffer_start_) {
             detection_state_ = USER_VERIFICATION_REJECT;
+            vui_intf_->SetSecondStageDetLevels(stream_handle_,
+                engine_type_, det_conf_score_);
             PAL_INFO(LOG_TAG, "UV Second Stage Rejected");
         }
-        det_conf_score_ = (int32_t)result_cfg_ptr->final_user_score;
-        vui_intf_->SetSecondStageDetLevels(stream_handle_,
-            engine_type_, det_conf_score_);
         PAL_INFO(LOG_TAG, "UV second stage conf level %d", det_conf_score_);
     }
 
