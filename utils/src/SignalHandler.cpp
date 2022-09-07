@@ -32,6 +32,7 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+//#define LOG_NDEBUG 0
 #define LOG_TAG "PAL: SignalHandler"
 
 #include <log/log.h>
@@ -47,10 +48,21 @@ std::future<void> SignalHandler::sAsyncHandle;
 // static
 void SignalHandler::asyncRegister(int signal) {
     std::lock_guard<std::mutex> lock(sAsyncRegisterLock);
+    sigset_t pendingSigMask;
+    uint32_t tries = kDefaultSignalPendingTries;
     // Delay registration to let default signal handler complete
-    std::this_thread::sleep_for(std::chrono::seconds(1));
-    std::vector<int> signals({ signal});
-    getInstance()->registerSignalHandler(signals);
+    do {
+        std::this_thread::sleep_for(
+            std::chrono::milliseconds(kDefaultRegistrationDelayMs));
+        sigpending(&pendingSigMask);
+        --tries;
+    } while (tries > 0 && sigismember(&pendingSigMask, signal) == 1);
+
+    // Register custom handler only if signal is not pending
+    if (!sigismember(&pendingSigMask, signal)) {
+        std::vector<int> signals({ signal });
+        getInstance()->registerSignalHandler(signals);
+    }
 }
 
 // static
