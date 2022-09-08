@@ -1301,8 +1301,8 @@
                             <context id="0x0800132E" /> <!-- EVENT_BABYCRYING -->
                             <context id="0x0800132F" /> <!-- EVENT_DOGBARKING -->
                             <context id="0x08001330" /> <!-- EVENT_DOORBELL -->
-                            <context id="0x08001331" /> <!-- EVENT_DOORCLOSE -->
-                            <context id="0x08001332" /> <!-- EVENT_DOOROPEN -->
+                            <context id="0x08001331" /> <!-- EVENT_DOOROPENCLOSE -->
+                            <context id="0x08001332" /> <!-- EVENT_CRASH -->
                             <context id="0x08001333" /> <!-- EVENT_GLASSBREAKING -->
                             <context id="0x08001334" /> <!-- EVENT_SIREN -->
                             <context id="0x080013CC" /> <!-- EVENT_CARHONK -->
