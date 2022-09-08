@@ -4311,25 +4311,9 @@ void ResourceManager::HandleStreamPauseResume(pal_stream_type_t st_type, bool ac
 
 /* This function should be called with mActiveStreamMutex lock acquired */
 void ResourceManager::handleConcurrentStreamSwitch(std::vector<pal_stream_type_t>& st_streams,
-    bool stream_active, bool is_deferred)
+    bool stream_active)
 {
     std::shared_ptr<CaptureProfile> cap_prof_priority = nullptr;
-
-    if(!is_deferred) {
-        if (isAnyVUIStreamBuffering()) {
-            if (stream_active)
-                deferredSwitchState =
-                    (deferredSwitchState == DEFER_NLPI_LPI_SWITCH) ? NO_DEFER :
-                    DEFER_LPI_NLPI_SWITCH;
-            else
-                deferredSwitchState =
-                    (deferredSwitchState == DEFER_LPI_NLPI_SWITCH) ? NO_DEFER :
-                    DEFER_NLPI_LPI_SWITCH;
-            PAL_INFO(LOG_TAG, "VUI stream is in buffering state, defer %s switch deferred state:%d",
-                stream_active? "LPI->NLPI": "NLPI->LPI", deferredSwitchState);
-            return;
-        }
-    }
 
     for (pal_stream_type_t st_stream_type : st_streams) {
         // update use_lpi_ for SVA/ACD/Sensor PCM Data streams
@@ -4367,12 +4351,29 @@ void ResourceManager::handleConcurrentStreamSwitch(std::vector<pal_stream_type_t
     }
 }
 
+bool ResourceManager::checkAndUpdateDeferSwitchState(bool stream_active)
+{
+    if (isAnyVUIStreamBuffering()) {
+        if (stream_active)
+            deferredSwitchState =
+                (deferredSwitchState == DEFER_NLPI_LPI_SWITCH) ? NO_DEFER :
+                 DEFER_LPI_NLPI_SWITCH;
+        else
+            deferredSwitchState =
+                (deferredSwitchState == DEFER_LPI_NLPI_SWITCH) ? NO_DEFER :
+                 DEFER_NLPI_LPI_SWITCH;
+        PAL_INFO(LOG_TAG, "VUI stream is in buffering state, defer %s switch deferred state:%d",
+                 stream_active? "LPI->NLPI": "NLPI->LPI", deferredSwitchState);
+        return true;
+    }
+    return false;
+}
+
 
 void ResourceManager::handleDeferredSwitch()
 {
     bool active = false;
     std::vector<pal_stream_type_t> st_streams;
-
     mActiveStreamMutex.lock();
 
     PAL_DBG(LOG_TAG, "enter, isAnyVUIStreambuffering:%d deferred state:%d",
@@ -4384,6 +4385,8 @@ void ResourceManager::handleDeferredSwitch()
         else if (deferredSwitchState == DEFER_NLPI_LPI_SWITCH)
             active = false;
 
+        use_lpi_ = !active;
+
         if (active_streams_st.size())
             st_streams.push_back(PAL_STREAM_VOICE_UI);
         if (active_streams_acd.size())
@@ -4391,7 +4394,7 @@ void ResourceManager::handleDeferredSwitch()
         if (active_streams_sensor_pcm_data.size())
             st_streams.push_back(PAL_STREAM_SENSOR_PCM_DATA);
 
-        handleConcurrentStreamSwitch(st_streams, active, true);
+        handleConcurrentStreamSwitch(st_streams, active);
         // reset the defer switch state after handling LPI/NLPI switch
         deferredSwitchState = NO_DEFER;
     }
@@ -4421,6 +4424,7 @@ void ResourceManager::HandleConcurrencyForSoundTriggerStreams(pal_stream_type_t 
 {
     std::vector<pal_stream_type_t> st_streams;
     bool do_st_stream_switch = false;
+    bool use_lpi_temp = use_lpi_;
 
     mActiveStreamMutex.lock();
     PAL_DBG(LOG_TAG, "Enter, stream type %d, direction %d, active %d", type, dir, active);
@@ -4441,7 +4445,6 @@ void ResourceManager::HandleConcurrencyForSoundTriggerStreams(pal_stream_type_t 
             HandleStreamPauseResume(st_stream_type, active);
             continue;
         }
-
         if (st_stream_conc_en && (st_stream_tx_conc || st_stream_rx_conc)) {
             if (!IsLPISupported(st_stream_type) ||
                 !isNLPISwitchSupported(st_stream_type)) {
@@ -4450,19 +4453,21 @@ void ResourceManager::HandleConcurrencyForSoundTriggerStreams(pal_stream_type_t 
             } else if (active) {
                 if ((PAL_STREAM_VOICE_UI == st_stream_type && ++concurrencyEnableCount == 1) ||
                     (PAL_STREAM_ACD == st_stream_type && ++ACDConcurrencyEnableCount == 1) ||
-                    (PAL_STREAM_SENSOR_PCM_DATA == st_stream_type && ++SNSPCMDataConcurrencyEnableCount == 1))
-                    if (use_lpi_) {
+                    (PAL_STREAM_SENSOR_PCM_DATA == st_stream_type && ++SNSPCMDataConcurrencyEnableCount == 1)) {
+                    if (use_lpi_temp) {
                         do_st_stream_switch = true;
-                        use_lpi_ = false;
+                        use_lpi_temp = false;
                     }
+                }
             } else {
                 if ((PAL_STREAM_VOICE_UI == st_stream_type && --concurrencyEnableCount == 0) ||
                     (PAL_STREAM_ACD == st_stream_type && --ACDConcurrencyEnableCount == 0) ||
-                    (PAL_STREAM_SENSOR_PCM_DATA == st_stream_type && --SNSPCMDataConcurrencyEnableCount == 0))
+                    (PAL_STREAM_SENSOR_PCM_DATA == st_stream_type && --SNSPCMDataConcurrencyEnableCount == 0)) {
                     if (!(active_streams_st.size() && charging_state_ && IsTransitToNonLPIOnChargingSupported())) {
                         do_st_stream_switch = true;
-                        use_lpi_ = true;
+                        use_lpi_temp = true;
                     }
+                }
             }
         }
     }
@@ -4475,8 +4480,14 @@ void ResourceManager::HandleConcurrencyForSoundTriggerStreams(pal_stream_type_t 
     if (SNSPCMDataConcurrencyEnableCount < 0)
         SNSPCMDataConcurrencyEnableCount = 0;
 
-    if (do_st_stream_switch)
-        handleConcurrentStreamSwitch(st_streams, active, false);
+    if (do_st_stream_switch) {
+        if (checkAndUpdateDeferSwitchState(active)) {
+            PAL_DBG(LOG_TAG, "Switch is deferred");
+        } else {
+            use_lpi_ = use_lpi_temp;
+            handleConcurrentStreamSwitch(st_streams, active);
+        }
+    }
 
     mActiveStreamMutex.unlock();
     PAL_DBG(LOG_TAG, "Exit");
@@ -8715,17 +8726,18 @@ void ResourceManager::onChargingStateChange()
 {
     std::vector<pal_stream_type_t> st_streams;
     bool need_switch = false;
+    bool use_lpi_temp = false;
 
     // no need to handle car mode if no Voice Stream exists
     if (active_streams_st.size() == 0)
         return;
 
     if (charging_state_ && use_lpi_) {
-        use_lpi_ = false;
+        use_lpi_temp = false;
         need_switch = true;
     } else if (!charging_state_ && !use_lpi_) {
         if (!concurrencyEnableCount) {
-            use_lpi_ = true;
+            use_lpi_temp = true;
             need_switch = true;
         }
     }
@@ -8738,7 +8750,10 @@ void ResourceManager::onChargingStateChange()
         if (active_streams_sensor_pcm_data.size())
             st_streams.push_back(PAL_STREAM_SENSOR_PCM_DATA);
 
-        handleConcurrentStreamSwitch(st_streams, !use_lpi_, false);
+        if (!checkAndUpdateDeferSwitchState(!use_lpi_temp)) {
+            use_lpi_ = use_lpi_temp;
+            handleConcurrentStreamSwitch(st_streams, !use_lpi_);
+        }
     }
 }
 
@@ -8757,7 +8772,7 @@ void ResourceManager::onVUIStreamRegistered()
 
     if (use_lpi_) {
         use_lpi_ = false;
-        handleConcurrentStreamSwitch(st_streams, !use_lpi_, false);
+        handleConcurrentStreamSwitch(st_streams, !use_lpi_);
     }
 }
 
@@ -8776,7 +8791,7 @@ void ResourceManager::onVUIStreamDeregistered()
 
     if (!use_lpi_ && !concurrencyEnableCount) {
         use_lpi_ = true;
-        handleConcurrentStreamSwitch(st_streams, !use_lpi_, false);
+        handleConcurrentStreamSwitch(st_streams, !use_lpi_);
     }
 }
 
