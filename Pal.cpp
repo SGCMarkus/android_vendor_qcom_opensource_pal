@@ -513,7 +513,10 @@ int32_t pal_stream_set_volume(pal_stream_handle_t *stream_handle,
     s =  reinterpret_cast<Stream *>(stream_handle);
     rm->increaseStreamUserCounter(s);
     rm->unlockActiveStream();
+
+    s->lockStreamMutex();
     status = s->setVolume(volume);
+    s->unlockStreamMutex();
 
     rm->lockActiveStream();
     rm->decreaseStreamUserCounter(s);
