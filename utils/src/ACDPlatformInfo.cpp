@@ -37,7 +37,6 @@
 
 #include "PalCommon.h"
 #include "PalDefs.h"
-#include "kvh2xml.h"
 
 #define LOG_TAG "PAL: ACDPlatformInfo"
 

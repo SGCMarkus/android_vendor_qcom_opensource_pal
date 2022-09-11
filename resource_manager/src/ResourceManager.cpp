@@ -92,7 +92,6 @@
 #include <unistd.h>
 #include <dlfcn.h>
 #include <mutex>
-#include "kvh2xml.h"
 #include <sys/ioctl.h>
 #ifdef EC_REF_CAPTURE_ENABLED
 #include "ECRefDevice.h"
