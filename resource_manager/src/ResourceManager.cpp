@@ -6015,10 +6015,21 @@ int ResourceManager::getHwSndCard()
 
 int ResourceManager::getSndDeviceName(int deviceId, char *device_name)
 {
+    std::string backEndName;
     if (isValidDevId(deviceId)) {
         strlcpy(device_name, sndDeviceNameLUT[deviceId].second.c_str(), DEVICE_NAME_MAX_SIZE);
-        if (isVbatEnabled && deviceId == PAL_DEVICE_OUT_SPEAKER && !strstr(device_name, VBAT_BCL_SUFFIX))
+        if (isVbatEnabled && (deviceId == PAL_DEVICE_OUT_SPEAKER ||
+                              deviceId == PAL_DEVICE_OUT_ULTRASOUND_DEDICATED ||
+                              deviceId == PAL_DEVICE_OUT_HANDSET) &&
+                                !strstr(device_name, VBAT_BCL_SUFFIX)) {
+            if (deviceId == PAL_DEVICE_OUT_ULTRASOUND_DEDICATED ||
+                                          deviceId == PAL_DEVICE_OUT_HANDSET) {
+                getBackendName(deviceId, backEndName);
+                if (!(strstr(backEndName.c_str(), "CODEC_DMA-LPAIF_WSA-RX")))
+                    return 0;
+            }
             strlcat(device_name, VBAT_BCL_SUFFIX, DEVICE_NAME_MAX_SIZE);
+        }
     } else {
         strlcpy(device_name, "", DEVICE_NAME_MAX_SIZE);
         PAL_ERR(LOG_TAG, "Invalid device id %d", deviceId);
