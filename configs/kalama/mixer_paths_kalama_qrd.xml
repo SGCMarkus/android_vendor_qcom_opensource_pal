@@ -956,6 +956,7 @@
     </path>
 
     <path name="va-mic-mono-lpi">
+        <ctl name="VA_DEC0 Volume" value="96" />
         <ctl name="VA_AIF1_CAP Mixer DEC0" value="1" />
         <ctl name="VA DEC0 MUX" value="SWR_MIC" />
         <ctl name="VA_DEC0 MODE" value="ADC_LOW_PWR" />
@@ -967,6 +968,8 @@
     </path>
 
     <path name="va-mic-dmic-lpi">
+        <ctl name="VA_DEC0 Volume" value="96" />
+        <ctl name="VA_DEC1 Volume" value="96" />
         <ctl name="VA_AIF1_CAP Mixer DEC0" value="1" />
         <ctl name="VA_AIF1_CAP Mixer DEC1" value="1" />
         <ctl name="VA DEC0 MUX" value="SWR_MIC" />
@@ -987,6 +990,9 @@
     </path>
 
     <path name="va-mic-tmic-lpi">
+        <ctl name="VA_DEC0 Volume" value="96" />
+        <ctl name="VA_DEC1 Volume" value="96" />
+        <ctl name="VA_DEC2 Volume" value="96" />
         <ctl name="VA_AIF1_CAP Mixer DEC0" value="1" />
         <ctl name="VA_AIF1_CAP Mixer DEC1" value="1" />
         <ctl name="VA_AIF1_CAP Mixer DEC2" value="1" />
@@ -1016,6 +1022,10 @@
     </path>
 
     <path name="va-mic-qmic-lpi">
+        <ctl name="VA_DEC0 Volume" value="96" />
+        <ctl name="VA_DEC1 Volume" value="96" />
+        <ctl name="VA_DEC2 Volume" value="96" />
+        <ctl name="VA_DEC3 Volume" value="96" />
         <ctl name="VA_AIF1_CAP Mixer DEC0" value="1" />
         <ctl name="VA_AIF1_CAP Mixer DEC1" value="1" />
         <ctl name="VA_AIF1_CAP Mixer DEC2" value="1" />
