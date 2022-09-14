@@ -228,6 +228,8 @@ int32_t CustomVAInterface::ParseRecognitionConfig(Stream *s,
     uint8_t *kw_user_enable = nullptr;
     struct detection_engine_config_voice_wakeup wakeup_config;
 
+    memset(&wakeup_config, 0, sizeof(struct detection_engine_config_voice_wakeup));
+
     if (sm_info_map_.find(s) != sm_info_map_.end() && sm_info_map_[s]) {
         sm_info = sm_info_map_[s];
         sm_info->rec_config = config;
