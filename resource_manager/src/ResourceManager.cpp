@@ -6532,7 +6532,12 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> *inDev,
                  !ifVoiceorVoipCall(inStrAttr->type)) ||
                 inStrAttr->type == PAL_STREAM_ULTRASOUND) &&
                     curDevAttr.id != inDevAttr->id) {
-                inDevAttr->id = curDevAttr.id;
+                if (inStrAttr->type == PAL_STREAM_ULTRASOUND) {
+                    inDevAttr->id = curDevAttr.id;
+                } else {
+                    ar_mem_cpy(inDevAttr, sizeof(struct pal_device),
+                               &curDevAttr, sizeof(struct pal_device));
+                }
                 getSndDeviceName(inDevAttr->id, inSndDeviceName);
                 updatePriorityAttr(inDevAttr->id,
                                    sharedBEStreamDev,

@@ -1466,7 +1466,8 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
                     strAttr.type != PAL_STREAM_VOIP_TX &&
                     strAttr.type != PAL_STREAM_VOIP &&
                     curDevAttr.id != newDevices[newDeviceSlots[i]].id) {
-                    newDevices[newDeviceSlots[i]].id = curDevAttr.id;
+                    ar_mem_cpy(&(newDevices[newDeviceSlots[i]]), sizeof(struct pal_device),
+                               &curDevAttr, sizeof(struct pal_device));
                     rm->getSndDeviceName(newDevices[newDeviceSlots[i]].id, CurrentSndDeviceName);
                     rm->updatePriorityAttr(newDevices[newDeviceSlots[i]].id,
                                        sharedBEStreamDev,
