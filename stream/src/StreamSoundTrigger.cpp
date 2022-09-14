@@ -371,6 +371,7 @@ int32_t StreamSoundTrigger::stop() {
 int32_t StreamSoundTrigger::read(struct pal_buffer* buf) {
     int32_t size = 0;
     uint32_t sleep_ms = 0;
+    uint32_t offset = 0;
 
     PAL_VERBOSE(LOG_TAG, "Enter");
 
@@ -390,6 +391,12 @@ int32_t StreamSoundTrigger::read(struct pal_buffer* buf) {
     if (cur_state_ == st_buffering_ && !this->force_nlpi_vote) {
         rm->voteSleepMonitor(this, true, true);
         this->force_nlpi_vote = true;
+
+        offset = vui_intf_->GetReadOffset();
+        if (offset) {
+            reader_->advanceReadOffset(offset);
+            vui_intf_->SetReadOffset(0);
+        }
     }
 
     std::shared_ptr<StEventConfig> ev_cfg(
