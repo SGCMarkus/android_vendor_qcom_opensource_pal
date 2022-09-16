@@ -10469,6 +10469,12 @@ void ResourceManager::restoreDevice(std::shared_ptr<Device> dev)
                 sharedStream = std::get<0>(sharedBEStreamDev[i]);
                 curBackEndName = listAllBackEndIds[curDeviceId].second;
                 sharedStream->getStreamAttributes(&sAttr);
+                /*
+                 * as ultrasound stream needs to compromise with other active streams on speaker
+                 * don't check device restoration for it now, it will be hanled as a special case
+                 */
+                if (sAttr.type == PAL_STREAM_ULTRASOUND)
+                    continue;
                 sharedStream->getAssociatedPalDevices(palDevs);
                 for (auto palDev: palDevs) {
                     newBackEndName = listAllBackEndIds[palDev.id].second;
