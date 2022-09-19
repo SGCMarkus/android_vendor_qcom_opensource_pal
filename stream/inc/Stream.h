@@ -279,6 +279,7 @@ public:
         mStreamMutex.unlock();
     };
     bool isMutexLockedbyRm() { return mutexLockedbyRm; }
+    void setCachedState(stream_state_t state);
 };
 
 class StreamNonTunnel : public Stream

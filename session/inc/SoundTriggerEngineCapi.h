@@ -86,7 +86,8 @@ class SoundTriggerEngineCapi : public SoundTriggerEngine {
     int32_t setECRef(
         Stream *s __unused,
         std::shared_ptr<Device> dev __unused,
-        bool is_enable __unused) { return 0; }
+        bool is_enable __unused,
+        bool setECForFirstTime) { return 0; }
     int32_t GetDetectedConfScore() { return det_conf_score_; }
     int32_t GetDetectionState() { return detection_state_; }
     ChronoSteadyClock_t GetDetectedTime() {

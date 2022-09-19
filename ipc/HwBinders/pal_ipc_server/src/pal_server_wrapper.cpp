@@ -366,6 +366,11 @@ Return<void> PAL::ipc_pal_stream_open(const hidl_vec<PalStreamAttributes>& attr_
     memcpy(&attr->out_media_config.ch_info.ch_map, &attr_hidl.data()->out_media_config.ch_info.ch_map,
            sizeof(uint8_t [64]));
 
+    if (noOfDevices > devs_hidl.size()) {
+        ALOGE("Invalid number of devices.");
+        goto exit;
+    }
+
     if (devs_hidl.size()) {
         PalDevice *dev_hidl = NULL;
         devices = (struct pal_device *)calloc (1,

@@ -106,7 +106,8 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
     int32_t setECRef(
         Stream *s,
         std::shared_ptr<Device> dev,
-        bool is_enable) override;
+        bool is_enable,
+        bool setECForFirstTime = false) override;
     int32_t GetCustomDetectionEvent(uint8_t **event, size_t *size) override;
     int32_t GetDetectedConfScore() { return 0; }
     int32_t GetDetectionState() { return 0; }
@@ -199,5 +200,6 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
     ChronoSteadyClock_t detection_time_;
     std::mutex state_mutex_;
     std::mutex ec_ref_mutex_;
+    std::shared_ptr<Device> rx_ec_dev_;
 };
 #endif  // SOUNDTRIGGERENGINEGSL_H
