@@ -1190,8 +1190,18 @@ int32_t Stream::connectStreamDevice_l(Stream* streamHandle, struct pal_device *d
         goto dev_close;
     }
 
+    /* Special handling for aaudio usecase on A2DP/BLE.
+     * For mmap usecase, if device switch happens to A2DP/BLE device
+     * before stream_start then start A2DP/BLE dev. since it won't be
+     * started again as a part of pal_stream_start().
+     */
+
     rm->lockGraph();
-    if (currentState != STREAM_INIT && currentState != STREAM_STOPPED) {
+    if ((currentState != STREAM_INIT && currentState != STREAM_STOPPED) ||
+        (currentState == STREAM_INIT &&
+        ((dev->getSndDeviceId() == PAL_DEVICE_OUT_BLUETOOTH_A2DP) ||
+        (dev->getSndDeviceId() == PAL_DEVICE_OUT_BLUETOOTH_BLE)) &&
+        isMMap)) {
         status = dev->start();
         if (0 != status) {
             PAL_ERR(LOG_TAG, "device %d name %s, start failed with status %d",

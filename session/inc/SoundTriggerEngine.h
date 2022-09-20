@@ -141,7 +141,8 @@ public:
     virtual int32_t setECRef(
         Stream *s,
         std::shared_ptr<Device> dev,
-        bool is_enable) = 0;
+        bool is_enable,
+        bool setEcForFirstTime) = 0;
     virtual ChronoSteadyClock_t GetDetectedTime() = 0;
 
     int32_t CreateBuffer(uint32_t buffer_size, uint32_t engine_size,

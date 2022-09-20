@@ -111,7 +111,7 @@ LOCAL_SRC_FILES := \
     utils/src/VoiceUIInterface.cpp \
     utils/src/SVAInterface.cpp \
     utils/src/HotwordInterface.cpp \
-    utils/src/CustomInterface.cpp \
+    utils/src/CustomVAInterface.cpp \
     utils/src/SignalHandler.cpp \
     utils/src/MetadataParser.cpp
 

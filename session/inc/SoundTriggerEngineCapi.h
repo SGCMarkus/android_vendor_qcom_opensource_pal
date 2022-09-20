@@ -90,7 +90,8 @@ public:
     int32_t setECRef(
         Stream *s __unused,
         std::shared_ptr<Device> dev __unused,
-        bool is_enable __unused) { return 0; }
+        bool is_enable __unused,
+        bool setEcForFirstTime) { return 0; }
     ChronoSteadyClock_t GetDetectedTime() {
         return std::chrono::steady_clock::time_point::min();
     }
