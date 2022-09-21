@@ -6030,11 +6030,9 @@ int ResourceManager::getSndDeviceName(int deviceId, char *device_name)
     if (isValidDevId(deviceId)) {
         strlcpy(device_name, sndDeviceNameLUT[deviceId].second.c_str(), DEVICE_NAME_MAX_SIZE);
         if (isVbatEnabled && (deviceId == PAL_DEVICE_OUT_SPEAKER ||
-                              deviceId == PAL_DEVICE_OUT_ULTRASOUND_DEDICATED ||
-                              deviceId == PAL_DEVICE_OUT_HANDSET) &&
+                              deviceId == PAL_DEVICE_OUT_ULTRASOUND_DEDICATED) &&
                                 !strstr(device_name, VBAT_BCL_SUFFIX)) {
-            if (deviceId == PAL_DEVICE_OUT_ULTRASOUND_DEDICATED ||
-                                          deviceId == PAL_DEVICE_OUT_HANDSET) {
+            if (deviceId == PAL_DEVICE_OUT_ULTRASOUND_DEDICATED) {
                 getBackendName(deviceId, backEndName);
                 if (!(strstr(backEndName.c_str(), "CODEC_DMA-LPAIF_WSA-RX")))
                     return 0;
