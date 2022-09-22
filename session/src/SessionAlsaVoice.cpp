@@ -1617,21 +1617,33 @@ int SessionAlsaVoice::setSidetone(int deviceId,Stream * s, bool enable){
 int SessionAlsaVoice::setHWSidetone(Stream * s, bool enable){
     int status = 0;
     std::vector<std::shared_ptr<Device>> associatedDevices;
+    std::shared_ptr<Device> rxDevice = nullptr;
     struct audio_route *audioRoute;
     bool set = false;
 
     status = s->getAssociatedDevices(associatedDevices);
     status = rm->getAudioRoute(&audioRoute);
 
+    if (getRXDevice(s, rxDevice) != 0) {
+        PAL_ERR(LOG_TAG, "failed, could not find associated RX device");
+        return status;
+    }
+
     status = s->getAssociatedDevices(associatedDevices);
     for(int i =0; i < associatedDevices.size(); i++) {
         switch(associatedDevices[i]->getSndDeviceId()){
             case PAL_DEVICE_IN_HANDSET_MIC:
                 if(enable) {
-                    audio_route_apply_and_update_path(audioRoute, "sidetone-handset");
+                    if (rxDevice->getSndDeviceId() == PAL_DEVICE_OUT_WIRED_HEADPHONE)
+                        audio_route_apply_and_update_path(audioRoute, "sidetone-heaphone-handset-mic");
+                    else
+                        audio_route_apply_and_update_path(audioRoute, "sidetone-handset");
                     sideTone_cnt++;
                 } else {
-                    audio_route_reset_and_update_path(audioRoute, "sidetone-handset");
+                    if (rxDevice->getSndDeviceId() == PAL_DEVICE_OUT_WIRED_HEADPHONE)
+                        audio_route_reset_and_update_path(audioRoute, "sidetone-heaphone-handset-mic");
+                    else
+                        audio_route_reset_and_update_path(audioRoute, "sidetone-handset");
                     sideTone_cnt--;
                 }
                 set = true;
@@ -1676,6 +1688,18 @@ int SessionAlsaVoice::disconnectSessionDevice(Stream *streamHandle,
         /*config mute on pop suppressor*/
         setPopSuppressorMute(streamHandle);
 
+        /*if HW sidetone is enable disable it */
+        if (sideTone_cnt > 0) {
+            status = getTXDeviceId(streamHandle, &txDevId);
+            if (status){
+                PAL_ERR(LOG_TAG, "could not find TX device associated with this stream cannot set sidetone");
+            } else {
+                status = setSidetone(txDevId,streamHandle,0);
+                if(0 != status) {
+                   PAL_ERR(LOG_TAG,"disabling sidetone failed");
+                }
+            }
+        }
         status =  SessionAlsaUtils::disconnectSessionDevice(streamHandle,
                                                             streamType, rm,
                                                             dAttr, pcmDevRxIds,
