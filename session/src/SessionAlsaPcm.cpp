@@ -509,9 +509,11 @@ int SessionAlsaPcm::setConfig(Stream * s, configType type, int tag)
     const char *setParamTagControl = "setParamTag";
     const char *stream = "PCM";
     const char *setCalibrationControl = "setCalibration";
+    const char *setBEControl = "control";
     struct mixer_ctl *ctl;
     std::ostringstream tagCntrlName;
     std::ostringstream calCntrlName;
+    std::ostringstream beCntrlName;
     pal_stream_attributes sAttr;
     int tag_config_size = 0;
     int cal_config_size = 0;
@@ -521,6 +523,33 @@ int SessionAlsaPcm::setConfig(Stream * s, configType type, int tag)
         PAL_ERR(LOG_TAG, "stream get attributes failed");
         return status;
     }
+
+    if (sAttr.type != PAL_STREAM_VOICE_CALL_RECORD &&
+        sAttr.type != PAL_STREAM_VOICE_CALL_MUSIC  &&
+        sAttr.type != PAL_STREAM_CONTEXT_PROXY) {
+        if ((sAttr.direction == PAL_AUDIO_OUTPUT && rxAifBackEnds.empty()) ||
+            (sAttr.direction == PAL_AUDIO_INPUT && txAifBackEnds.empty())) {
+            PAL_ERR(LOG_TAG, "No backend connected to this stream\n");
+            return -EINVAL;
+        }
+
+        if (PAL_STREAM_LOOPBACK == sAttr.type) {
+            if (pcmDevRxIds.size() > 0)
+                beCntrlName << stream << pcmDevRxIds.at(0) << " " << setBEControl;
+        } else {
+            if (pcmDevIds.size() > 0)
+                beCntrlName << stream << pcmDevIds.at(0) << " " << setBEControl;
+        }
+
+        ctl = mixer_get_ctl_by_name(mixer, beCntrlName.str().data());
+        if (!ctl) {
+            PAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", beCntrlName.str().data());
+            return -ENOENT;
+        }
+        mixer_ctl_set_enum_by_string(ctl, (sAttr.direction == PAL_AUDIO_INPUT) ?
+                                     txAifBackEnds[0].second.data() : rxAifBackEnds[0].second.data());
+    }
+
     PAL_DBG(LOG_TAG, "Enter tag: %d", tag);
     switch (type) {
         case MODULE:

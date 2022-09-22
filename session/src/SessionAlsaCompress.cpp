@@ -1095,19 +1095,45 @@ exit:
 int SessionAlsaCompress::setConfig(Stream * s, configType type, int tag)
 {
     int status = 0;
+    struct pal_stream_attributes sAttr;
     uint32_t tagsent;
     struct agm_tag_config* tagConfig;
     const char *setParamTagControl = "setParamTag";
     const char *stream = "COMPRESS";
     const char *setCalibrationControl = "setCalibration";
+    const char *setBEControl = "control";
     struct mixer_ctl *ctl;
     struct agm_cal_config *calConfig;
+    std::ostringstream beCntrlName;
     std::ostringstream tagCntrlName;
     std::ostringstream calCntrlName;
     int tkv_size = 0;
     int ckv_size = 0;
 
     PAL_DBG(LOG_TAG, "Enter");
+    status = s->getStreamAttributes(&sAttr);
+    if (0 != status) {
+        PAL_ERR(LOG_TAG, "getStreamAttributes Failed \n");
+        return -EINVAL;
+    }
+
+    if ((sAttr.direction == PAL_AUDIO_OUTPUT && rxAifBackEnds.empty()) ||
+        (sAttr.direction == PAL_AUDIO_INPUT && txAifBackEnds.empty())) {
+        PAL_ERR(LOG_TAG, "No backend connected to this stream\n");
+        return -EINVAL;
+    }
+
+    if (compressDevIds.size() > 0)
+        beCntrlName<<stream<<compressDevIds.at(0)<<" "<<setBEControl;
+
+    ctl = mixer_get_ctl_by_name(mixer, beCntrlName.str().data());
+    if (!ctl) {
+        PAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", tagCntrlName.str().data());
+        return -ENOENT;
+    }
+    mixer_ctl_set_enum_by_string(ctl, (sAttr.direction == PAL_AUDIO_OUTPUT) ?
+                                 rxAifBackEnds[0].second.data() : txAifBackEnds[0].second.data());
+
     switch (type) {
         case MODULE:
             tkv.clear();
