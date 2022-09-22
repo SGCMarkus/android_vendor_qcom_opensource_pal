@@ -1388,6 +1388,7 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
     int ret = 0, dir = TX_HOSTLESS, flags, viParamId = 0;
     char mSndDeviceName_vi[128] = {0};
     char mSndDeviceName_cps[128] = {0};
+    char mSndDeviceName_SP[128] = {0};
     uint8_t* payload = NULL;
     uint32_t devicePropId[] = {0x08000010, 1, 0x2};
     uint32_t miid = 0;
@@ -1480,8 +1481,16 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
         keyVector.clear();
         calVector.clear();
 
+        dev = Device::getInstance(&mDeviceAttr, rm);
+        dev->getCurrentSndDevName(mSndDeviceName_SP);
+
+        if (mDeviceAttr.id == PAL_DEVICE_OUT_SPEAKER && strstr(mSndDeviceName_SP, "mono"))
+            rm->getDeviceInfo(PAL_DEVICE_IN_VI_FEEDBACK, PAL_STREAM_VOICE_CALL, "", &vi_device);
+        else if (mDeviceAttr.id == PAL_DEVICE_OUT_SPEAKER)
+            rm->getDeviceInfo(PAL_DEVICE_IN_VI_FEEDBACK, PAL_STREAM_PROXY, "", &vi_device);
+
         // Configure device attribute
-       if (vi_device.channels > 1) {
+        if (vi_device.channels > 1) {
             ch_info.channels = CHANNELS_2;
             ch_info.ch_map[0] = PAL_CHMAP_CHANNEL_FL;
             ch_info.ch_map[1] = PAL_CHMAP_CHANNEL_FR;
@@ -1495,7 +1504,7 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
         ch_info.channels = vi_device.channels;
 
         if (mDeviceAttr.id == PAL_DEVICE_OUT_HANDSET)
-                 ch_info.ch_map[0] = PAL_CHMAP_CHANNEL_FL;
+            ch_info.ch_map[0] = PAL_CHMAP_CHANNEL_FL;
 
         switch (vi_device.channels) {
             case 1 :
@@ -1523,14 +1532,9 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
             PAL_ERR(LOG_TAG, "Failed to get the audio_route address status %d", ret);
             goto exit;
         }
+        strlcpy(mSndDeviceName_vi, vi_device.sndDevName.c_str(), DEVICE_NAME_MAX_SIZE);
 
-        ret = rm->getSndDeviceName(device.id , mSndDeviceName_vi);
-        if (0 != ret) {
-            PAL_ERR(LOG_TAG, "Failed to obtain tx snd device name for %d", device.id);
-            goto exit;
-        }
-
-         if (mDeviceAttr.id == PAL_DEVICE_OUT_HANDSET) {
+        if (mDeviceAttr.id == PAL_DEVICE_OUT_HANDSET) {
            strlcat(mSndDeviceName_vi, FEEDBACK_MONO_1, DEVICE_NAME_MAX_SIZE);
         }
         PAL_DBG(LOG_TAG, "get the audio route %s", mSndDeviceName_vi);
@@ -1548,7 +1552,7 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
         }
 
         // Enable the VI module
-        switch (numberOfChannels) {
+        switch (vi_device.channels) {
             case 1 :
                  if (mDeviceAttr.id == PAL_DEVICE_OUT_HANDSET)
                       calVector.push_back(std::make_pair(SPK_PRO_VI_MAP, LEFT_SPKR));
@@ -1698,7 +1702,7 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
 
         // Setting Channel Map configuration for VI module
         // TODO: Move this to ACDB file
-        viChannelMapConfg.num_ch = numberOfChannels * 2;
+        viChannelMapConfg.num_ch = vi_device.channels * 2;
         payloadSize = 0;
 
         builder->payloadSPConfig(&payload, &payloadSize, miid,
@@ -1732,7 +1736,7 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
         if (rm->mSpkrProtModeValue.operationMode) {
             PAL_DBG(LOG_TAG, "Operation mode %d", rm->mSpkrProtModeValue.operationMode);
             param_id_sp_th_vi_ftm_cfg_t viFtmConfg;
-            viFtmConfg.num_ch = numberOfChannels;
+            viFtmConfg.num_ch = vi_device.channels;
             switch (rm->mSpkrProtModeValue.operationMode) {
                 case PAL_SP_MODE_FACTORY_TEST:
                     viParamId = PARAM_ID_SP_TH_VI_FTM_CFG;
@@ -1872,8 +1876,6 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
             goto err_pcm_open;
         }
 
-        dev = Device::getInstance(&mDeviceAttr, rm);
-
         ret = rm->getActiveStream_l(activeStreams, dev);
         if ((0 != ret) || (activeStreams.size() == 0)) {
             PAL_ERR(LOG_TAG, " no active stream available");
@@ -1954,8 +1956,13 @@ cps_dev_setup:
         keyVector.clear();
         calVector.clear();
 
+        if (mDeviceAttr.id == PAL_DEVICE_OUT_SPEAKER && strstr(mSndDeviceName_SP, "mono"))
+            rm->getDeviceInfo(PAL_DEVICE_IN_CPS_FEEDBACK, PAL_STREAM_VOICE_CALL, "", &cps_device);
+        else if (mDeviceAttr.id == PAL_DEVICE_OUT_SPEAKER)
+            rm->getDeviceInfo(PAL_DEVICE_IN_CPS_FEEDBACK, PAL_STREAM_PROXY, "", &cps_device);
+
         // Configure device attribute
-       if (cps_device.channels > 1) {
+        if (cps_device.channels > 1) {
             ch_info.channels = CHANNELS_2;
             ch_info.ch_map[0] = PAL_CHMAP_CHANNEL_FL;
             ch_info.ch_map[1] = PAL_CHMAP_CHANNEL_FR;
@@ -1981,12 +1988,7 @@ cps_dev_setup:
             PAL_ERR(LOG_TAG, "Failed to get the audio_route address status %d", ret);
             goto err_pcm_open;
         }
-
-        ret = rm->getSndDeviceName(deviceCPS.id , mSndDeviceName_cps);
-        if (0 != ret) {
-            PAL_ERR(LOG_TAG, "Failed to obtain cps snd device name for %d", deviceCPS.id);
-            goto err_pcm_open;
-        }
+        strlcpy(mSndDeviceName_cps, cps_device.sndDevName.c_str(), DEVICE_NAME_MAX_SIZE);
 
         if (mDeviceAttr.id == PAL_DEVICE_OUT_HANDSET) {
           strlcat(mSndDeviceName_cps, FEEDBACK_MONO_1, DEVICE_NAME_MAX_SIZE);
@@ -2007,7 +2009,7 @@ cps_dev_setup:
         }
 
         // Enable the CPS module
-        switch (numberOfChannels) {
+        switch (cps_device.channels) {
             case 1 :
                 if (mDeviceAttr.id == PAL_DEVICE_OUT_HANDSET)
                     calVector.push_back(std::make_pair(SPK_PRO_CPS_MAP, L_SPKR));
@@ -2124,7 +2126,7 @@ cps_dev_setup:
 
         // Setting Channel Map configuration for CPS module
         // TODO: Move this to ACDB file
-        cpsChannelMapConfg.num_ch = numberOfChannels;
+        cpsChannelMapConfg.num_ch = cps_device.channels;
         payloadSize = 0;
 
         builder->payloadSPConfig(&payload, &payloadSize, miid,
@@ -2177,7 +2179,7 @@ cps_dev_setup:
                 goto exit;
             }
 
-            ret = rm->getSndDeviceName(device.id , mSndDeviceName_vi);
+            strlcpy(mSndDeviceName_vi, vi_device.sndDevName.c_str(), DEVICE_NAME_MAX_SIZE);
             rm->getBackendName(device.id, backEndName);
             if (!strlen(backEndName.c_str())) {
                 PAL_ERR(LOG_TAG, "Failed to obtain tx backend name for %d", device.id);
@@ -2208,7 +2210,7 @@ cps_dev_setup:
                 goto exit;
             }
 
-            ret = rm->getSndDeviceName(deviceCPS.id , mSndDeviceName_cps);
+            strlcpy(mSndDeviceName_cps, cps_device.sndDevName.c_str(), DEVICE_NAME_MAX_SIZE);
             rm->getBackendName(deviceCPS.id, backEndNameCPS);
             if (!strlen(backEndNameCPS.c_str())) {
                 PAL_ERR(LOG_TAG, "Failed to obtain CPS backend name for %d", deviceCPS.id);
