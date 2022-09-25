@@ -502,17 +502,26 @@ int32_t Stream::getAssociatedDevices(std::vector <std::shared_ptr<Device>> &aDev
     return status;
 }
 
-int32_t Stream::updatePalDevice(struct pal_device *dattr, pal_device_id_t dev_id, bool replace)
+void Stream::clearOutPalDevices()
+{
+    std::vector <struct pal_device>::iterator dIter;
+
+    for (dIter = mPalDevice.begin(); dIter != mPalDevice.end();) {
+        if (!rm->isInputDevId((*dIter).id)) {
+            mPalDevice.erase(dIter);
+        } else {
+            dIter++;
+        }
+    }
+}
+
+int32_t Stream::updatePalDevice(struct pal_device *dattr, pal_device_id_t dev_id)
 {
     int32_t status = 0;
 
     PAL_DBG(LOG_TAG, "updatePalDevice from %d to %d", dev_id, dattr->id);
     for (int i = 0; i < mPalDevice.size(); i++) {
         if (dev_id == mPalDevice[i].id) {
-            if (!replace) {
-                PAL_DBG(LOG_TAG, "found existing dattr, don't replace");
-                return status;
-            }
             mPalDevice.erase(mPalDevice.begin() + i);
             break;
         }
@@ -1386,6 +1395,7 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
     /* created stream device connect and disconnect list */
     streamDevDisconnect.clear();
     StreamDevConnect.clear();
+    suspendedDevIds.clear();
 
     for (int i = 0; i < connectCount; i++) {
         std::vector <Stream *> activeStreams;
