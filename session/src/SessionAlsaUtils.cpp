@@ -737,6 +737,7 @@ int SessionAlsaUtils::rwACDBTunnel(Stream * streamHandle, std::shared_ptr<Resour
     agm_acdb_param *effectACDBPayload = nullptr;
     pal_param_payload *paramPayload = nullptr;
     size_t payloadSize = 0;
+    uint32_t checkSum = 0;
 
     paramPayload = (pal_param_payload *)payload;
     if (!paramPayload)
@@ -869,9 +870,9 @@ int SessionAlsaUtils::rwACDBTunnel(Stream * streamHandle, std::shared_ptr<Resour
         ptrBuffer = newPayloadACDBTunnelInfo->blob +
             (newPayloadACDBTunnelInfo->num_gkvs + newPayloadACDBTunnelInfo->num_kvs) *
             sizeof(pal_key_value_pair_t) + sizeof(struct apm_module_param_data_t);
-        payloadSize = effectACDBPayload->blob_size -
-            effectACDBPayload->num_kvs * sizeof(pal_key_value_pair_t) -
-            sizeof(pal_effect_custom_payload_t);
+        __builtin_add_overflow(effectACDBPayload->num_kvs * sizeof(pal_key_value_pair_t),
+            sizeof(pal_effect_custom_payload_t), &checkSum);
+        __builtin_sub_overflow(effectACDBPayload->blob_size, checkSum, &payloadSize);
         PAL_DBG(LOG_TAG, "payload size = 0x%x", payloadSize);
         ar_mem_cpy((uint8_t *)(effectACDBPayload->blob +
             sizeof(pal_effect_custom_payload_t) +
