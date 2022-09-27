@@ -2633,6 +2633,7 @@ int SessionAlsaPcm::register_asps_event(uint32_t reg)
     if (pcmDevIds.size() == 0) {
         PAL_ERR(LOG_TAG, "frontendIDs is not available.");
         status = -EINVAL;
+        free(event_cfg);
         return status;
     }
     SessionAlsaUtils::registerMixerEvent(mixer, pcmDevIds.at(0),
