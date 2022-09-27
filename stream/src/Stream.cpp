@@ -1335,6 +1335,9 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
 
     for (int i = 0; i < numDev; i++) {
         struct pal_device_info devinfo = {};
+        bool devReadyStatus = 0;
+        uint32_t retryCnt = 20;
+        uint32_t retryPeriodMs = 100;
         /*
          * When A2DP, Out Proxy and DP device is disconnected the
          * music playback is paused and the policy manager sends routing=0
@@ -1359,7 +1362,13 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
             return 0;
         }
 
-        if (!rm->isDeviceReady(newDevices[i].id)) {
+        while (!devReadyStatus && --retryCnt) {
+            devReadyStatus = rm->isDeviceReady(newDevices[i].id);
+            if (devReadyStatus)
+                break;
+            usleep(retryPeriodMs * 1000);
+        }
+        if (!devReadyStatus) {
             PAL_ERR(LOG_TAG, "Device %d is not ready", newDevices[i].id);
             if ((newDevices[i].id == PAL_DEVICE_OUT_BLUETOOTH_A2DP) &&
                 !(rm->isDeviceAvailable(newDevices, numDev, PAL_DEVICE_OUT_SPEAKER))) {
