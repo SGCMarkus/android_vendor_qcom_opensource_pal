@@ -730,7 +730,7 @@ int SessionAlsaUtils::rwACDBTunnel(Stream * streamHandle, std::shared_ptr<Resour
     struct mixer *mixerHandle = nullptr;
     uint32_t i;
     PayloadBuilder* builder = nullptr;
-    struct vsid_info vsidDummy;
+    struct vsid_info vsidDummy = {};
     std::string acdbSetMixerName = "setACDBTunnel";
     std::string acdbGetMixerName = "getACDBTunnel";
     uint8_t *payloadData = NULL;
