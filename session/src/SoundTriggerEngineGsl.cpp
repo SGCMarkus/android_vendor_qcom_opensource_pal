@@ -154,6 +154,11 @@ int32_t SoundTriggerEngineGsl::StartBuffering(Stream *s) {
     PAL_DBG(LOG_TAG, "Enter");
     UpdateState(ENG_BUFFERING);
     s->getBufInfo(&input_buf_size, &input_buf_num, nullptr, nullptr);
+    sleep_ms = (input_buf_size * input_buf_num) *
+        BITS_PER_BYTE * MS_PER_SEC /
+        (sm_cfg_->GetSampleRate() * sm_cfg_->GetBitWidth() *
+        sm_cfg_->GetOutChannels());
+
     std::memset(&buf, 0, sizeof(struct pal_buffer));
     buf.size = input_buf_size * input_buf_num;
     buf.buffer = (uint8_t *)calloc(1, buf.size);
@@ -202,14 +207,6 @@ int32_t SoundTriggerEngineGsl::StartBuffering(Stream *s) {
         // read data from session
         ATRACE_ASYNC_BEGIN("stEngine: lab read", (int32_t)module_type_);
         if (mmap_buffer_size_ != 0) {
-            if (total_read_size >= ftrt_size) {
-                sleep_ms = (input_buf_size * input_buf_num) *
-                    BITS_PER_BYTE * MS_PER_SEC /
-                    (sm_cfg_->GetSampleRate() * sm_cfg_->GetBitWidth() *
-                     sm_cfg_->GetOutChannels());
-                std::this_thread::sleep_for(std::chrono::milliseconds(sleep_ms));
-            }
-
             /*
              * GetMmapPosition returns total frames written for this session
              * which will be accumulated during back to back detections, so
@@ -317,30 +314,33 @@ int32_t SoundTriggerEngineGsl::StartBuffering(Stream *s) {
         }
 
         // notify client until ftrt data read
-        if (!event_notified && total_read_size >= ftrt_size) {
-            kw_transfer_end = std::chrono::steady_clock::now();
-            ATRACE_ASYNC_END("stEngine: read FTRT data", (int32_t)module_type_);
-            kw_transfer_latency_ = std::chrono::duration_cast<std::chrono::milliseconds>(
-                kw_transfer_end - kw_transfer_begin).count();
-            PAL_INFO(LOG_TAG, "FTRT data read done! total_read_size %zu, ftrt_size %zu, read latency %llums",
-                    total_read_size, ftrt_size, (long long)kw_transfer_latency_);
+        if (total_read_size >= ftrt_size) {
+            if (!event_notified) {
+                kw_transfer_end = std::chrono::steady_clock::now();
+                ATRACE_ASYNC_END("stEngine: read FTRT data", (int32_t)module_type_);
+                kw_transfer_latency_ = std::chrono::duration_cast<std::chrono::milliseconds>(
+                    kw_transfer_end - kw_transfer_begin).count();
+                PAL_INFO(LOG_TAG, "FTRT data read done! total_read_size %zu, ftrt_size %zu, read latency %llums",
+                        total_read_size, ftrt_size, (long long)kw_transfer_latency_);
 
-            StreamSoundTrigger *s = dynamic_cast<StreamSoundTrigger *>(vui_intf_->GetDetectedStream());
-            if (s) {
-                mutex_.unlock();
-                status = s->SetEngineDetectionState(GMM_DETECTED);
-                if (status < 0)
-                    RestartRecognition(s);
-                mutex_.lock();
-            }
+                StreamSoundTrigger *s = dynamic_cast<StreamSoundTrigger *>(vui_intf_->GetDetectedStream());
+                if (s) {
+                    mutex_.unlock();
+                    status = s->SetEngineDetectionState(GMM_DETECTED);
+                    if (status < 0)
+                        RestartRecognition(s);
+                    mutex_.lock();
+                }
 
-            if (status) {
-                PAL_ERR(LOG_TAG,
-                    "Failed to set engine detection state to stream, status %d",
-                    status);
-                break;
+                if (status) {
+                    PAL_ERR(LOG_TAG,
+                        "Failed to set engine detection state to stream, status %d",
+                        status);
+                    break;
+                }
+                event_notified = true;
             }
-            event_notified = true;
+            std::this_thread::sleep_for(std::chrono::milliseconds(sleep_ms));
         }
     }
 
