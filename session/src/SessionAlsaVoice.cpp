@@ -159,36 +159,37 @@ uint32_t SessionAlsaVoice::getMIID(const char *backendName, uint32_t tagId, uint
 
     switch (tagId) {
     case DEVICE_HW_ENDPOINT_TX:
-        device = pcmDevTxIds.at(0);
+    case BT_PLACEHOLDER_DECODER:
+    case COP_DEPACKETIZER_V2:
+    case TAG_ECNS:
+        if (pcmDevTxIds.size())
+           device = pcmDevTxIds.at(0);
+        else
+          PAL_ERR(LOG_TAG, "pcmDevTxIds:%x is not available.",tagId);
         break;
     case DEVICE_HW_ENDPOINT_RX:
-        device = pcmDevRxIds.at(0);
+    case BT_PLACEHOLDER_ENCODER:
+    case COP_PACKETIZER_V2:
+    case COP_PACKETIZER_V0:
+    case MODULE_SP:
+        if (pcmDevRxIds.size())
+           device = pcmDevRxIds.at(0);
+        else
+          PAL_ERR(LOG_TAG, "pcmDevRxIds:%x is not available.",tagId);
         break;
     case RAT_RENDER:
     case BT_PCM_CONVERTER:
-        if(strstr(backendName,"TX"))
-            device = pcmDevTxIds.at(0);
-        else
-            device = pcmDevRxIds.at(0);
-        break;
-    case BT_PLACEHOLDER_DECODER:
-        device = pcmDevTxIds.at(0);
-        break;
-    case BT_PLACEHOLDER_ENCODER:
-        device = pcmDevRxIds.at(0);
-        break;
-    case COP_DEPACKETIZER_V2:
-        device = pcmDevTxIds.at(0);
-        break;
-    case TAG_ECNS:
-        device = pcmDevTxIds.at(0);
-        break;
-    case COP_PACKETIZER_V2:
-    case COP_PACKETIZER_V0:
-        device = pcmDevRxIds.at(0);
-        break;
-    case MODULE_SP:
-        device = pcmDevRxIds.at(0);
+        if(strstr(backendName,"TX")) {
+          if (pcmDevTxIds.size())
+             device = pcmDevTxIds.at(0);
+          else
+            PAL_ERR(LOG_TAG, "pcmDevTxIds:%x is not available.",tagId);
+        } else {
+           if (pcmDevRxIds.size())
+              device = pcmDevRxIds.at(0);
+           else
+            PAL_ERR(LOG_TAG, "pcmDevRxIds:%x is not available.",tagId);
+        }
         break;
     default:
         PAL_INFO(LOG_TAG, "Unsupported tag info %x",tagId);
