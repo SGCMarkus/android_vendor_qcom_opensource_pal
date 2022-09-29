@@ -1247,15 +1247,6 @@ int32_t StreamPCM::flush()
         goto exit;
     }
 
-    mStreamMutex.unlock();
-    rm->lockActiveStream();
-    mStreamMutex.lock();
-    for (int i = 0; i < mDevices.size(); i++) {
-        if (rm->isDeviceActive_l(mDevices[i], this))
-            rm->deregisterDevice(mDevices[i], this);
-    }
-    rm->unlockActiveStream();
-
     status = session->flush();
 exit:
     mStreamMutex.unlock();
