@@ -790,7 +790,7 @@ public:
     bool isAnyVUIStreamBuffering();
     void handleDeferredSwitch();
     void handleConcurrentStreamSwitch(std::vector<pal_stream_type_t>& st_streams,
-                                      bool stream_active, bool is_deferred);
+                                      bool stream_active);
     std::shared_ptr<Device> getActiveEchoReferenceRxDevices(Stream *tx_str);
     std::shared_ptr<Device> getActiveEchoReferenceRxDevices_l(Stream *tx_str);
     std::vector<Stream*> getConcurrentTxStream(
@@ -899,6 +899,7 @@ public:
                                  struct pal_device *Dev2Attr,
                                  const struct pal_device_info *Dev2Info);
     int32_t voteSleepMonitor(Stream *str, bool vote, bool force_nlpi_vote = false);
+    bool checkAndUpdateDeferSwitchState(bool stream_active);
     static uint32_t palFormatToBitwidthLookup(const pal_audio_fmt_t format);
     void chargerListenerFeatureInit();
     static void chargerListenerInit(charger_status_change_fn_t);
