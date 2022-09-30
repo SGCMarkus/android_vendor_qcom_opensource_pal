@@ -97,6 +97,7 @@ protected:
     static std::mutex extECMutex;
     bool frontEndIdAllocated = false;
 public:
+    bool isMixerEventCbRegd;
     bool isPauseRegistrationDone;
     virtual ~Session();
     static Session* makeSession(const std::shared_ptr<ResourceManager>& rm, const struct pal_stream_attributes *sAttr);
