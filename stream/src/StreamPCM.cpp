@@ -91,6 +91,8 @@ StreamPCM::StreamPCM(const struct pal_stream_attributes *sattr, struct pal_devic
 
     if (!sattr || !dattr) {
         PAL_ERR(LOG_TAG,"invalid arguments");
+        free(mVolumeData);
+        mVolumeData = nullptr;
         mStreamMutex.unlock();
         throw std::runtime_error("invalid arguments");
     }
@@ -99,6 +101,8 @@ StreamPCM::StreamPCM(const struct pal_stream_attributes *sattr, struct pal_devic
     mStreamAttr = (struct pal_stream_attributes *) calloc(1, attribute_size);
     if (!mStreamAttr) {
         PAL_ERR(LOG_TAG, "malloc for stream attributes failed %s", strerror(errno));
+        free(mVolumeData);
+        mVolumeData = nullptr;
         mStreamMutex.unlock();
         throw std::runtime_error("failed to malloc for stream attributes");
     }
@@ -119,6 +123,9 @@ StreamPCM::StreamPCM(const struct pal_stream_attributes *sattr, struct pal_devic
     if (!session) {
         PAL_ERR(LOG_TAG, "session creation failed");
         free(mStreamAttr);
+        mStreamAttr = nullptr;
+        free(mVolumeData);
+        mVolumeData = nullptr;
         mStreamMutex.unlock();
         throw std::runtime_error("failed to create session object");
     }
@@ -133,6 +140,9 @@ StreamPCM::StreamPCM(const struct pal_stream_attributes *sattr, struct pal_devic
         if (!dev) {
             PAL_ERR(LOG_TAG, "Device creation failed");
             free(mStreamAttr);
+            mStreamAttr = nullptr;
+            free(mVolumeData);
+            mVolumeData = nullptr;
 
             //TBD::free session too
             mStreamMutex.unlock();

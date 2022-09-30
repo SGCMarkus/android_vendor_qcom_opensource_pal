@@ -2494,7 +2494,11 @@ int SessionAlsaPcm::getParameters(Stream *s __unused, int tagId, uint32_t param_
 
 
 exit:
-    freeCustomPayload(&payloadData, &payloadSize);
+    if (payloadSize) {
+        delete [] payloadData;
+        payloadData = NULL;
+        payloadSize = 0;
+    }
     PAL_DBG(LOG_TAG, "Exit. status %d", status);
     return status;
 }
