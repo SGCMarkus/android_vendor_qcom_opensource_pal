@@ -6608,7 +6608,10 @@ int32_t ResourceManager::forceDeviceSwitch(std::shared_ptr<Device> inDev,
     for (sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++) {
         streamDevDisconnect.push_back({(*sIter), inDev->getSndDeviceId()});
         streamDevConnect.push_back({(*sIter), newDevAttr});
-        (*sIter)->updatePalDevice(newDevAttr, (pal_device_id_t)inDev->getSndDeviceId());
+        (*sIter)->lockStreamMutex();
+        (*sIter)->clearOutPalDevices();
+        (*sIter)->addPalDevice(newDevAttr);
+        (*sIter)->unlockStreamMutex();
     }
     mActiveStreamMutex.unlock();
     status = streamDevSwitch(streamDevDisconnect, streamDevConnect);
@@ -7380,6 +7383,16 @@ int32_t ResourceManager::a2dpResume()
         PAL_DBG(LOG_TAG, "no streams to be restored");
         mActiveStreamMutex.unlock();
         goto exit;
+    }
+
+    // update pal device for the streams getting restored
+    for (sIter = restoredStreams.begin(); sIter != restoredStreams.end(); sIter++) {
+        (*sIter)->lockStreamMutex();
+        if ((*sIter)->suspendedDevIds.size() == 1 /* non-combo */) {
+            (*sIter)->clearOutPalDevices();
+        }
+        (*sIter)->addPalDevice(&a2dpDattr);
+        (*sIter)->unlockStreamMutex();
     }
     mActiveStreamMutex.unlock();
 
