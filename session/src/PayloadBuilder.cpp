@@ -999,6 +999,7 @@ int PayloadBuilder::payloadACDBTunnelParam(uint8_t **alsaPayload,
     uint32_t *ptr = nullptr;
     uint32_t offset = 0;
     pal_effect_custom_payload_t *effectCustomPayload = nullptr;
+    uint32_t checkSum = 0;
 
     if (!acdbParam)
         return -EINVAL;
@@ -1036,9 +1037,9 @@ int PayloadBuilder::payloadACDBTunnelParam(uint8_t **alsaPayload,
                                 ((uint8_t *)acdbParam + dataLength);
     PAL_DBG(LOG_TAG, "first param id = 0x%x", effectCustomPayload->paramId);
     // step 1: get param data size = blob size - kv size - param id size
-    payloadSize = acdbParam->blob_size -
-                    acdbParam->num_kvs * sizeof(struct gsl_key_value_pair)
-                    - sizeof(pal_effect_custom_payload_t);
+    __builtin_add_overflow(acdbParam->num_kvs * sizeof(struct gsl_key_value_pair),
+                             sizeof(pal_effect_custom_payload_t), &checkSum);
+    __builtin_sub_overflow(acdbParam->blob_size, checkSum, &payloadSize);
     PAL_DBG(LOG_TAG, "payloadSize = 0x%x", payloadSize);
 
     if (effectCustomPayload->paramId) {

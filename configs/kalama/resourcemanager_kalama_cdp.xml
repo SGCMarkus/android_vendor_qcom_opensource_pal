@@ -528,6 +528,11 @@
             <samplerate>48000</samplerate>
             <bit_width>32</bit_width>
             <snd_device_name>vi-feedback</snd_device_name>
+            <usecase>
+                <name>PAL_STREAM_VOICE_CALL</name>
+                <channels>1</channels>
+                <snd_device_name>vi-feedback-mono-2</snd_device_name>
+            </usecase>
         </in-device>
         <in-device>
             <id>PAL_DEVICE_IN_CPS_FEEDBACK</id>
@@ -537,6 +542,11 @@
             <samplerate>24000</samplerate>
             <bit_width>32</bit_width>
             <snd_device_name>cps-feedback</snd_device_name>
+            <usecase>
+                <name>PAL_STREAM_VOICE_CALL</name>
+                <channels>1</channels>
+                <snd_device_name>cps-feedback-mono-2</snd_device_name>
+            </usecase>
         </in-device>
         <in-device>
             <id>PAL_DEVICE_IN_BLUETOOTH_A2DP</id>
@@ -1301,8 +1311,8 @@
                             <context id="0x0800132E" /> <!-- EVENT_BABYCRYING -->
                             <context id="0x0800132F" /> <!-- EVENT_DOGBARKING -->
                             <context id="0x08001330" /> <!-- EVENT_DOORBELL -->
-                            <context id="0x08001331" /> <!-- EVENT_DOORCLOSE -->
-                            <context id="0x08001332" /> <!-- EVENT_DOOROPEN -->
+                            <context id="0x08001331" /> <!-- EVENT_DOOROPENCLOSE -->
+                            <context id="0x08001332" /> <!-- EVENT_CRASH -->
                             <context id="0x08001333" /> <!-- EVENT_GLASSBREAKING -->
                             <context id="0x08001334" /> <!-- EVENT_SIREN -->
                             <context id="0x080013CC" /> <!-- EVENT_CARHONK -->
@@ -1399,7 +1409,7 @@
                 <!-- Module output channels -->
                 <param out_channels="1" />
                 <operating_modes>
-                    <low_power capture_profile_handset="SINGLE_MIC_16KHZ_16BIT_RAW_LPI" capture_profile_headset="SINGLE_MIC_16KHZ_16BIT_HEADSET_FFNS" />
+                    <low_power capture_profile_handset="SINGLE_MIC_16KHZ_16BIT_RAW_LPI" capture_profile_headset="SINGLE_MIC_16KHZ_16BIT_HEADSET_RAW_LPI" />
                     <high_performance capture_profile_handset="DUAL_MIC_16KHZ_16BIT_FFECNS" capture_profile_headset="SINGLE_MIC_16KHZ_16BIT_HEADSET_FFECNS" />
                     <high_performance_and_charging capture_profile_handset="DUAL_MIC_16KHZ_16BIT_FFECNS" capture_profile_headset="SINGLE_MIC_16KHZ_16BIT_HEADSET_FFECNS" />
                 </operating_modes>

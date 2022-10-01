@@ -105,7 +105,7 @@ protected:
     unsigned int rates_[MAX_SAMPLE_RATE_SIZE];
     unsigned long service_interval_us_;
     usb_usecase_type_t type_;
-    unsigned int supported_sample_rates_mask_[2];
+    unsigned int supported_sample_rates_mask_[2] = {0};
     bool jack_status_ = true;
 public:
     void setBitWidth(unsigned int bit_width);
@@ -135,7 +135,7 @@ protected:
     int endian_;
     std::multimap<uint32_t, std::shared_ptr<USBDeviceConfig>> format_list_map;
     std::vector <std::shared_ptr<USBDeviceConfig>> usb_device_config_list_;
-    unsigned int usb_supported_sample_rates_mask_[2];
+    unsigned int usb_supported_sample_rates_mask_[2] = {0};
     void usb_info_dump(char* read_buf, int type);
 public:
     USBCardConfig(struct pal_usb_device_address address);

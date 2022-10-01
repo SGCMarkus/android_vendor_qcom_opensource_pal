@@ -99,10 +99,6 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
     reader_ = nullptr;
     detection_state_ = ENGINE_IDLE;
     notification_state_ = ENGINE_IDLE;
-    inBufSize = BUF_SIZE_CAPTURE;
-    outBufSize = BUF_SIZE_PLAYBACK;
-    inBufCount = NO_OF_BUF;
-    outBufCount = NO_OF_BUF;
     model_id_ = 0;
     sm_config_ = nullptr;
     rec_config_ = nullptr;
@@ -293,6 +289,19 @@ StreamSoundTrigger::~StreamSoundTrigger() {
         st_conf_levels_v2_ = nullptr;
     }
 
+    if (st_idle_)
+        delete st_idle_;
+    if (st_loaded_)
+        delete st_loaded_;
+    if (st_active)
+        delete st_active;
+    if (st_detected_)
+        delete st_detected_;
+    if (st_buffering_)
+        delete st_buffering_;
+    if (st_ssr_)
+        delete st_ssr_;
+
     mDevices.clear();
     PAL_DBG(LOG_TAG, "Exit");
 }
@@ -358,6 +367,7 @@ int32_t StreamSoundTrigger::stop() {
 int32_t StreamSoundTrigger::read(struct pal_buffer* buf) {
     int32_t size = 0;
     uint32_t sleep_ms = 0;
+    uint32_t offset = 0;
 
     PAL_VERBOSE(LOG_TAG, "Enter");
 
@@ -377,6 +387,12 @@ int32_t StreamSoundTrigger::read(struct pal_buffer* buf) {
     if (cur_state_ == st_buffering_ && !this->force_nlpi_vote) {
         rm->voteSleepMonitor(this, true, true);
         this->force_nlpi_vote = true;
+
+        offset = vui_intf_->GetReadOffset();
+        if (offset) {
+            reader_->advanceReadOffset(offset);
+            vui_intf_->SetReadOffset(0);
+        }
     }
 
     std::shared_ptr<StEventConfig> ev_cfg(

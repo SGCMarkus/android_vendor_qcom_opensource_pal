@@ -2493,8 +2493,9 @@ std::shared_ptr<SoundTriggerEngineGsl> SoundTriggerEngineGsl::GetInstance(
         key = ST_MODULE_TYPE_PDK;
     }
     eng_create_mutex_.lock();
-    if ((eng_.find(key) == eng_.end() || !sm_cfg->isSingleInstanceStage1()) &&
-         engine_count_ < sm_cfg->GetSupportedEngineCount()) {
+    if (eng_.find(key) == eng_.end() ||
+        (key != ST_MODULE_TYPE_GMM &&
+         engine_count_ < sm_cfg->GetSupportedEngineCount())) {
         st_eng = std::make_shared<SoundTriggerEngineGsl>
                                     (s, type, module_type, sm_cfg);
         eng_[key].push_back(st_eng);

@@ -82,6 +82,7 @@ std::mutex Session::extECMutex;
 
 Session::Session()
 {
+    isMixerEventCbRegd = false;
     isPauseRegistrationDone = false;
 
 }
@@ -431,7 +432,7 @@ int Session::setEffectParametersNonTKV(Stream *s __unused, effect_pal_payload_t 
     const char *control = "setParam";
     size_t payloadSize = 0;
     uint8_t *payloadData = NULL;
-    pal_effect_custom_payload_t *effectCustomPayload;
+    pal_effect_custom_payload_t *effectCustomPayload = nullptr;
 
     PAL_DBG(LOG_TAG, "Enter.");
 

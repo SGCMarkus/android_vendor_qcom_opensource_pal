@@ -72,10 +72,6 @@ StreamNonTunnel::StreamNonTunnel(const struct pal_stream_attributes *sattr, stru
 
     session = NULL;
     mStreamAttr = (struct pal_stream_attributes *)nullptr;
-    inBufSize = BUF_SIZE_CAPTURE;
-    outBufSize = BUF_SIZE_PLAYBACK;
-    inBufCount = NO_OF_BUF;
-    outBufCount = NO_OF_BUF;
     inMaxMetadataSz = 0;
     outMaxMetadataSz = 0;
     mDevices.clear();

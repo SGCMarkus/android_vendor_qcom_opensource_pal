@@ -516,6 +516,14 @@
         <ctl name="WSA_RX0 INT0 SIDETONE MIX" value="SRC0" />
     </path>
 
+    <path name="sidetone-heaphone-handset-mic">
+        <path name="sidetone-iir" />
+        <ctl name="IIR0 INP0 Volume" value="0" />
+        <ctl name="IIR0 INP0 MUX" value="DEC2" />
+        <ctl name="RX INT0 MIX2 INP" value="SRC0" />
+        <ctl name="RX INT1 MIX2 INP" value="SRC0" />
+    </path>
+
     <path name="afe-sidetone">
     </path>
 
@@ -611,6 +619,11 @@
         <ctl name="WSA_RX0 Digital Volume" value="70" />
     </path>
 
+    <path name="handset-vbat">
+       <path name="handset" />
+       <ctl name="WSA_RX INT0 VBAT WSA RX0 VBAT Enable" value="1" />
+    </path>
+
     <path name="handset-wcd">
         <ctl name="RX_MACRO RX0 MUX" value="AIF1_PB" />
         <ctl name="RX INT0_1 MIX1 INP0" value="RX0" />
@@ -628,7 +641,13 @@
         <ctl name="SpkrLeft COMP Switch" value="1" />
         <ctl name="SpkrLeft VISENSE Switch" value="1" />
         <ctl name="SpkrLeft SWR DAC_Port Switch" value="1" />
+        <ctl name="WSA PBR Enable" value="1" />
         <ctl name="WSA_RX0 Digital Volume" value="50" />
+    </path>
+
+    <path name="ultrasound-handset-vbat">
+        <path name="ultrasound-handset" />
+        <ctl name="WSA_RX INT0 VBAT WSA RX0 VBAT Enable" value="1" />
     </path>
 
     <path name="ultrasound-handset-wcd">
