@@ -273,6 +273,9 @@ std::shared_ptr<Device> Device::getObject(pal_device_id_t dev_id)
     case PAL_DEVICE_IN_ECHO_REF:
         PAL_VERBOSE(LOG_TAG, "Echo ref device %d", dev_id);
         return ECRefDevice::getObject();
+    case PAL_DEVICE_OUT_HAPTICS_DEVICE:
+        PAL_VERBOSE(LOG_TAG, "Haptics device %d", dev_id);
+        return HapticsDev::getObject();
     default:
         PAL_ERR(LOG_TAG,"Unsupported device id %d",dev_id);
         return nullptr;
