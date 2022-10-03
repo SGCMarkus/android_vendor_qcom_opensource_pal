@@ -8888,8 +8888,16 @@ int ResourceManager::handleDeviceConnectionChange(pal_param_device_connection_t 
                 goto err;
             }
         }
-        PAL_DBG(LOG_TAG, "Mark device %d as available", device_id);
-        avail_devices_.push_back(device_id);
+        if (!dev) {
+            dAttr.id = device_id;
+            dev = Device::getInstance(&dAttr, rm);
+            if (!dev)
+                PAL_ERR(LOG_TAG, "get dev instance for %d failed", device_id);
+        }
+        if (dev) {
+            PAL_DBG(LOG_TAG, "Mark device %d as available", device_id);
+            avail_devices_.push_back(device_id);
+        }
     } else if (!is_connected && device_available) {
         if (isPluginDevice(device_id) || isDpDevice(device_id)) {
             removePlugInDevice(device_id, connection_state);
@@ -8920,8 +8928,11 @@ int ResourceManager::handleDeviceConnectionChange(pal_param_device_connection_t 
                 PAL_DBG(LOG_TAG, "Mark device %d as unavailable", device_id);
             }
         }
-        avail_devices_.erase(std::find(avail_devices_.begin(),
-                                avail_devices_.end(), device_id));
+        auto iter =
+            std::find(avail_devices_.begin(), avail_devices_.end(),
+                        device_id);
+        if (iter != avail_devices_.end())
+            avail_devices_.erase(iter);
     } else if (!isBtScoDevice(device_id)) {
         status = -EINVAL;
         PAL_ERR(LOG_TAG, "Invalid operation, Device %d, connection state %d, device avalibilty %d",
