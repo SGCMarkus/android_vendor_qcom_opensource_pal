@@ -355,6 +355,16 @@ should always be in sync with it -->
             <speaker_mono_right>0</speaker_mono_right>
             <!-- Time in seconds for Quick cal. Set 0 to disable -->
             <quick_cal_time>0</quick_cal_time>
+            <usecase>
+                <name>PAL_STREAM_VOICE_CALL</name>
+                <priority>2</priority>
+                <channels>1</channels>
+                <snd_device_name>speaker-mono-2</snd_device_name>
+            </usecase>
+            <usecase>
+                <name>PAL_STREAM_VOIP_RX</name>
+                <priority>3</priority>
+            </usecase>
         </out-device>
         <out-device>
             <id>PAL_DEVICE_OUT_HANDSET</id>
@@ -363,6 +373,16 @@ should always be in sync with it -->
             <channels>1</channels>
             <samplerate>48000</samplerate>
             <snd_device_name>handset</snd_device_name>
+            <usecase>
+                <name>PAL_STREAM_VOICE_CALL</name>
+                <priority>2</priority>
+                <snd_device_name>voice-handset</snd_device_name>
+            </usecase>
+            <usecase>
+                <name>PAL_STREAM_VOIP_RX</name>
+                <priority>3</priority>
+                <snd_device_name>voice-handset</snd_device_name>
+            </usecase>
         </out-device>
         <out-device>
             <id>PAL_DEVICE_OUT_WIRED_HEADSET</id>
@@ -556,6 +576,39 @@ ports not conflicting with other audio paths  -->
             <param mmap_frame_length="5" /> <!-- 5ms duration of data -->
         </common_config>
         <capture_profile_list>
+             <capture_profile name="SINGLE_MIC_16KHZ_16BIT_HEADSET_FFECNS">
+                <param sample_rate="16000" />
+                <param channels="1" />
+                <param bit_width="16" />
+                <devicePP-metadata>
+                    <!-- see kvh2xml.h -->
+                    <kvpair key="0xAD000000" value="0xAD000001"/>
+                </devicePP-metadata>
+                <param snd_name="headset-va-mic" />
+                <param ec_ref="true" />
+            </capture_profile>
+            <capture_profile name="SINGLE_MIC_16KHZ_16BIT_HEADSET_RAW_LPI">
+                <param sample_rate="16000" />
+                <param channels="1" />
+                <param bit_width="16" />
+                <devicePP-metadata>
+                    <!-- see kvh2xml.h -->
+                    <kvpair key="0xAD000000" value="0xAD00000C"/>
+                </devicePP-metadata>
+                <param snd_name="headset-va-mic-lpi" />
+                <param ec_ref="false" />
+            </capture_profile>
+            <capture_profile name="SINGLE_MIC_16KHZ_16BIT_HEADSET_RAW_NLPI">
+                <param sample_rate="16000" />
+                <param channels="1" />
+                <param bit_width="16" />
+                <devicePP-metadata>
+                    <!-- see kvh2xml.h -->
+                    <kvpair key="0xAD000000" value="0xAD00000E"/>
+                </devicePP-metadata>
+                <param snd_name="headset-va-mic" />
+                <param ec_ref="false" />
+            </capture_profile>
             <capture_profile name="SINGLE_MIC_16KHZ_16BIT_RAW_LPI">
                 <param sample_rate="16000" />
                 <param channels="1" />
@@ -659,9 +712,9 @@ ports not conflicting with other audio paths  -->
             <param client_capture_read_delay="2000" /> <!-- reserved buffer duration for rt data -->
             <param pre_roll_duration="500" /> <!-- Default preroll duration -->
             <operating_modes>
-                <low_power capture_profile_handset="SINGLE_MIC_16KHZ_16BIT_RAW_LPI"/>
-                <high_performance capture_profile_handset="DUAL_MIC_16KHZ_16BIT_FFECNS"/>
-                <high_performance_and_charging capture_profile_handset="DUAL_MIC_16KHZ_16BIT_FFECNS"/>
+                <low_power capture_profile_handset="SINGLE_MIC_16KHZ_16BIT_RAW_LPI" capture_profile_headset="SINGLE_MIC_16KHZ_16BIT_HEADSET_RAW_LPI"/>
+                <high_performance capture_profile_handset="DUAL_MIC_16KHZ_16BIT_FFECNS" capture_profile_headset="SINGLE_MIC_16KHZ_16BIT_HEADSET_FFECNS"/>
+                <high_performance_and_charging capture_profile_handset="DUAL_MIC_16KHZ_16BIT_FFECNS" capture_profile_headset="SINGLE_MIC_16KHZ_16BIT_HEADSET_FFECNS"/>
             </operating_modes>
             <arm_ss_usecase>
                 <!-- Options are "KEYWORD_DETECTION", "USER_VERIFICATION",
@@ -676,7 +729,7 @@ ports not conflicting with other audio paths  -->
             <arm_ss_usecase>
                 <param sm_detection_type= "USER_VERIFICATION" />
                 <param sm_id="0x4" />
-                <param module_lib="libcapiv2vopvendor.so"/>
+                <param module_lib="libcapiv2uvvendor.so"/>
                 <param sample_rate="16000"/>
                 <param bit_width="16"/>
                 <param channel_count="1"/>
