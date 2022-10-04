@@ -4809,6 +4809,7 @@ void ResourceManager::GetConcurrencyInfo(pal_stream_type_t st_type,
     } else if (dir == PAL_AUDIO_INPUT &&
                (in_type != PAL_STREAM_ACD &&
                 in_type != PAL_STREAM_SENSOR_PCM_DATA &&
+                in_type != PAL_STREAM_CONTEXT_PROXY  &&
                 in_type != PAL_STREAM_VOICE_UI)) {
         *tx_conc = true;
         if (!audio_capture_conc_enable) {
