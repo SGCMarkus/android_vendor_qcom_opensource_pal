@@ -998,7 +998,15 @@ int32_t SoundTriggerEngineGsl::UpdateMergeConfLevelsPayload(
     }
 
     if (!sm_merged_) {
-        PAL_DBG(LOG_TAG, "Soundmodel is not merged, return");
+        PAL_DBG(LOG_TAG, "Soundmodel is not merged, use source sm info");
+        *eng_sm_info_ = *src_sm_info;
+        for (uint32_t i = 0; i < eng_sm_info_->GetConfLevelsSize(); i++) {
+            if (!set) {
+                eng_sm_info_->UpdateConfLevel(i, MAX_CONF_LEVEL_VALUE);
+                PAL_DBG(LOG_TAG, "reset: cf_levels[%d]=%d",
+                    i, eng_sm_info_->GetConfLevels()[i]);
+            }
+        }
         return 0;
     }
 
@@ -1981,14 +1989,16 @@ int32_t SoundTriggerEngineGsl::UpdateEngineConfigOnStop(Stream *s) {
     buffer_config_.pre_roll_duration_in_ms = pr_duration;
     capture_requested_ = enable_lab;
 
-    /* Update the merged conf levels considering this stream stop */
-    StreamSoundTrigger *stopped_st = dynamic_cast<StreamSoundTrigger *>(s);
-    status = UpdateMergeConfLevelsPayload(vui_intf_->GetSoundModelInfo(stopped_st), false);
-    for (int i = 0; i < eng_sm_info_->GetConfLevelsSize(); i++) {
-        wakeup_config_.confidence_levels[i] = eng_sm_info_->GetConfLevels()[i];
-        wakeup_config_.keyword_user_enables[i] =
-            (wakeup_config_.confidence_levels[i] == 100) ? 0 : 1;
-        PAL_DBG(LOG_TAG, "cf levels[%d] = %d", i, wakeup_config_.confidence_levels[i]);
+    if (!IS_MODULE_TYPE_PDK(module_type_)) {
+        /* Update the merged conf levels considering this stream stop */
+        StreamSoundTrigger *stopped_st = dynamic_cast<StreamSoundTrigger *>(s);
+        status = UpdateMergeConfLevelsPayload(vui_intf_->GetSoundModelInfo(stopped_st), false);
+        for (int i = 0; i < eng_sm_info_->GetConfLevelsSize(); i++) {
+            wakeup_config_.confidence_levels[i] = eng_sm_info_->GetConfLevels()[i];
+            wakeup_config_.keyword_user_enables[i] =
+                (wakeup_config_.confidence_levels[i] == 100) ? 0 : 1;
+            PAL_DBG(LOG_TAG, "cf levels[%d] = %d", i, wakeup_config_.confidence_levels[i]);
+        }
     }
 
     return status;
@@ -2021,14 +2031,16 @@ int32_t SoundTriggerEngineGsl::UpdateEngineConfigOnRestart(Stream *s) {
     buffer_config_.pre_roll_duration_in_ms = pr_duration;
     capture_requested_ = enable_lab;
 
-    /* Update the merged conf levels considering this stream restarted as well */
-    StreamSoundTrigger *restarted_st = dynamic_cast<StreamSoundTrigger *>(s);
-    status = UpdateMergeConfLevelsPayload(vui_intf_->GetSoundModelInfo(restarted_st), true);
-    for (int i = 0; i < eng_sm_info_->GetConfLevelsSize(); i++) {
-        wakeup_config_.confidence_levels[i] = eng_sm_info_->GetConfLevels()[i];
-        wakeup_config_.keyword_user_enables[i] =
-            (wakeup_config_.confidence_levels[i] == 100) ? 0 : 1;
-        PAL_DBG(LOG_TAG, "cf levels[%d] = %d", i, wakeup_config_.confidence_levels[i]);
+    if (!IS_MODULE_TYPE_PDK(module_type_)) {
+        /* Update the merged conf levels considering this stream restarted as well */
+        StreamSoundTrigger *restarted_st = dynamic_cast<StreamSoundTrigger *>(s);
+        status = UpdateMergeConfLevelsPayload(vui_intf_->GetSoundModelInfo(restarted_st), true);
+        for (int i = 0; i < eng_sm_info_->GetConfLevelsSize(); i++) {
+            wakeup_config_.confidence_levels[i] = eng_sm_info_->GetConfLevels()[i];
+            wakeup_config_.keyword_user_enables[i] =
+                (wakeup_config_.confidence_levels[i] == 100) ? 0 : 1;
+            PAL_DBG(LOG_TAG, "cf levels[%d] = %d", i, wakeup_config_.confidence_levels[i]);
+        }
     }
 
     return status;
