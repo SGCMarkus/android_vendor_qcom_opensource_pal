@@ -1307,6 +1307,7 @@ int32_t SoundTriggerEngineGsl::LoadSoundModel(Stream *s, uint8_t *data,
     StreamSoundTrigger *st = dynamic_cast<StreamSoundTrigger *>(s);
     struct param_id_detection_engine_register_multi_sound_model_t *pdk_data =
            nullptr;
+    std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
 
     PAL_DBG(LOG_TAG, "Enter");
     if (!data) {
@@ -1378,7 +1379,7 @@ exit:
     if (!status)
         eng_streams_.push_back(s);
 
-    if (status == -ENETRESET) {
+    if (status == -ENETRESET || rm->cardState != CARD_STATUS_ONLINE) {
         PAL_INFO(LOG_TAG, "Update the status in case of SSR");
         status = 0;
     }
@@ -1394,6 +1395,7 @@ int32_t SoundTriggerEngineGsl::UnloadSoundModel(Stream *s) {
     int32_t status = 0;
     uint32_t model_id = 0;
     StreamSoundTrigger *st = dynamic_cast<StreamSoundTrigger *>(s);
+    std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
 
     PAL_DBG(LOG_TAG, "Enter");
 
@@ -1419,7 +1421,7 @@ int32_t SoundTriggerEngineGsl::UnloadSoundModel(Stream *s) {
 
     UpdateState(ENG_IDLE);
 exit:
-    if (status == -ENETRESET) {
+    if (status == -ENETRESET || rm->cardState != CARD_STATUS_ONLINE) {
         PAL_INFO(LOG_TAG, "Update the status in case of SSR");
         status = 0;
     }
@@ -1545,23 +1547,27 @@ exit:
 
 int32_t SoundTriggerEngineGsl::StartRecognition(Stream *s) {
     int32_t status = 0;
+    std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
 
     PAL_DBG(LOG_TAG, "Enter");
 
     exit_buffering_ = true;
+
     std::unique_lock<std::mutex> lck(mutex_);
 
     if (IsEngineActive())
         ProcessStopRecognition(eng_streams_[0]);
 
     status = ProcessStartRecognition(s);
-    if (0 != status)
+    if (0 != status) {
         PAL_ERR(LOG_TAG, "Failed to start recognition, status = %d", status);
-
-    if (status == -ENETRESET) {
-        PAL_INFO(LOG_TAG, "Update the status in case of SSR");
-        status = 0;
+        if (status == -ENETRESET || rm->cardState != CARD_STATUS_ONLINE) {
+            PAL_INFO(LOG_TAG, "Update the status in case of SSR");
+            status = 0;
+        }
     }
+
+    PAL_DBG(LOG_TAG, "Exit, status = %d", status);
 
     return status;
 }
@@ -1569,6 +1575,7 @@ int32_t SoundTriggerEngineGsl::StartRecognition(Stream *s) {
 int32_t SoundTriggerEngineGsl::RestartRecognition(Stream *s) {
     int32_t status = 0;
     struct pal_mmap_position mmap_pos;
+    std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
 
     PAL_DBG(LOG_TAG, "Enter");
     exit_buffering_ = true;
@@ -1621,7 +1628,7 @@ int32_t SoundTriggerEngineGsl::RestartRecognition(Stream *s) {
     exit_buffering_ = false;
     UpdateState(ENG_ACTIVE);
 
-    if (status == -ENETRESET) {
+    if (status == -ENETRESET || rm->cardState != CARD_STATUS_ONLINE) {
         PAL_INFO(LOG_TAG, "Update the status in case of SSR");
         status = 0;
     }
@@ -1632,6 +1639,7 @@ int32_t SoundTriggerEngineGsl::RestartRecognition(Stream *s) {
 int32_t SoundTriggerEngineGsl::ReconfigureDetectionGraph(Stream *s) {
     int32_t status = 0;
     StreamSoundTrigger *st = dynamic_cast<StreamSoundTrigger *>(s);
+    std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
 
     PAL_DBG(LOG_TAG, "Enter");
 
@@ -1665,7 +1673,7 @@ int32_t SoundTriggerEngineGsl::ReconfigureDetectionGraph(Stream *s) {
         PAL_ERR(LOG_TAG, "Failed to update engine model, status = %d", status);
     vui_intf_->GetSoundModelInfo(st)->SetModelData(nullptr, 0);
 
-    if (status == -ENETRESET) {
+    if (status == -ENETRESET || rm->cardState != CARD_STATUS_ONLINE) {
         PAL_INFO(LOG_TAG, "Update the status in case of SSR");
         status = 0;
     }
@@ -1707,6 +1715,7 @@ int32_t SoundTriggerEngineGsl::StopRecognition(Stream *s) {
     bool restore_eng_state = false;
     uint32_t old_conf = 0;
     uint32_t model_id = 0;
+    std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
     PAL_DBG(LOG_TAG, "Enter");
 
     exit_buffering_ = true;
@@ -1753,7 +1762,7 @@ int32_t SoundTriggerEngineGsl::StopRecognition(Stream *s) {
         PAL_DBG(LOG_TAG, "Engine is not active hence no need to stop engine");
     }
 exit:
-    if (status == -ENETRESET) {
+    if (status == -ENETRESET || rm->cardState != CARD_STATUS_ONLINE) {
         PAL_INFO(LOG_TAG, "Update the status in case of SSR");
         status = 0;
     }
