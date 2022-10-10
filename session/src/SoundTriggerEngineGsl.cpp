@@ -216,10 +216,18 @@ int32_t SoundTriggerEngineGsl::StartBuffering(Stream *s) {
              */
             status = session_->GetMmapPosition(s, &mmap_pos);
             if (!status) {
-                bytes_written = FrameToBytes(mmap_pos.position_frames -
-                    mmap_write_position_);
-                if (bytes_written == UINT32_MAX) {
-                    PAL_ERR(LOG_TAG, "invalid frame value");
+                if (mmap_pos.position_frames >= mmap_write_position_) {
+                    bytes_written = FrameToBytes(mmap_pos.position_frames -
+                        mmap_write_position_);
+                    if (bytes_written == UINT32_MAX) {
+                        PAL_ERR(LOG_TAG, "invalid frame value");
+                        status = -EINVAL;
+                        goto exit;
+                    }
+                } else {
+                    PAL_ERR(LOG_TAG, "invalid mmap position value");
+                    PAL_ERR(LOG_TAG, "position frames : %d, mmap write position : %d",
+                         mmap_pos.position_frames, mmap_write_position_);
                     status = -EINVAL;
                     goto exit;
                 }
