@@ -154,6 +154,28 @@
             <group_dev sample_rate = "96000" channels="2" bit_fmt="PAL_AUDIO_FMT_PCM_S16_LE" slot_mask="3" />
         </upd_rx_speaker>
     </group_device_cfg>
+    <!--
+         Usecase Priorities
+        ====================
+
+         Examples of usecases with their corresponding priorities,
+         ranked from 1 (highest priority).
+         1 for voice
+         2 for VOIP
+         3 for playback/recording and (default priority assigned in the streamPriorityLUT map in ResourceManager.cpp)
+         4 for UPD
+
+         In the event of concurrency on shared backend devices, the stream with the highest priority will determine the final device.
+         Example:
+         ========================================
+          usecase   |  priority | snd-devicename
+         ========================================
+          VOICE     |      1    | voice-handset
+          VOIP      |      2    | voip-handset
+          deepbuffer|      3    | speaker-mono
+
+        The final device will be voice-handset.
+    -->
     <device_profile>
         <in-device>
             <id>PAL_DEVICE_IN_HANDSET_MIC</id>
@@ -697,6 +719,18 @@
                 <name>PAL_STREAM_VOIP_RX</name>
                 <priority>2</priority>
             </usecase>
+            <!--
+                 Playback/Recording streams have a default priority of 3
+                 (default priority assigned in the streamPriorityLUT map in ResourceManager.cpp).
+                 Check the comments above "Usecase Priorities" for details.
+            -->
+            <!--
+                 While the UPD runs on a shared backend, whenever a speaker usecase arises,
+                 UPD must always switch to the speaker; it can only return to handset when
+                 the last speaker usecase terminates.
+                 Giving UPD the lowest priority is in line with the understanding of
+                 priority settings.
+            -->
             <usecase>
                 <name>PAL_STREAM_ULTRASOUND</name>
                 <priority>4</priority>
