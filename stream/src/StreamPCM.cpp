@@ -943,8 +943,7 @@ int32_t StreamPCM::write(struct pal_buffer* buf)
 
     mStreamMutex.lock();
     // If cached state is not STREAM_IDLE, we are still processing SSR up.
-    if ((mDevices.size() == 0)
-            || (rm->cardState == CARD_STATUS_OFFLINE)
+    if (rm->cardState == CARD_STATUS_OFFLINE
             || cachedState != STREAM_IDLE) {
         byteWidth = mStreamAttr->out_media_config.bit_width / 8;
         sampleRate = mStreamAttr->out_media_config.sample_rate;
