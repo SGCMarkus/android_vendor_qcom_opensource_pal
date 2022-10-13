@@ -282,6 +282,12 @@ typedef struct gef_payload_s {
     effect_pal_payload_t data;
 } gef_payload_t;
 
+typedef enum {
+    LPI_VOTE,
+    NLPI_VOTE,
+    AVOID_VOTE,
+} vote_type_t;
+
 /** Audio channel map enumeration*/
 typedef enum {
     PAL_CHMAP_CHANNEL_FL = 1,                      /**< Front right channel. */
@@ -598,6 +604,7 @@ const std::map<std::string, uint32_t> usecaseIdLUT {
     {std::string{ "PAL_STREAM_ULTRASOUND" },               PAL_STREAM_ULTRASOUND},
     {std::string{ "PAL_STREAM_SENSOR_PCM_DATA" },          PAL_STREAM_SENSOR_PCM_DATA},
     {std::string{ "PAL_STREAM_SPATIAL_AUDIO" },            PAL_STREAM_SPATIAL_AUDIO},
+    {std::string{ "PAL_STREAM_CONTEXT_PROXY" },            PAL_STREAM_CONTEXT_PROXY},
 };
 
 /* Update the reverse mapping as well when new stream is added */

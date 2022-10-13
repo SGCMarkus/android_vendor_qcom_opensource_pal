@@ -181,6 +181,8 @@ typedef enum {
     TAG_CONFIG_LPM,
     TAG_CONFIG_LPM_SUPPORTED_STREAM,
     TAG_CONFIG_LPM_SUPPORTED_STREAMS,
+    TAG_STREAMS_AVOID_SLEEP_MONITOR_VOTE,
+    TAG_AVOID_VOTE_STREAM,
 } resource_xml_tags_t;
 
 typedef enum {
@@ -580,7 +582,7 @@ protected:
     static struct disable_lpm_info disableLpmInfo_;
     static std::vector<struct pal_amp_db_and_gain_table> gainLvlMap;
     static SndCardMonitor *sndmon;
-    static std::vector <uint32_t> lpi_vote_streams_;
+    static std::vector <vote_type_t> sleep_monitor_vote_type_;
     /* condition variable for which ssrHandlerLoop will wait */
     static std::condition_variable cv;
     static std::mutex cvMutex;
