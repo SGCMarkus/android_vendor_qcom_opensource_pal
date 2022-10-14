@@ -3371,6 +3371,7 @@ int ResourceManager::initStreamUserCounter(Stream *s)
 {
     lockActiveStream();
     mActiveStreamUserCounter.insert(std::make_pair(s, 0));
+    s->initStreamSmph();
     unlockActiveStream();
     return 0;
 }
@@ -3383,7 +3384,9 @@ int ResourceManager::deinitStreamUserCounter(Stream *s)
     it = mActiveStreamUserCounter.find(s);
     if (it != mActiveStreamUserCounter.end()) {
         PAL_INFO(LOG_TAG, "stream %p is to be erased.", s);
+        s->waitStreamSmph();
         mActiveStreamUserCounter.erase(it);
+        s->deinitStreamSmph();
         unlockActiveStream();
         return 0;
     } else {
@@ -4809,6 +4812,7 @@ void ResourceManager::GetConcurrencyInfo(pal_stream_type_t st_type,
     } else if (dir == PAL_AUDIO_INPUT &&
                (in_type != PAL_STREAM_ACD &&
                 in_type != PAL_STREAM_SENSOR_PCM_DATA &&
+                in_type != PAL_STREAM_CONTEXT_PROXY  &&
                 in_type != PAL_STREAM_VOICE_UI)) {
         *tx_conc = true;
         if (!audio_capture_conc_enable) {
@@ -8255,13 +8259,6 @@ int32_t ResourceManager::a2dpCaptureSuspend(pal_device_id_t dev_id)
         goto exit;
     }
 
-    for (sIter = activeA2dpStreams.begin(); sIter != activeA2dpStreams.end(); sIter++) {
-        if (!((*sIter)->a2dpMuted)) {
-            (*sIter)->mute_l(true);
-            (*sIter)->a2dpMuted = true;
-        }
-    }
-
     // force switch to handset_mic
     handsetmicDattr.id = PAL_DEVICE_IN_HANDSET_MIC;
     handsetmicDev = Device::getInstance(&handsetmicDattr, rm);
@@ -8284,6 +8281,13 @@ int32_t ResourceManager::a2dpCaptureSuspend(pal_device_id_t dev_id)
     } else {
         // activestream found on handset-mic
         status = handsetmicDev->getDeviceAttributes(&handsetmicDattr);
+    }
+
+    for (sIter = activeA2dpStreams.begin(); sIter != activeA2dpStreams.end(); sIter++) {
+        if (!((*sIter)->a2dpMuted)) {
+            (*sIter)->mute_l(true);
+            (*sIter)->a2dpMuted = true;
+        }
     }
 
     PAL_DBG(LOG_TAG, "selecting handset_mic and muting stream");
@@ -8561,7 +8565,8 @@ int ResourceManager::getParameter(uint32_t param_id, void *param_payload,
             for(sIter = mActiveStreams.begin(); sIter != mActiveStreams.end(); sIter++) {
                 match = (*sIter)->checkStreamMatch(pal_device_id, pal_stream_type);
                 if (match) {
-                    increaseStreamUserCounter(*sIter);
+                    if (increaseStreamUserCounter(*sIter) < 0)
+                        continue;
                     unlockActiveStream();
                     status = (*sIter)->getEffectParameters(param_payload);
                     lockActiveStream();
@@ -9471,7 +9476,8 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                     match = (*sIter)->checkStreamMatch(pal_device_id,
                                                        pal_stream_type);
                     if (match) {
-                        increaseStreamUserCounter(*sIter);
+                        if (increaseStreamUserCounter(*sIter) < 0)
+                            continue;
                         unlockActiveStream();
                         status = (*sIter)->setEffectParameters(param_payload);
                         lockActiveStream();
