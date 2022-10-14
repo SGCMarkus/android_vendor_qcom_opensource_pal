@@ -94,7 +94,9 @@
 #include <mutex>
 #include "kvh2xml.h"
 #include <sys/ioctl.h>
-
+#ifdef EC_REF_CAPTURE_ENABLED
+#include "ECRefDevice.h"
+#endif
 #ifndef FEATURE_IPQ_OPENWRT
 #include <cutils/str_parms.h>
 #endif
@@ -251,6 +253,9 @@ std::vector<std::pair<int32_t, std::string>> ResourceManager::deviceLinkName {
     {PAL_DEVICE_IN_TELEPHONY_RX,          {std::string{ "" }}},
     {PAL_DEVICE_IN_ULTRASOUND_MIC,        {std::string{ "" }}},
     {PAL_DEVICE_IN_EXT_EC_REF,            {std::string{ "none" }}},
+#ifdef EC_REF_CAPTURE_ENABLED
+    {PAL_DEVICE_IN_ECHO_REF,              {std::string{ "" }}},
+#endif
     {PAL_DEVICE_IN_MAX,                   {std::string{ "" }}},
 };
 
@@ -297,6 +302,9 @@ std::vector<std::pair<int32_t, int32_t>> ResourceManager::devicePcmId {
     {PAL_DEVICE_IN_TELEPHONY_RX,          0},
     {PAL_DEVICE_IN_ULTRASOUND_MIC,        0},
     {PAL_DEVICE_IN_EXT_EC_REF,            0},
+#ifdef EC_REF_CAPTURE_ENABLED
+    {PAL_DEVICE_IN_ECHO_REF,              0},
+#endif
     {PAL_DEVICE_IN_MAX,                   0},
 };
 
@@ -345,6 +353,9 @@ std::vector<std::pair<int32_t, std::string>> ResourceManager::sndDeviceNameLUT {
     {PAL_DEVICE_IN_TELEPHONY_RX,          {std::string{ "" }}},
     {PAL_DEVICE_IN_ULTRASOUND_MIC,        {std::string{ "" }}},
     {PAL_DEVICE_IN_EXT_EC_REF,            {std::string{ "none" }}},
+#ifdef EC_REF_CAPTURE_ENABLED
+    {PAL_DEVICE_IN_ECHO_REF,              {std::string{ "" }}},
+#endif
     {PAL_DEVICE_IN_MAX,                   {std::string{ "" }}},
 };
 
@@ -561,6 +572,9 @@ std::vector<std::pair<int32_t, std::string>> ResourceManager::listAllBackEndIds 
     {PAL_DEVICE_IN_TELEPHONY_RX,          {std::string{ "" }}},
     {PAL_DEVICE_IN_ULTRASOUND_MIC,        {std::string{ "none" }}},
     {PAL_DEVICE_IN_EXT_EC_REF,            {std::string{ "none" }}},
+#ifdef EC_REF_CAPTURE_ENABLED
+    {PAL_DEVICE_IN_ECHO_REF,              {std::string{ "" }}},
+#endif
     {PAL_DEVICE_IN_MAX,                   {std::string{ "" }}},
 };
 

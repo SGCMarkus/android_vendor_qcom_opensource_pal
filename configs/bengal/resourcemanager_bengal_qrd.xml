@@ -353,6 +353,18 @@ should always be in sync with it -->
                 <name>PAL_STREAM_PROXY</name>
             </usecase>
         </in-device>
+        <in-device>
+            <id>PAL_DEVICE_IN_ECHO_REF</id>
+            <back_end_name>PCM_DUMMY-TX-0</back_end_name>
+            <snd_device_name>echo-ref-record</snd_device_name>
+            <max_channels>1</max_channels>
+            <channels>1</channels>
+            <bit_width>16</bit_width>
+            <samplerate>48000</samplerate>
+            <usecase>
+                <name>PAL_STREAM_RAW</name>
+            </usecase>
+        </in-device>
         <out-device>
             <id>PAL_DEVICE_OUT_SPEAKER</id>
             <back_end_name>CODEC_DMA-LPAIF_RXTX-RX-1</back_end_name>
