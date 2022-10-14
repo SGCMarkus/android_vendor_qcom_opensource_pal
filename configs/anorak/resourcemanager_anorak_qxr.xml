@@ -468,8 +468,8 @@
         <in-device>
             <id>PAL_DEVICE_IN_VI_FEEDBACK</id>
             <back_end_name>CODEC_DMA-LPAIF_WSA-TX-0</back_end_name>
-            <max_channels>2</max_channels>
-            <channels>2</channels>
+            <max_channels>4</max_channels>
+            <channels>4</channels>
             <samplerate>48000</samplerate>
             <bit_width>32</bit_width>
             <snd_device_name>vi-feedback</snd_device_name>
@@ -583,7 +583,7 @@
             <fractional_sr>0</fractional_sr>
             <!-- To enable external EC reference the flag extec_ref_enabled must be added as 1 -->
             <ext_ec_ref_enabled>0</ext_ec_ref_enabled>
-            <cps_enabled>0</cps_enabled>
+            <cps_mode>0</cps_mode>
             <vbat_enabled>1</vbat_enabled>
             <!--specify the supported bit format on speaker end point -->
             <!--this should be in the form of pal_audio_fmt_id-->
