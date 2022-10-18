@@ -5,6 +5,19 @@ ifeq ($(TARGET_USES_QCOM_AUDIO_AR),true)
 LOCAL_PATH := $(call my-dir)
 PAL_BASE_PATH := $(call my-dir)
 
+include $(CLEAR_VARS)
+LOCAL_MODULE                := libpal_headers
+LOCAL_VENDOR_MODULE         := true
+LOCAL_EXPORT_C_INCLUDE_DIRS := \
+    $(LOCAL_PATH)/stream/inc \
+    $(LOCAL_PATH)/device/inc \
+    $(LOCAL_PATH)/session/inc \
+    $(LOCAL_PATH)/resource_manager/inc \
+    $(LOCAL_PATH)/context_manager/inc \
+    $(LOCAL_PATH)/utils/inc \
+    $(LOCAL_PATH)/plugins/codecs
+include $(BUILD_HEADER_LIBRARY)
+
 ifneq ($(QCPATH),)
 
 include $(CLEAR_VARS)
@@ -24,13 +37,6 @@ LOCAL_CFLAGS        += -DACD_SM_FILEPATH=\"/vendor/etc/models/acd/\"
 LOCAL_CPPFLAGS      += -fexceptions -frtti
 
 LOCAL_C_INCLUDES := \
-    $(LOCAL_PATH)/stream/inc \
-    $(LOCAL_PATH)/device/inc \
-    $(LOCAL_PATH)/session/inc \
-    $(LOCAL_PATH)/resource_manager/inc \
-    $(LOCAL_PATH)/context_manager/inc \
-    $(LOCAL_PATH)/utils/inc \
-    $(LOCAL_PATH)/plugins/codecs \
     $(TOP)/system/media/audio_route/include \
     $(TOP)/system/media/audio/include
 
@@ -112,7 +118,8 @@ LOCAL_HEADER_LIBRARIES := \
     libspf-headers \
     libcapiv2_headers \
     libagm_headers \
-    libacdb_headers
+    libacdb_headers \
+    libpal_headers
 
 LOCAL_SHARED_LIBRARIES := \
     libar-gsl\
