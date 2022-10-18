@@ -652,43 +652,128 @@ unsigned int USBCardConfig::getFormatByBitWidth(int bitwidth) {
     return default_format;
 }
 
-unsigned int USBCardConfig::readDefaultFormat(bool is_playback) {
-    int bitwidth = getMaxBitWidth(is_playback);
-
-    return getFormatByBitWidth(bitwidth);
-}
-
-unsigned int USBCardConfig::readDefaultSampleRate(bool is_playback) {
-    unsigned int sample_rate = 0;
+unsigned int USBCardConfig::readSupportedFormat(bool is_playback, uint32_t *format) {
+    int i = 0;
+    unsigned int bw;
+    unsigned int bitWidth[MAX_SUPPORTED_FORMATS + 1];
     typename std::vector<std::shared_ptr<USBDeviceConfig>>::iterator iter;
+    bool insert;
 
     for (iter = usb_device_config_list_.begin();
          iter != usb_device_config_list_.end(); iter++) {
-             if ((*iter)->getType() == is_playback){
-                 sample_rate = (*iter)->getDefaultRate();
-                 break;
-             }
-         }
+        insert = true;
+        if ((*iter)->getType() == is_playback) {
+            bw = (*iter)->getBitWidth();
+            for (int j = 0; j < i; j++) {
+                if (bw == bitWidth[j]) {
+                    insert = false;
+                    break;
+                }
+            }
+            if (insert) {
+                bitWidth[i] = bw;
+                PAL_DBG(LOG_TAG, "%s supported bw %d", is_playback ? "P" : "C", bitWidth[i]);
+                i++;
+                if (i == (MAX_SUPPORTED_FORMATS + 1)) {
+                    PAL_ERR(LOG_TAG, "reached the maximum num of formats");
+                    break;
+                }
+            }
+        }
+    }
+    /* sort the bit width with descending order */
+    for (int j = 0; j < i - 1; j++) {
+        unsigned int temp_bw;
+        for (int k = j + 1; k < i; k++) {
+            if (bitWidth[j] <  bitWidth[k]) {
+                temp_bw = bitWidth[j];
+                bitWidth[j] = bitWidth[k];
+                bitWidth[k] = temp_bw;
+            }
+        }
+    }
+    /* convert bw to format */
+    for (int j = 0; j < i; j++)
+        format[j] = getFormatByBitWidth(bitWidth[j]);
 
-    return sample_rate;
+    return 0;
 }
 
-unsigned int USBCardConfig::readDefaultChannelMask(bool is_playback) {
-    unsigned int ret = 0;
+unsigned int USBCardConfig::readSupportedSampleRate(bool is_playback, uint32_t *sample_rate) {
+    usb_usecase_type_t type = is_playback ? USB_PLAYBACK : USB_CAPTURE;
+
+    typename std::vector<std::shared_ptr<USBDeviceConfig>>::iterator iter;
+
+    for (iter = usb_device_config_list_.begin();
+        iter != usb_device_config_list_.end(); iter++) {
+        if ((*iter)->getType() == is_playback){
+            usb_supported_sample_rates_mask_[type] |= (*iter)->getSRMask(type);
+        }
+    }
+#define _MIN(x, y) (((x) <= (y)) ? (x) : (y))
+    PAL_DBG(LOG_TAG, "supported_sample_rates_mask_ 0x%x", usb_supported_sample_rates_mask_[type]);
+    uint32_t bm = usb_supported_sample_rates_mask_[type];
+    uint32_t tries = _MIN(MAX_SUPPORTED_SAMPLE_RATES, (uint32_t)__builtin_popcount(bm));
+#undef _MIN
+
+    int i = 0;
+    while (tries) {
+        int idx = __builtin_ffs(bm) - 1;
+        sample_rate[i++] = USBDeviceConfig::supported_sample_rates_[idx];
+        bm &= ~(1<<idx);
+        tries--;
+    }
+
+    for (int j = 0; j < i; j++)
+        PAL_DBG(LOG_TAG, "%s %d", is_playback ? "P" : "C", sample_rate[j]);
+
+    return 0;
+}
+
+unsigned int USBCardConfig::readSupportedChannelMask(bool is_playback, uint32_t *channel) {
+
     int channels = getMaxChannels(is_playback);
+    int channel_count;
+    uint32_t num_masks = 0;
 
     if (channels > MAX_HIFI_CHANNEL_COUNT)
         channels = MAX_HIFI_CHANNEL_COUNT;
 
     if (is_playback) {
-        if (channels >= DEFAULT_CHANNEL_COUNT)
-            ret = out_chn_mask_[channels - DEFAULT_CHANNEL_COUNT];
+        // start from 2 channels as framework currently doesn't support mono.
+        if (channels >= 2) {
+            channel[num_masks++] = audio_channel_out_mask_from_count(2);
+        }
+        for (channel_count = 2;
+                channel_count <= channels && num_masks < MAX_SUPPORTED_CHANNEL_MASKS;
+                ++channel_count) {
+            channel[num_masks++] =
+                    audio_channel_mask_for_index_assignment_from_count(channel_count);
+        }
     } else {
-        if (channels >= MIN_CHANNEL_COUNT)
-            ret = in_chn_mask_[channels - MIN_CHANNEL_COUNT];
+        // For capture we report all supported channel masks from 1 channel up.
+        channel_count = MIN_CHANNEL_COUNT;
+        // audio_channel_in_mask_from_count() does the right conversion to either positional or
+        // indexed mask
+        for ( ; channel_count <= channels && num_masks < MAX_SUPPORTED_CHANNEL_MASKS; channel_count++) {
+            audio_channel_mask_t mask = AUDIO_CHANNEL_NONE;
+            if (channel_count <= 2) {
+                mask = audio_channel_in_mask_from_count(channel_count);
+                channel[num_masks++] = mask;
+            }
+            const audio_channel_mask_t index_mask =
+                    audio_channel_mask_for_index_assignment_from_count(channel_count);
+            if (mask != index_mask && num_masks < MAX_SUPPORTED_CHANNEL_MASKS) { // ensure index mask added.
+                channel[num_masks++] = index_mask;
+            }
+        }
     }
 
-    return ret;
+    for (size_t i = 0; i < num_masks; ++i) {
+        PAL_DBG(LOG_TAG, "%s supported ch %d channel[%zu] %08x num_masks %d",
+              is_playback ? "P" : "C", channels, i, channel[i], num_masks);
+    }
+    return num_masks;
 }
 
 bool USBCardConfig::readDefaultJackStatus(bool is_playback) {
@@ -709,9 +794,9 @@ bool USBCardConfig::readDefaultJackStatus(bool is_playback) {
 int USBCardConfig::readSupportedConfig(struct dynamic_media_config *config, bool is_playback, int usb_card)
 {
     const char* suffix;
-    config->format = readDefaultFormat(is_playback);
-    config->sample_rate = readDefaultSampleRate(is_playback);
-    config->mask = readDefaultChannelMask(is_playback);
+    readSupportedFormat(is_playback, config->format);
+    readSupportedSampleRate(is_playback, config->sample_rate);
+    readSupportedChannelMask(is_playback, config->mask);
     suffix = is_playback ? USB_OUT_JACK_SUFFIX : USB_IN_JACK_SUFFIX;
     config->jack_status = getJackConnectionStatus(usb_card, suffix);
     PAL_DBG(LOG_TAG, "config->jack_status = %d", config->jack_status);
