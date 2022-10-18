@@ -6,6 +6,23 @@ LOCAL_PATH := $(call my-dir)
 PAL_BASE_PATH := $(call my-dir)
 
 include $(CLEAR_VARS)
+LOCAL_MODULE                := libpal_headers
+LOCAL_VENDOR_MODULE         := true
+LOCAL_EXPORT_C_INCLUDE_DIRS := \
+    $(LOCAL_PATH)/inc \
+    $(LOCAL_PATH)/context_manager/inc \
+    $(LOCAL_PATH)/device/inc \
+    $(LOCAL_PATH)/ipc/HwBinders/pal_ipc_client/inc/ \
+    $(LOCAL_PATH)/ipc/HwBinders/pal_ipc_server/inc/ \
+    $(LOCAL_PATH)/plugins/codecs \
+    $(LOCAL_PATH)/resource_manager/inc \
+    $(LOCAL_PATH)/session/inc \
+    $(LOCAL_PATH)/stream/inc \
+    $(LOCAL_PATH)/utils/inc
+
+include $(BUILD_HEADER_LIBRARY)
+
+include $(CLEAR_VARS)
 
 LOCAL_MODULE := libarpal_headers
 LOCAL_EXPORT_C_INCLUDE_DIRS := $(LOCAL_PATH)/inc
@@ -41,13 +58,6 @@ LOCAL_CFLAGS        += -DA2DP_SINK_SUPPORTED
 endif
 
 LOCAL_C_INCLUDES := \
-    $(LOCAL_PATH)/stream/inc \
-    $(LOCAL_PATH)/device/inc \
-    $(LOCAL_PATH)/session/inc \
-    $(LOCAL_PATH)/resource_manager/inc \
-    $(LOCAL_PATH)/context_manager/inc \
-    $(LOCAL_PATH)/utils/inc \
-    $(LOCAL_PATH)/plugins/codecs \
     $(TOP)/system/media/audio_route/include \
     $(TOP)/system/media/audio/include
 
@@ -139,7 +149,8 @@ LOCAL_HEADER_LIBRARIES := \
     libagm_headers \
     libacdb_headers \
     libarosal_headers \
-    libvui_dmgr_headers
+    libvui_dmgr_headers \
+    libpal_headers
 
 LOCAL_SHARED_LIBRARIES := \
     libar-gsl\
