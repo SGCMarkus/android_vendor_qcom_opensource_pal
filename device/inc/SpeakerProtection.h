@@ -77,14 +77,14 @@
 
 class Device;
 
-#define LPASS_WR_CMD_REG_PHY_ADDR 0x6B14020
-#define LPASS_RD_CMD_REG_PHY_ADDR 0x6B14024
-#define LPASS_RD_FIFO_REG_PHY_ADDR 0x6B14040
 #define CPS_WSA_VBATT_REG_ADDR 0x0003429
 #define CPS_WSA_TEMP_REG_ADDR 0x0003422
 
 #define CPS_WSA_VBATT_LOWER_THRESHOLD_1 168
 #define CPS_WSA_VBATT_LOWER_THRESHOLD_2 148
+
+#define WSA2_REGISTER_ADD 1
+#define WSA_REGISTER_ADD 0
 
 typedef enum speaker_prot_cal_state {
     SPKR_NOT_CALIBRATED,     /* Speaker not calibrated  */
@@ -190,12 +190,11 @@ public:
     static std::string getDCDetSpkrCtrl(uint8_t spkr_pos, uint32_t miid);
     static void handleSPCallback (uint64_t hdl, uint32_t event_id, void *event_data,
                                   uint32_t event_size, uint32_t miid);
-    void updateCpsCustomPayload(int miid);
+    void updateCpsCustomPayload(int miid, uint32_t phy_add[], int wsa2_enable);
     int getCpsDevNumber(std::string mixer);
     int32_t getCalibrationData(void **param);
     int32_t getFTMParameter(void **param);
     void disconnectFeandBe(std::vector<int> pcmDevIds, std::string backEndName);
-
 };
 
 class SpeakerFeedback : public Device
