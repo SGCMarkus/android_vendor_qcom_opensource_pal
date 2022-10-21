@@ -333,6 +333,16 @@ should always be in sync with it -->
             <channels>1</channels>
             <snd_device_name>bt-a2dp</snd_device_name>
         </in-device>
+        <in-device> <!-- Call record -->
+            <id>PAL_DEVICE_IN_TELEPHONY_RX</id>
+            <back_end_name>PCM_RT_PROXY-TX-1</back_end_name>
+            <max_channels>2</max_channels>
+            <channels>2</channels>
+            <snd_device_name>afe-proxy</snd_device_name>
+            <usecase>
+                <name>PAL_STREAM_PROXY</name>
+            </usecase>
+        </in-device>
         <out-device>
             <id>PAL_DEVICE_OUT_SPEAKER</id>
             <back_end_name>CODEC_DMA-LPAIF_RXTX-RX-1</back_end_name>
