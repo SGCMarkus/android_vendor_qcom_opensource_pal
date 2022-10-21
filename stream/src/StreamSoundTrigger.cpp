@@ -1002,8 +1002,10 @@ error_exit:
  * For SVA4: just return stream instance id
  */
 uint32_t StreamSoundTrigger::GetInstanceId() {
-    if (IS_MODULE_TYPE_PDK(model_type_) &&
-        sm_cfg_->isSingleInstanceStage1())
+    if ((IS_MODULE_TYPE_PDK(model_type_) &&
+                sm_cfg_->isSingleInstanceStage1()) ||
+        (model_type_ == ST_MODULE_TYPE_GMM &&
+                sm_cfg_->GetMergeFirstStageSoundModels()))
         return INSTANCE_1;
     else if (IS_MODULE_TYPE_PDK(model_type_))
         return mInstanceID < sm_cfg_->GetSupportedEngineCount() ?
@@ -1769,6 +1771,16 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
                 break;
             }
 
+            for (auto& eng: st_stream_.engines_) {
+                PAL_DBG(LOG_TAG, "Unload engine %d", eng->GetEngineId());
+                status = eng->GetEngine()->UnloadSoundModel(&st_stream_);
+                if (0 != status) {
+                    PAL_ERR(LOG_TAG, "Unload engine %d failed, status %d",
+                            eng->GetEngineId(), status);
+                }
+                free(eng->sm_data_);
+            }
+
             if (st_stream_.device_opened_ && st_stream_.mDevices.size() > 0) {
                 status = st_stream_.mDevices[0]->close();
                 if (0 != status) {
@@ -1779,15 +1791,6 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
 
             st_stream_.mDevices.clear();
 
-            for (auto& eng: st_stream_.engines_) {
-                PAL_DBG(LOG_TAG, "Unload engine %d", eng->GetEngineId());
-                status = eng->GetEngine()->UnloadSoundModel(&st_stream_);
-                if (0 != status) {
-                    PAL_ERR(LOG_TAG, "Unload engine %d failed, status %d",
-                            eng->GetEngineId(), status);
-                }
-                free(eng->sm_data_);
-            }
             if(st_stream_.gsl_engine_)
                 st_stream_.gsl_engine_->ResetBufferReaders(st_stream_.reader_list_);
             if (st_stream_.reader_) {
@@ -1981,16 +1984,6 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
         case ST_EV_UNLOAD_SOUND_MODEL: {
             int ret = 0;
 
-            if (st_stream_.device_opened_ && st_stream_.mDevices.size() > 0) {
-                status = st_stream_.mDevices[0]->close();
-                if (0 != status) {
-                    PAL_ERR(LOG_TAG, "Failed to close device, status %d",
-                        status);
-                }
-            }
-
-            st_stream_.mDevices.clear();
-
             for (auto& eng: st_stream_.engines_) {
                 PAL_DBG(LOG_TAG, "Unload engine %d", eng->GetEngineId());
                 status = eng->GetEngine()->UnloadSoundModel(&st_stream_);
@@ -2001,6 +1994,16 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
                 }
                 free(eng->sm_data_);
             }
+
+            if (st_stream_.device_opened_ && st_stream_.mDevices.size() > 0) {
+                status = st_stream_.mDevices[0]->close();
+                if (0 != status) {
+                    PAL_ERR(LOG_TAG, "Failed to close device, status %d",
+                        status);
+                }
+            }
+
+            st_stream_.mDevices.clear();
 
             st_stream_.gsl_engine_->ResetBufferReaders(st_stream_.reader_list_);
             if (st_stream_.reader_) {
