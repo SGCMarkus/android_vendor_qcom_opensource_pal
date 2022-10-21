@@ -2421,6 +2421,10 @@ cps_dev_setup:
         goto exit;
     }
     else {
+        if (numberOfRequest == 0) {
+            PAL_ERR(LOG_TAG, "Device not started yet, Stop not expected");
+            goto exit;
+        }
         numberOfRequest--;
         if (numberOfRequest > 0) {
             // R0T0 already set, we don't need to process the request.
