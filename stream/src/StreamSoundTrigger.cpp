@@ -3142,6 +3142,13 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
                 goto connect_err;
             }
 
+            // sm_cfg_ must be initialized, if there was any device associated
+            // with this stream earlier
+            if (!st_stream_.sm_cfg_) {
+                PAL_DBG(LOG_TAG, "Defer device connection to model load");
+                goto connect_err;
+            }
+
             dev = st_stream_.GetPalDevice(dev_id, pal_dev, false);
             if (!dev) {
                 PAL_ERR(LOG_TAG, "Device creation failed");
