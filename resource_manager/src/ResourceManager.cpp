@@ -7278,25 +7278,33 @@ int32_t ResourceManager::forceDeviceSwitch(std::shared_ptr<Device> inDev,
     }
 
     // get active streams on the device
+    mActiveStreamMutex.lock();
     getActiveStream_l(activeStreams, inDev);
     if (activeStreams.size() == 0) {
         PAL_ERR(LOG_TAG, "no other active streams found");
+        mActiveStreamMutex.unlock();
         goto done;
     }
 
     // create dev switch vectors
-    mActiveStreamMutex.lock();
     for (sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++) {
         streamDevDisconnect.push_back({(*sIter), inDev->getSndDeviceId()});
         streamDevConnect.push_back({(*sIter), newDevAttr});
-        (*sIter)->lockStreamMutex();
-        (*sIter)->clearOutPalDevices(*sIter);
-        (*sIter)->addPalDevice(*sIter, newDevAttr);
-        (*sIter)->unlockStreamMutex();
     }
     mActiveStreamMutex.unlock();
     status = streamDevSwitch(streamDevDisconnect, streamDevConnect);
-    if (status) {
+    if (!status) {
+        mActiveStreamMutex.lock();
+        for (sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++) {
+            if (((*sIter) != NULL) && isStreamActive(*sIter, mActiveStreams)) {
+                (*sIter)->lockStreamMutex();
+                (*sIter)->clearOutPalDevices(*sIter);
+                (*sIter)->addPalDevice(*sIter, newDevAttr);
+                (*sIter)->unlockStreamMutex();
+            }
+        }
+        mActiveStreamMutex.unlock();
+    } else {
         PAL_ERR(LOG_TAG, "forceDeviceSwitch failed %d", status);
     }
 
@@ -8194,16 +8202,6 @@ int32_t ResourceManager::a2dpResume(pal_device_id_t dev_id)
         mActiveStreamMutex.unlock();
         goto exit;
     }
-
-    // update pal device for the streams getting restored
-    for (sIter = restoredStreams.begin(); sIter != restoredStreams.end(); sIter++) {
-        (*sIter)->lockStreamMutex();
-        if ((*sIter)->suspendedDevIds.size() == 1 /* non-combo */) {
-            (*sIter)->clearOutPalDevices(*sIter);
-        }
-        (*sIter)->addPalDevice(*sIter, &a2dpDattr);
-        (*sIter)->unlockStreamMutex();
-    }
     mActiveStreamMutex.unlock();
 
     PAL_DBG(LOG_TAG, "restoring A2dp and unmuting stream");
@@ -8217,6 +8215,12 @@ int32_t ResourceManager::a2dpResume(pal_device_id_t dev_id)
     for (sIter = restoredStreams.begin(); sIter != restoredStreams.end(); sIter++) {
         if (((*sIter) != NULL) && isStreamActive(*sIter, mActiveStreams)) {
             (*sIter)->lockStreamMutex();
+            // update PAL devices for the restored streams
+            if ((*sIter)->suspendedDevIds.size() == 1 /* non-combo */) {
+                (*sIter)->clearOutPalDevices(*sIter);
+            }
+            (*sIter)->addPalDevice(*sIter, &a2dpDattr);
+
             (*sIter)->suspendedDevIds.clear();
             status = (*sIter)->getVolumeData(volume);
             if (status) {
