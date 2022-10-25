@@ -183,6 +183,7 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
 
     bool is_qcva_uuid_;
     bool is_qcmd_uuid_;
+    bool is_crr_dev_using_ext_ec_;
     uint32_t lpi_miid_;
     uint32_t nlpi_miid_;
     bool use_lpi_;
