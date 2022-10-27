@@ -7215,21 +7215,21 @@ int32_t ResourceManager::a2dpSuspend()
                      * As a result, ramp down will not happen and will only occur after resume,
                      * which is perceived as audio leakage.
                      */
-                    (*sIter)->mute_l(true);
-                    (*sIter)->a2dpMuted = true;
+                    if (!(*sIter)->mute_l(true))
+                        (*sIter)->a2dpMuted = true;
                     // Pause only if the stream is not explicitly paused.
                     // In some scenarios, stream might have already paused prior to a2dpsuspend.
                     if (((*sIter)->isPaused) == false) {
-                        (*sIter)->pause_l();
-                        (*sIter)->a2dpPaused = true;
+                        if (!(*sIter)->pause_l())
+                            (*sIter)->a2dpPaused = true;
                     }
                 } else {
                     latencyMs = (*sIter)->getLatency();
                     if (maxLatencyMs < latencyMs)
                         maxLatencyMs = latencyMs;
                     // Mute
-                    (*sIter)->mute_l(true);
-                    (*sIter)->a2dpMuted = true;
+                    if (!(*sIter)->mute_l(true))
+                        (*sIter)->a2dpMuted = true;
                 }
             }
             (*sIter)->unlockStreamMutex();
@@ -7261,8 +7261,8 @@ int32_t ResourceManager::a2dpSuspend()
                  * This is to avoid resuming during regular pause.
                  */
                 if (((*sIter)->a2dpPaused) == true) {
-                    (*sIter)->resume_l();
-                    (*sIter)->a2dpPaused = false;
+                    if (!(*sIter)->resume_l())
+                        (*sIter)->a2dpPaused = false;
                 }
             }
             (*sIter)->suspendedDevIds.push_back(PAL_DEVICE_OUT_BLUETOOTH_A2DP);
@@ -7409,6 +7409,9 @@ int32_t ResourceManager::a2dpResume()
                 (*sIter)->unlockStreamMutex();
                 continue;
             }
+            /* set a2dpMuted to false so that volume can be applied
+             * volume gets cached if a2dpMuted is set to true
+             */
             (*sIter)->a2dpMuted = false;
             status = (*sIter)->setVolume(volume);
             if (status) {
@@ -7417,7 +7420,9 @@ int32_t ResourceManager::a2dpResume()
                 (*sIter)->unlockStreamMutex();
                 continue;
             }
-            (*sIter)->mute_l(false);
+            // set a2dpMuted to true in case unmute failed
+            if ((*sIter)->mute_l(false))
+                (*sIter)->a2dpMuted = true;
             (*sIter)->unlockStreamMutex();
         }
     }
