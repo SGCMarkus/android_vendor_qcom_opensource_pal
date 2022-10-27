@@ -8236,8 +8236,8 @@ int32_t ResourceManager::a2dpCaptureSuspend(pal_device_id_t dev_id)
 {
     int status = 0;
     std::shared_ptr<Device> a2dpDev = nullptr;
-    struct pal_device a2dpDattr;
-    struct pal_device handsetmicDattr;
+    struct pal_device a2dpDattr = {};
+    struct pal_device handsetmicDattr = {};
     std::vector <Stream*> activeA2dpStreams;
     std::vector <Stream*> activeStreams;
     std::shared_ptr<Device> handsetmicDev = nullptr;
@@ -8307,8 +8307,8 @@ int32_t ResourceManager::a2dpCaptureResume(pal_device_id_t dev_id)
 {
     int status = 0;
     std::shared_ptr<Device> activeDev = nullptr;
-    struct pal_device activeDattr;
-    struct pal_device a2dpDattr;
+    struct pal_device activeDattr = {};
+    struct pal_device a2dpDattr = {};
     struct pal_device_info devinfo = {};
     std::vector <Stream*>::iterator sIter;
     std::vector <Stream*> activeStreams;
