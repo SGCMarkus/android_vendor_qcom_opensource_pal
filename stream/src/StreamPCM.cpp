@@ -1180,7 +1180,7 @@ int32_t StreamPCM::pause_l()
         goto exit;
     }
 
-    if ((currentState == STREAM_PAUSED) && isPaused) {
+    if (isPaused) {
         PAL_INFO(LOG_TAG, "Stream is already paused");
     } else {
         //caching the volume before setting it to 0
