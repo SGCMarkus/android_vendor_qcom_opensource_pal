@@ -49,6 +49,11 @@
 -->
 <!-- IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 -->
+
+<!-- Changes from Qualcomm Innovation Center are provided under the following license: -->
+<!--                                                                                   -->
+<!-- Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.          -->
+<!-- SPDX-License-Identifier: BSD-3-Clause-Clear                                       -->
 <resource_manager_info>
     <config_params>
         <param key="native_audio_mode" value="multiple_mix_dsp"/>
@@ -96,6 +101,8 @@ codec_library="lib_bt_aptx.so" />
             <back_end_name>CODEC_DMA-LPAIF_RXTX-TX-3</back_end_name>
             <max_channels>2</max_channels>
             <channels>1</channels>
+            <samplerate>48000</samplerate>
+            <bit_width>16</bit_width>
             <snd_device_name>handset-mic</snd_device_name>
             <usecase>
                 <name>PAL_STREAM_LOW_LATENCY</name>
@@ -123,6 +130,7 @@ should always be in sync with it -->
             <usecase>
                 <name>PAL_STREAM_VOICE_CALL</name>
                 <sidetone_mode>HW</sidetone_mode>
+                <bit_width>16</bit_width>
                 <devicePP-metadata>
                     <kvpair key="0xAD000000" value="0xAD000008"/>
                     <!-- VOICE_FLUENCE_SMECNS -->
@@ -144,6 +152,8 @@ should always be in sync with it -->
             <id>PAL_DEVICE_IN_SPEAKER_MIC</id>
             <back_end_name>CODEC_DMA-LPAIF_RXTX-TX-3</back_end_name>
             <max_channels>4</max_channels>
+            <samplerate>48000</samplerate>
+            <bit_width>16</bit_width>
             <channels>1</channels>
             <snd_device_name>speaker-mic</snd_device_name>
             <usecase>
@@ -172,6 +182,7 @@ should always be in sync with it -->
             <usecase>
                 <name>PAL_STREAM_VOICE_CALL</name>
                 <sidetone_mode>OFF</sidetone_mode>
+                <bit_width>16</bit_width>
                 <devicePP-metadata>
                     <kvpair key="0xAD000000" value="0xAD000008"/>
                     <!-- VOICE_FLUENCE_SMECNS -->
@@ -198,6 +209,8 @@ should always be in sync with it -->
             <back_end_name>SLIM-DEV1-TX-7</back_end_name>
             <max_channels>1</max_channels>
             <channels>1</channels>
+            <samplerate>8000</samplerate>
+            <bit_width>16</bit_width>
             <snd_device_name>bt-a2dp</snd_device_name>
             <usecase>
                 <name>PAL_STREAM_LOW_LATENCY</name>
@@ -242,6 +255,8 @@ should always be in sync with it -->
             <back_end_name>CODEC_DMA-LPAIF_VA-TX-0</back_end_name>
             <max_channels>2</max_channels>
             <channels>2</channels>
+            <samplerate>48000</samplerate>
+            <bit_width>16</bit_width>
             <snd_device_name>va-mic</snd_device_name>
             <ec_rx_device>
                 <id>PAL_DEVICE_OUT_SPEAKER</id>
@@ -255,6 +270,8 @@ should always be in sync with it -->
             <max_channels>1</max_channels>
             <channels>1</channels>
             <snd_device_name>bt-a2dp</snd_device_name>
+            <samplerate>44100</samplerate>
+            <bit_width>16</bit_width>
         </in-device>
         <out-device>
             <id>PAL_DEVICE_OUT_SPEAKER</id>
@@ -262,6 +279,7 @@ should always be in sync with it -->
             <max_channels>2</max_channels>
             <channels>1</channels>
             <samplerate>48000</samplerate>
+            <bit_width>16</bit_width>
             <snd_device_name>speaker</snd_device_name>
             <speaker_protection_enabled>0</speaker_protection_enabled>
             <cps_enabled>0</cps_enabled>
@@ -285,6 +303,7 @@ should always be in sync with it -->
             <max_channels>2</max_channels>
             <channels>1</channels>
             <samplerate>48000</samplerate>
+            <bit_width>16</bit_width>
             <snd_device_name>handset</snd_device_name>
         </out-device>
         <out-device>
@@ -293,6 +312,8 @@ should always be in sync with it -->
             <max_channels>1</max_channels>
             <channels>1</channels>
             <snd_device_name>bt-a2dp</snd_device_name>
+            <samplerate>44100</samplerate>
+            <bit_width>16</bit_width>
         </out-device>
         <out-device>
             <id>PAL_DEVICE_OUT_BLUETOOTH_SCO</id>
@@ -300,6 +321,8 @@ should always be in sync with it -->
             <max_channels>1</max_channels>
             <channels>1</channels>
             <snd_device_name>bt-a2dp</snd_device_name>
+            <samplerate>8000</samplerate>
+            <bit_width>16</bit_width>
         </out-device>
     </device_profile>
     <in_streams>
