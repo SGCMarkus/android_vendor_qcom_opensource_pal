@@ -4353,7 +4353,9 @@ void ResourceManager::handleConcurrentStreamSwitch(std::vector<pal_stream_type_t
 
 bool ResourceManager::checkAndUpdateDeferSwitchState(bool stream_active)
 {
-    if (isAnyVUIStreamBuffering()) {
+    std::shared_ptr<SoundTriggerPlatformInfo> st_info =
+         SoundTriggerPlatformInfo::GetInstance();
+    if (st_info && st_info->GetDeferSwitchSupport() && isAnyVUIStreamBuffering()) {
         if (stream_active)
             deferredSwitchState =
                 (deferredSwitchState == DEFER_NLPI_LPI_SWITCH) ? NO_DEFER :
