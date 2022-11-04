@@ -2336,6 +2336,15 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
                     new_cap_prof->GetSampleRate(),
                     new_cap_prof->isECRequired());
                 if (!active) {
+                    if (st_stream_.device_opened_ && st_stream_.mDevices.size() > 0) {
+                        auto& dev = st_stream_.mDevices[0];
+                        status = dev->close();
+                        if (0 != status) {
+                            PAL_ERR(LOG_TAG, "device %d close failed with status %d",
+                                dev->getSndDeviceId(), status);
+                        }
+                        st_stream_.device_opened_ = false;
+                    }
                     st_stream_.mDevices.clear();
 
                     status = st_stream_.gsl_engine_->ReconfigureDetectionGraph(&st_stream_);
