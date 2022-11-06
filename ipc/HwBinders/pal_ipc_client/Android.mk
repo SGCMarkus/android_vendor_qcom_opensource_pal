@@ -5,6 +5,9 @@ include $(CLEAR_VARS)
 LOCAL_MODULE := libpalclient
 LOCAL_MODULE_OWNER := qti
 LOCAL_VENDOR_MODULE := true
+LOCAL_CFLAGS += -Wno-unused-parameter
+LOCAL_CFLAGS += -Wno-unused-variable
+LOCAL_CFLAGS += -Wno-format
 LOCAL_SRC_FILES := \
     src/pal_client_wrapper.cpp
 
