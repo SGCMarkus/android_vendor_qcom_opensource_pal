@@ -406,6 +406,7 @@ SoundTriggerPlatformInfo::SoundTriggerPlatformInfo() :
     low_latency_bargein_enable_(false),
     mmap_enable_(false),
     notify_second_stage_failure_(false),
+    support_defer_lpi_switch_(true),
     mmap_buffer_duration_(0),
     mmap_frame_length_(0),
     sound_model_lib_("liblistensoundmodel2vendor.so"),
@@ -545,6 +546,9 @@ void SoundTriggerPlatformInfo::HandleStartTag(const char* tag,
                 sound_model_lib_ = std::string(attribs[++i]);
             } else if (!strcmp(attribs[i], "notify_second_stage_failure")) {
                 notify_second_stage_failure_ =
+                    !strncasecmp(attribs[++i], "true", 4) ? true : false;
+            } else if (!strcmp(attribs[i], "support_defer_lpi_switch")) {
+                 support_defer_lpi_switch_ =
                     !strncasecmp(attribs[++i], "true", 4) ? true : false;
             } else {
                 PAL_INFO(LOG_TAG, "Invalid attribute %s", attribs[i++]);

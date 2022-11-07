@@ -204,6 +204,7 @@ class SoundTriggerPlatformInfo : public SoundTriggerXml {
     std::shared_ptr<CaptureProfile> GetCapProfile(const std::string& name) const;
     void GetSmConfigForVersionQuery(
         std::vector<std::shared_ptr<SoundModelConfig>> &sm_cfg_list) const;
+    bool GetDeferSwitchSupport() const { return support_defer_lpi_switch_; }
 
     void HandleStartTag(const char *tag, const char **attribs)
         override;
@@ -228,6 +229,7 @@ class SoundTriggerPlatformInfo : public SoundTriggerXml {
     bool low_latency_bargein_enable_;
     bool mmap_enable_;
     bool notify_second_stage_failure_;
+    bool support_defer_lpi_switch_;
     uint32_t mmap_buffer_duration_;
     uint32_t mmap_frame_length_;
     std::string sound_model_lib_;

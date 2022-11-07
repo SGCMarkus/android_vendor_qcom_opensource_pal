@@ -4353,7 +4353,9 @@ void ResourceManager::handleConcurrentStreamSwitch(std::vector<pal_stream_type_t
 
 bool ResourceManager::checkAndUpdateDeferSwitchState(bool stream_active)
 {
-    if (isAnyVUIStreamBuffering()) {
+    std::shared_ptr<SoundTriggerPlatformInfo> st_info =
+         SoundTriggerPlatformInfo::GetInstance();
+    if (st_info && st_info->GetDeferSwitchSupport() && isAnyVUIStreamBuffering()) {
         if (stream_active)
             deferredSwitchState =
                 (deferredSwitchState == DEFER_NLPI_LPI_SWITCH) ? NO_DEFER :
@@ -6293,23 +6295,13 @@ int32_t ResourceManager::streamDevConnect_l(std::vector <std::tuple<Stream *, st
             if (status) {
                 PAL_ERR(LOG_TAG,"failed to connect stream %pK from device %d",
                         std::get<0>(*sIter), (std::get<1>(*sIter))->id);
-
-                /* If connectStreamDevice_l failed during SSR down state, allow all other active
-                 * streams to pass through connectStreamDevice_l() so that associated device will be
-                 * pushed to the streams. When SSR is up streams will be routed to device properly
-                 */
-                if (status == -ENETRESET) {
-                    continue;
-                } else {
-                    goto error;
-                }
             } else {
                 PAL_DBG(LOG_TAG,"connected stream %pK from device %d",
                         std::get<0>(*sIter), (std::get<1>(*sIter))->id);
             }
         }
     }
-error:
+
     PAL_DBG(LOG_TAG, "Exit status: %d", status);
     return status;
 }
@@ -7364,6 +7356,7 @@ int32_t ResourceManager::a2dpResume()
 
     // retry all streams which failed to switch to desired device previously.
     for (sIter = retryStreams.begin(); sIter != retryStreams.end(); sIter++) {
+        (*sIter)->lockStreamMutex();
         if (std::find((*sIter)->suspendedDevIds.begin(), (*sIter)->suspendedDevIds.end(),
                     PAL_DEVICE_OUT_BLUETOOTH_A2DP) != (*sIter)->suspendedDevIds.end()) {
             std::vector<std::shared_ptr<Device>> devices;
@@ -7377,6 +7370,7 @@ int32_t ResourceManager::a2dpResume()
             restoredStreams.push_back((*sIter));
             streamDevConnect.push_back({(*sIter), &a2dpDattr});
         }
+        (*sIter)->unlockStreamMutex();
     }
 
     if (restoredStreams.empty()) {
@@ -7442,8 +7436,9 @@ int32_t ResourceManager::a2dpCaptureSuspend()
     std::shared_ptr<Device> a2dpDev = nullptr;
     struct pal_device a2dpDattr;
     struct pal_device handsetmicDattr;
-    struct pal_device_info devinfo = {};
+    std::vector <Stream*> activeA2dpStreams;
     std::vector <Stream*> activeStreams;
+    std::shared_ptr<Device> handsetmicDev = nullptr;
     std::vector <Stream*>::iterator sIter;
 
     PAL_DBG(LOG_TAG, "enter");
@@ -7451,13 +7446,13 @@ int32_t ResourceManager::a2dpCaptureSuspend()
     a2dpDattr.id = PAL_DEVICE_IN_BLUETOOTH_A2DP;
     a2dpDev = Device::getInstance(&a2dpDattr, rm);
 
-    getActiveStream_l(activeStreams, a2dpDev);
-    if (activeStreams.size() == 0) {
+    getActiveStream_l(activeA2dpStreams, a2dpDev);
+    if (activeA2dpStreams.size() == 0) {
         PAL_DBG(LOG_TAG, "no active streams found");
         goto exit;
     }
 
-    for (sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++) {
+    for (sIter = activeA2dpStreams.begin(); sIter != activeA2dpStreams.end(); sIter++) {
         if (!((*sIter)->a2dpMuted)) {
             (*sIter)->mute_l(true);
             (*sIter)->a2dpMuted = true;
@@ -7466,12 +7461,32 @@ int32_t ResourceManager::a2dpCaptureSuspend()
 
     // force switch to handset_mic
     handsetmicDattr.id = PAL_DEVICE_IN_HANDSET_MIC;
-    getDeviceConfig(&handsetmicDattr, NULL);
+    handsetmicDev = Device::getInstance(&handsetmicDattr, rm);
+    if (!handsetmicDev) {
+        PAL_ERR(LOG_TAG, "Getting handset-mic device instance failed");
+        goto exit;
+    }
+    getActiveStream_l(activeStreams, handsetmicDev);
+    if (activeStreams.size() == 0) {
+        // No active streams on handset-mic, get default dev info
+        pal_device_info devInfo;
+        memset(&devInfo, 0, sizeof(pal_device_info));
+        status = getDeviceConfig(&handsetmicDattr, NULL);
+        if (!status) {
+            // get the default device info and update snd name
+            getDeviceInfo(handsetmicDattr.id, (pal_stream_type_t)0,
+                handsetmicDattr.custom_config.custom_key, &devInfo);
+            updateSndName(handsetmicDattr.id, devInfo.sndDevName);
+        }
+    } else {
+        // activestream found on handset-mic
+        status = handsetmicDev->getDeviceAttributes(&handsetmicDattr);
+    }
 
-    PAL_DBG(LOG_TAG, "selecting hadset_mic and muting stream");
+    PAL_DBG(LOG_TAG, "selecting handset_mic and muting stream");
     forceDeviceSwitch(a2dpDev, &handsetmicDattr);
 
-    for (sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++) {
+    for (sIter = activeA2dpStreams.begin(); sIter != activeA2dpStreams.end(); sIter++) {
         (*sIter)->suspendedDevIds.clear();
         (*sIter)->suspendedDevIds.push_back(PAL_DEVICE_IN_BLUETOOTH_A2DP);
     }

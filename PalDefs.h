@@ -663,11 +663,15 @@ struct pal_media_config {
 };
 
 /** Android Media configuraiton  */
+/* dynamic media config for plugin devices, +1 so that the last entry is always 0 */
+#define MAX_SUPPORTED_CHANNEL_MASKS (2 * 8)
+#define MAX_SUPPORTED_FORMATS 15
+#define MAX_SUPPORTED_SAMPLE_RATES 7
 typedef struct dynamic_media_config {
-    uint32_t sample_rate;                /**< sample rate */
-    uint32_t format;                     /**< format */
-    uint32_t mask;                       /**< channel mask */
-    bool jack_status;                    /**< input/output jack status*/
+    uint32_t sample_rate[MAX_SUPPORTED_SAMPLE_RATES+1];   /**< sample rate */
+    uint32_t format[MAX_SUPPORTED_FORMATS+1];             /**< format */
+    uint32_t mask[MAX_SUPPORTED_CHANNEL_MASKS + 1];       /**< channel mask */
+    bool jack_status;                                     /**< input/output jack status*/
 } dynamic_media_config_t;
 
 /**  Available stream flags of an audio session*/
