@@ -1393,7 +1393,7 @@ int32_t StreamPCM::setECRef_l(std::shared_ptr<Device> dev, bool is_enable)
 
 int32_t StreamPCM::ssrDownHandler()
 {
-    int status = 0;
+    int32_t status = 0;
 
     mStreamMutex.lock();
     /* Updating cached state here only if it's STREAM_IDLE,
@@ -1438,7 +1438,7 @@ exit :
 
 int32_t StreamPCM::ssrUpHandler()
 {
-    int status = 0;
+    int32_t status = 0;
 
     mStreamMutex.lock();
     PAL_DBG(LOG_TAG, "Enter. session handle - %pK state %d",
