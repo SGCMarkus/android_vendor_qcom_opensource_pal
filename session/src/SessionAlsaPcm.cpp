@@ -1128,6 +1128,13 @@ int SessionAlsaPcm::start(Stream * s)
                             streamData.sampleRate = codecConfig.sample_rate;
                             streamData.bitWidth   = AUDIO_BIT_WIDTH_DEFAULT_16;
                             streamData.numChannel = 0xFFFF;
+                        } else if (dAttr.id == PAL_DEVICE_IN_USB_DEVICE ||
+                                   dAttr.id == PAL_DEVICE_IN_USB_HEADSET) {
+                            streamData.sampleRate = (dAttr.config.sample_rate % SAMPLINGRATE_8K == 0 &&
+                                                     dAttr.config.sample_rate <= SAMPLINGRATE_48K) ?
+                                                    dAttr.config.sample_rate : SAMPLINGRATE_48K;
+                            streamData.bitWidth   = AUDIO_BIT_WIDTH_DEFAULT_16;
+                            streamData.numChannel = 0xFFFF;
                         } else {
                             streamData.sampleRate = dAttr.config.sample_rate;
                             streamData.bitWidth   = AUDIO_BIT_WIDTH_DEFAULT_16;
