@@ -1232,7 +1232,7 @@ void ResourceManager::ssrHandlingLoop(std::shared_ptr<ResourceManager> rm)
     card_status_t state;
     card_status_t prevState = CARD_STATUS_ONLINE;
     std::unique_lock<std::mutex> lock(rm->cvMutex);
-    int ret = 0;
+    int32_t ret = 0;
     uint32_t eventData;
     pal_global_callback_event_t event;
     pal_stream_type_t type;

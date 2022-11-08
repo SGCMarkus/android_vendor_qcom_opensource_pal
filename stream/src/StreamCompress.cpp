@@ -1123,7 +1123,7 @@ int32_t StreamCompress::setECRef_l(std::shared_ptr<Device> dev, bool is_enable)
 
 int32_t StreamCompress::ssrDownHandler()
 {
-    int status = 0;
+    int32_t status = 0;
 
     mStreamMutex.lock();
     PAL_DBG(LOG_TAG, "Enter. session handle - %pK state %d", session, currentState);

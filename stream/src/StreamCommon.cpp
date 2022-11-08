@@ -541,7 +541,7 @@ exit:
 
 int32_t StreamCommon::ssrDownHandler()
 {
-    int status = 0;
+    int32_t status = 0;
 
     mStreamMutex.lock();
     /* Updating cached state here only if it's STREAM_IDLE,
@@ -590,7 +590,7 @@ exit :
 
 int32_t StreamCommon::ssrUpHandler()
 {
-    int status = 0;
+    int32_t status = 0;
 
     mStreamMutex.lock();
     PAL_DBG(LOG_TAG, "Enter. session handle - %pK state %d",
