@@ -1167,31 +1167,43 @@ int SessionAlsaVoice::setConfig(Stream * s, configType type, int tag)
 
     switch (static_cast<uint32_t>(tag)) {
         case TAG_STREAM_VOLUME:
-            device = pcmDevRxIds.at(0);
-            status = payloadCalKeys(s, &paramData, &paramSize);
-            status = SessionAlsaVoice::setVoiceMixerParameter(s, mixer,
+            if (pcmDevRxIds.size()) {
+               device = pcmDevRxIds.at(0);
+               status = payloadCalKeys(s, &paramData, &paramSize);
+               status = SessionAlsaVoice::setVoiceMixerParameter(s, mixer,
                                                               paramData,
                                                               paramSize,
                                                               RX_HOSTLESS);
-            if (status) {
-                PAL_ERR(LOG_TAG, "Failed to set voice params status = %d",
+               if (status) {
+                  PAL_ERR(LOG_TAG, "Failed to set voice params status = %d",
                         status);
-            }
-            if (!paramData) {
-                status = -ENOMEM;
-                PAL_ERR(LOG_TAG, "failed to get payload status %d", status);
-                goto exit;
+               }
+               if (!paramData) {
+                  status = -ENOMEM;
+                  PAL_ERR(LOG_TAG, "failed to get payload status %d", status);
+                  goto exit;
+               }
+            } else {
+              PAL_ERR(LOG_TAG, "pcmDevRxIds:%x is not available.",tag);
             }
             break;
         case MUTE_TAG:
         case UNMUTE_TAG:
-            device = pcmDevTxIds.at(0);
-            status = payloadTaged(s, type, tag, device, TX_HOSTLESS);
+            if (pcmDevTxIds.size()) {
+               device = pcmDevTxIds.at(0);
+               status = payloadTaged(s, type, tag, device, TX_HOSTLESS);
+            } else {
+              PAL_ERR(LOG_TAG, "pcmDevTxIds:%x is not available.",tag);
+            }
             break;
         case CHARGE_CONCURRENCY_ON_TAG:
         case CHARGE_CONCURRENCY_OFF_TAG:
-            device = pcmDevRxIds.at(0);
-            status = payloadTaged(s, type, tag, device, RX_HOSTLESS);
+            if (pcmDevRxIds.size()) {
+               device = pcmDevRxIds.at(0);
+               status = payloadTaged(s, type, tag, device, RX_HOSTLESS);
+            } else {
+              PAL_ERR(LOG_TAG, "pcmDevRxIds:%x is not available.",tag);
+            }
             break;
         default:
             PAL_ERR(LOG_TAG,"Failed unsupported tag type %d", static_cast<uint32_t>(tag));
