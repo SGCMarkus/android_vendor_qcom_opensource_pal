@@ -528,7 +528,7 @@ void str_parms_destroy(struct str_parms *str_parms){return;}
 
 #endif
 
-std::vector<uint32_t> ResourceManager::lpi_vote_streams_;
+std::vector<vote_type_t> ResourceManager::sleep_monitor_vote_type_(PAL_STREAM_MAX, NLPI_VOTE);
 std::vector<deviceIn> ResourceManager::deviceInfo;
 std::vector<tx_ecinfo> ResourceManager::txEcInfo;
 struct vsid_info ResourceManager::vsidInfo;
@@ -1723,9 +1723,14 @@ int32_t ResourceManager::voteSleepMonitor(Stream *str, bool vote, bool force_nlp
         return ret;
     }
     PAL_VERBOSE(LOG_TAG, "Enter for stream type %d", type);
-    lpi_stream = ((find(lpi_vote_streams_.begin(), lpi_vote_streams_.end(), type) !=
-                  lpi_vote_streams_.end()) && !IsTransitToNonLPIOnChargingSupported()
-                  && (!force_nlpi_vote));
+
+    if (sleep_monitor_vote_type_[type] == AVOID_VOTE) {
+        PAL_INFO(LOG_TAG, "Avoiding vote/unvote for stream type : %d", type);
+        return ret;
+    }
+
+    lpi_stream = (sleep_monitor_vote_type_[type] == LPI_VOTE &&
+                 !IsTransitToNonLPIOnChargingSupported() && (!force_nlpi_vote));
 
     mSleepMonitorMutex.lock();
     if (vote) {
@@ -10710,13 +10715,20 @@ void ResourceManager::process_lpi_vote_streams(struct xml_userdata *data,
         std::string stream_name(data->data_buf);
         PAL_DBG(LOG_TAG, "Stream name to be added : :%s", stream_name.c_str());
         uint32_t st = usecaseIdLUT.at(stream_name);
-        lpi_vote_streams_.push_back(st);
+        sleep_monitor_vote_type_[st] = LPI_VOTE;
+        PAL_DBG(LOG_TAG, "Stream type added : %d", st);
+    } else if (data->tag == TAG_AVOID_VOTE_STREAM) {
+        std::string stream_name(data->data_buf);
+        PAL_DBG(LOG_TAG, "Stream name to be added : :%s", stream_name.c_str());
+        uint32_t st = usecaseIdLUT.at(stream_name);
+        sleep_monitor_vote_type_[st] = AVOID_VOTE;
         PAL_DBG(LOG_TAG, "Stream type added : %d", st);
     }
 
-    if (!strcmp(tag_name, "stream_type")) {
+    if (!strcmp(tag_name, "low_power_stream_type") ||
+        !strcmp(tag_name, "avoid_vote_stream_type")) {
         data->tag = TAG_SLEEP_MONITOR_LPI_STREAM;
-    } else if (!strcmp(tag_name, "low_power_vote_streams")) {
+    } else if (!strcmp(tag_name, "sleep_monitor_vote_streams")) {
         data->tag = TAG_RESOURCE_MANAGER_INFO;
     }
 
@@ -11204,9 +11216,11 @@ void ResourceManager::startTag(void *userdata, const XML_Char *tag_name,
         data->tag = TAG_VI_CHMAP;
     } else if (!strcmp(tag_name, "sidetone_mode")) {
         data->tag = TAG_USECASE;
-    } else if (!strcmp(tag_name, "stream_type")) {
+    } else if (!strcmp(tag_name, "low_power_stream_type")) {
         data->tag = TAG_LPI_VOTE_STREAM;
-    } else if (!strcmp(tag_name, "low_power_vote_streams")) {
+    } else if (!strcmp(tag_name, "avoid_vote_stream_type")) {
+        data->tag = TAG_AVOID_VOTE_STREAM;
+    } else if (!strcmp(tag_name, "sleep_monitor_vote_streams")) {
          data->tag = TAG_SLEEP_MONITOR_LPI_STREAM;
     } else if (!strcmp(tag_name, "custom-config")) {
         process_custom_config(attr);
