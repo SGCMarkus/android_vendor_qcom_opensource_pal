@@ -871,6 +871,10 @@ int32_t StreamSoundTrigger::SetEngineDetectionState(int32_t det_type) {
     else
         mutex_unlocked_after_cb_ = false;
 
+    if (det_type == USER_VERIFICATION_REJECT ||
+        det_type == KEYWORD_DETECTION_REJECT)
+        rm->handleDeferredSwitch();
+
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
 }
