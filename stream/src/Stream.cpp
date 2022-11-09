@@ -551,6 +551,35 @@ int32_t Stream::getPalDevices(std::vector <std::shared_ptr<Device>> &PalDevices)
     return status;
 }
 
+void Stream::clearOutPalDevices(Stream* streamHandle)
+{
+    std::vector <std::shared_ptr<Device>>::iterator dIter;
+    int devId;
+
+    for (dIter = mPalDevices.begin(); dIter != mPalDevices.end();) {
+        devId = (*dIter)->getSndDeviceId();
+        if (!rm->isInputDevId(devId)) {
+            (*dIter)->removeStreamDeviceAttr(streamHandle);
+            mPalDevices.erase(dIter);
+        } else {
+            dIter++;
+        }
+    }
+}
+
+void Stream::addPalDevice(Stream* streamHandle, struct pal_device *dattr)
+{
+    std::shared_ptr<Device> dev = nullptr;
+
+    dev = Device::getInstance(dattr, rm);
+    if (!dev) {
+        PAL_ERR(LOG_TAG, "No device instance found");
+        return;
+    }
+    dev->insertStreamDeviceAttr(dattr, streamHandle);
+    mPalDevices.push_back(dev);
+}
+
 int32_t Stream::getSoundCardId()
 {
     struct pal_device devAttr;
@@ -962,6 +991,7 @@ int32_t Stream::handleBTDeviceNotReady(bool& a2dpSuspend)
                 rm->unlockGraph();
             }
             mDevices.clear();
+            clearOutPalDevices(this);
 
             /* Check whether there's active stream associated with handset or speaker
              * - Device selected to switch by default is speaker.
@@ -1025,7 +1055,7 @@ int32_t Stream::handleBTDeviceNotReady(bool& a2dpSuspend)
                 goto exit;
             }
             mDevices.push_back(dev);
-            dev->getDeviceAttributes(&dattr);
+            addPalDevice(this, &dattr);
         }
     }
 
@@ -1503,6 +1533,7 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
     /* created stream device connect and disconnect list */
     streamDevDisconnect.clear();
     StreamDevConnect.clear();
+    suspendedDevIds.clear();
 
     for (int i = 0; i < connectCount; i++) {
         std::vector <Stream *> activeStreams;
