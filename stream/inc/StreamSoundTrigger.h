@@ -182,6 +182,14 @@ class StreamSoundTrigger : public Stream {
     bool IsStreamInBuffering() {
        return capture_requested_ && (GetCurrentStateId() == ST_STATE_BUFFERING);
     }
+
+    void *GetGSLEngine() {
+        if (gsl_engine_)
+            return (void *)gsl_engine_.get();
+        else
+            return nullptr;
+    }
+
  private:
     class EngineCfg {
      public:
