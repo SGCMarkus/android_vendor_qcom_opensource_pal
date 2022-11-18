@@ -487,6 +487,13 @@ bool ResourceManager::isSpeakerProtectionEnabled = false;
 bool ResourceManager::isHandsetProtectionEnabled = false;
 bool ResourceManager::isChargeConcurrencyEnabled = false;
 int ResourceManager::cpsMode = 0;
+int ResourceManager::wsa2_enable = 0;
+int ResourceManager::wsa_wr_cmd_reg_phy_addr = 0;
+int ResourceManager::wsa_rd_cmd_reg_phy_addr = 0;
+int ResourceManager::wsa_rd_fifo_reg_phy_addr = 0;
+int ResourceManager::wsa2_wr_cmd_reg_phy_addr = 0;
+int ResourceManager::wsa2_rd_cmd_reg_phy_addr = 0;
+int ResourceManager::wsa2_rd_fifo_reg_phy_addr = 0;
 bool ResourceManager::isVbatEnabled = false;
 static int max_nt_sessions;
 bool ResourceManager::isRasEnabled = false;
@@ -10859,6 +10866,20 @@ void ResourceManager::process_device_info(struct xml_userdata *data, const XML_C
                 isChargeConcurrencyEnabled = true;
         } else if (!strcmp(tag_name, "cps_mode")) {
             cpsMode = atoi(data->data_buf);
+        } else if (!strcmp(tag_name, "wsa2_enable")) {
+            wsa2_enable = atoi(data->data_buf);
+        } else if (!strcmp(tag_name, "wsa_wr_cmd_reg_phy_addr")) {
+            wsa_wr_cmd_reg_phy_addr = atoi(data->data_buf);
+        } else if (!strcmp(tag_name, "wsa_rd_cmd_reg_phy_addr")) {
+            wsa_rd_cmd_reg_phy_addr = atoi(data->data_buf);
+        } else if (!strcmp(tag_name, "wsa_rd_fifo_reg_phy_addr")) {
+            wsa_rd_fifo_reg_phy_addr = atoi(data->data_buf);
+        } else if (!strcmp(tag_name, "wsa2_wr_cmd_reg_phy_addr")) {
+            wsa2_wr_cmd_reg_phy_addr = atoi(data->data_buf);
+        } else if (!strcmp(tag_name, "wsa2_rd_cmd_reg_phy_addr")) {
+            wsa2_rd_cmd_reg_phy_addr = atoi(data->data_buf);
+        } else if (!strcmp(tag_name, "wsa2_rd_fifo_reg_phy_addr")) {
+            wsa2_rd_fifo_reg_phy_addr = atoi(data->data_buf);
         } else if (!strcmp(tag_name, "supported_bit_format")) {
             size = deviceInfo.size() - 1;
             if(!strcmp(data->data_buf, "PAL_AUDIO_FMT_PCM_S24_3LE"))
