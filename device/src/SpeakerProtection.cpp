@@ -447,7 +447,7 @@ exit:
 
 int SpeakerProtection::spkrStartCalibration()
 {
-    FILE *fp;
+    FILE *fp = NULL;
     struct pal_device device, deviceRx;
     struct pal_channel_info ch_info;
     struct pal_stream_attributes sAttr;
