@@ -506,6 +506,7 @@ int32_t StreamPCM::start()
         case PAL_AUDIO_OUTPUT | PAL_AUDIO_INPUT:
             PAL_VERBOSE(LOG_TAG, "Inside Loopback case device count - %zu",
                         mDevices.size());
+            rm->lockGraph();
             // start output device
             for (int32_t i=0; i < mDevices.size(); i++)
             {
@@ -516,6 +517,7 @@ int32_t StreamPCM::start()
                 if (0 != status) {
                     PAL_ERR(LOG_TAG, "Rx device start is failed with status %d",
                             status);
+                    rm->unlockGraph();
                     goto exit;
                 }
             }
@@ -528,6 +530,7 @@ int32_t StreamPCM::start()
                 status = mDevices[i]->start();
                 if (0 != status) {
                     PAL_ERR(LOG_TAG, "Tx device start is failed with status %d", status);
+                    rm->unlockGraph();
                     goto exit;
                 }
             }
@@ -536,6 +539,7 @@ int32_t StreamPCM::start()
             status = session->prepare(this);
             if (0 != status) {
                 PAL_ERR(LOG_TAG, "session prepare is failed with status %d", status);
+                rm->unlockGraph();
                 goto session_fail;
             }
             PAL_VERBOSE(LOG_TAG, "session prepare successful");
@@ -548,12 +552,15 @@ int32_t StreamPCM::start()
                 }
                 status = 0;
                 cachedState = STREAM_STARTED;
+                rm->unlockGraph();
                 goto session_fail;
             }
             if (0 != status) {
                 PAL_ERR(LOG_TAG, "session start is failed with status %d", status);
+                rm->unlockGraph();
                 goto session_fail;
             }
+            rm->unlockGraph();
             PAL_VERBOSE(LOG_TAG, "session start successful");
             break;
         default:
@@ -663,6 +670,7 @@ int32_t StreamPCM::stop()
         case PAL_AUDIO_OUTPUT | PAL_AUDIO_INPUT:
             PAL_VERBOSE(LOG_TAG, "In LOOPBACK case, device count - %zu", mDevices.size());
 
+            rm->lockGraph();
             for (int32_t i=0; i < mDevices.size(); i++) {
                 int32_t dev_id = mDevices[i]->getSndDeviceId();
                 if (dev_id <= PAL_DEVICE_IN_MIN || dev_id >= PAL_DEVICE_IN_MAX)
@@ -688,9 +696,11 @@ int32_t StreamPCM::stop()
                  if (0 != status) {
                      PAL_ERR(LOG_TAG, "Rx device stop is failed with status %d",
                              status);
+                     rm->unlockGraph();
                      goto exit;
                 }
             }
+            rm->unlockGraph();
             PAL_VERBOSE(LOG_TAG, "RX devices stop successful");
             break;
         default:
