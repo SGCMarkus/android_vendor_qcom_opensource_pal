@@ -33,6 +33,10 @@ LOCAL_CFLAGS        += -DSOC_PERIPHERAL_PROT
 endif
 LOCAL_CPPFLAGS      += -fexceptions -frtti
 
+ifneq ($(TARGET_BOARD_PLATFORM), anorak)
+LOCAL_CFLAGS        += -DA2DP_SINK_SUPPORTED
+endif
+
 LOCAL_C_INCLUDES := \
     $(LOCAL_PATH)/stream/inc \
     $(LOCAL_PATH)/device/inc \
