@@ -52,7 +52,9 @@
 #include "HapticsDev.h"
 #include "UltrasoundDevice.h"
 #include "ExtEC.h"
-
+#ifdef EC_REF_CAPTURE_ENABLED
+#include "ECRefDevice.h"
+#endif
 #define MAX_CHANNEL_SUPPORTED 2
 
 std::shared_ptr<Device> Device::getInstance(struct pal_device *device,
@@ -142,6 +144,11 @@ std::shared_ptr<Device> Device::getInstance(struct pal_device *device,
     case PAL_DEVICE_IN_EXT_EC_REF:
         PAL_VERBOSE(LOG_TAG, "ExtEC device");
         return ExtEC::getInstance(device, Rm);
+#ifdef EC_REF_CAPTURE_ENABLED
+    case PAL_DEVICE_IN_ECHO_REF:
+        PAL_VERBOSE(LOG_TAG, "Echo ref device");
+        return ECRefDevice::getInstance(device, Rm);
+#endif
     default:
         PAL_ERR(LOG_TAG,"Unsupported device id %d",device->id);
         return nullptr;
@@ -217,6 +224,11 @@ std::shared_ptr<Device> Device::getObject(pal_device_id_t dev_id)
     case PAL_DEVICE_IN_HEADSET_VA_MIC:
         PAL_VERBOSE(LOG_TAG, "Headset VA Mic device %d", dev_id);
         return HeadsetVaMic::getObject();
+#ifdef EC_REF_CAPTURE_ENABLED
+    case PAL_DEVICE_IN_ECHO_REF:
+        PAL_VERBOSE(LOG_TAG, "Echo ref device %d", dev_id);
+        return ECRefDevice::getObject();
+#endif
     default:
         PAL_ERR(LOG_TAG,"Unsupported device id %d",dev_id);
         return nullptr;
