@@ -589,6 +589,7 @@ int SessionAlsaPcm::setTKV(Stream * s, configType type, effect_pal_payload_t *ef
     std::ostringstream tagCntrlName;
     int tkv_size = 0;
     pal_stream_attributes sAttr;
+    uint32_t miid = 0;
 
     status = s->getStreamAttributes(&sAttr);
     if (status != 0) {
@@ -620,6 +621,31 @@ int SessionAlsaPcm::setTKV(Stream * s, configType type, effect_pal_payload_t *ef
             }
 
             tagsent = effectPayload->tag;
+            // check if tag present with current usecase
+            status = -EINVAL;
+            if (sAttr.direction == PAL_AUDIO_OUTPUT) {
+                if (pcmDevIds.size() && rxAifBackEnds.size())
+                    status = SessionAlsaUtils::getModuleInstanceId(mixer,
+                        pcmDevIds.at(0), rxAifBackEnds[0].second.data(), tagsent, &miid);
+            } else if (sAttr.direction == PAL_AUDIO_INPUT) {
+                if (pcmDevIds.size() && txAifBackEnds.size())
+                    status = SessionAlsaUtils::getModuleInstanceId(mixer,
+                        pcmDevIds.at(0), txAifBackEnds[0].second.data(), tagsent, &miid);
+            } else if (sAttr.direction == (PAL_AUDIO_INPUT | PAL_AUDIO_OUTPUT)) {
+                if (pcmDevRxIds.size() && rxAifBackEnds.size()) {
+                    status = SessionAlsaUtils::getModuleInstanceId(mixer, pcmDevRxIds.at(0),
+                            rxAifBackEnds[0].second.data(), tagsent, &miid);
+                    if (status) {
+                        if (pcmDevTxIds.size() && txAifBackEnds.size())
+                            status = SessionAlsaUtils::getModuleInstanceId(mixer,
+                                pcmDevTxIds.at(0), txAifBackEnds[0].second.data(), tagsent, &miid);
+                    }
+                }
+            }
+            if (0 != status) {
+                PAL_ERR(LOG_TAG, "Tag 0x%x not prsent in current usecase, skip tkv set", tagsent);
+                goto exit;
+            }
             status = SessionAlsaUtils::getTagMetadata(tagsent, tkv, tagConfig);
             if (0 != status) {
                 goto exit;
