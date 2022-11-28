@@ -1304,8 +1304,10 @@ int BtA2dp::close_audio_source()
 
     if (a2dpState != A2DP_STATE_DISCONNECTED) {
         PAL_DBG(LOG_TAG, "calling BT source stream close");
+        mDeviceMutex.lock();
         if (audio_source_close() == false)
             PAL_ERR(LOG_TAG, "failed close a2dp source control path from BT library");
+        mDeviceMutex.unlock();
     }
     totalActiveSessionRequests = 0;
     param_bt_a2dp.a2dp_suspended = false;
