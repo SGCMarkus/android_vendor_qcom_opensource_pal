@@ -837,8 +837,8 @@ int32_t pal_stream_set_device(pal_stream_handle_t *stream_handle,
     struct pal_stream_attributes sattr;
     struct pal_device_info devinfo = {};
     struct pal_device *pDevices = NULL;
-    struct pal_device activeDevAttr;
-    std::vector <std::shared_ptr<Device>> aDevices;
+    struct pal_device curPalDevAttr;
+    std::vector <std::shared_ptr<Device>> aDevices, palDevices;
 
     if (!stream_handle) {
         status = -EINVAL;
@@ -879,20 +879,24 @@ int32_t pal_stream_set_device(pal_stream_handle_t *stream_handle,
         goto exit;
     }
 
-    s->getPalDevices(aDevices);
-    if (!aDevices.empty()) {
-        std::set<pal_device_id_t> activeDevices;
+    s->getAssociatedDevices(aDevices);
+    s->getPalDevices(palDevices);
+    if (!aDevices.empty() && !palDevices.empty()) {
+        std::set<pal_device_id_t> activeDevices, curPalDevices;
         std::set<pal_device_id_t> newDevices;
         bool force_switch = s->isA2dpMuted();
 
-        for (auto &dev : aDevices) {
+        for (auto &dev : aDevices)
             activeDevices.insert((pal_device_id_t)dev->getSndDeviceId());
+
+        for (auto &dev : palDevices) {
+            curPalDevices.insert((pal_device_id_t)dev->getSndDeviceId());
             // check if custom key matches for same device
             for (int i = 0; i < no_of_devices; i++) {
                 if (dev->getSndDeviceId() == devices[i].id) {
-                    dev->getDeviceAttributes(&activeDevAttr, s);
+                    dev->getDeviceAttributes(&curPalDevAttr, s);
                     if (strcmp(devices[i].custom_config.custom_key,
-                        activeDevAttr.custom_config.custom_key) != 0) {
+                        curPalDevAttr.custom_config.custom_key) != 0) {
                         PAL_DBG(LOG_TAG, "diff custom key found, force device switch");
                         force_switch = true;
                         break;
@@ -914,7 +918,8 @@ int32_t pal_stream_set_device(pal_stream_handle_t *stream_handle,
                 }
             }
         }
-        if (!force_switch && (activeDevices == newDevices)) {
+        if (!force_switch && (activeDevices == newDevices) &&
+                             (curPalDevices == newDevices)) {
             status = 0;
             PAL_DBG(LOG_TAG, "devices are same, no need to switch");
             goto exit;
