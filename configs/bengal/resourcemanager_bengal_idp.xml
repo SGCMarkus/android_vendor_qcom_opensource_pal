@@ -366,6 +366,15 @@ should always be in sync with it -->
             </usecase>
         </in-device>
         <out-device>
+            <id>PAL_DEVICE_NONE</id>
+            <back_end_name>CODEC_DMA-LPAIF_WSA-RX-0</back_end_name>
+            <max_channels>2</max_channels>
+            <channels>1</channels>
+            <snd_device_name>none</snd_device_name>
+            <samplerate>48000</samplerate>
+            <bit_width>16</bit_width>
+        </out-device>
+        <out-device>
             <id>PAL_DEVICE_OUT_SPEAKER</id>
             <back_end_name>CODEC_DMA-LPAIF_RXTX-RX-1</back_end_name>
             <max_channels>2</max_channels>
