@@ -1158,7 +1158,7 @@ int32_t StreamPCM::pause_l()
         goto exit;
     }
 
-    if ((currentState == STREAM_PAUSED) && isPaused) {
+    if (isPaused) {
         PAL_INFO(LOG_TAG, "Stream is already paused");
     } else {
         status = session->setConfig(this, MODULE, PAUSE_TAG);

@@ -353,6 +353,18 @@ should always be in sync with it -->
                 <name>PAL_STREAM_PROXY</name>
             </usecase>
         </in-device>
+        <in-device>
+            <id>PAL_DEVICE_IN_ECHO_REF</id>
+            <back_end_name>PCM_DUMMY-TX-0</back_end_name>
+            <snd_device_name>echo-ref-record</snd_device_name>
+            <max_channels>1</max_channels>
+            <channels>1</channels>
+            <bit_width>16</bit_width>
+            <samplerate>48000</samplerate>
+            <usecase>
+                <name>PAL_STREAM_RAW</name>
+            </usecase>
+        </in-device>
         <out-device>
             <id>PAL_DEVICE_OUT_SPEAKER</id>
             <back_end_name>CODEC_DMA-LPAIF_RXTX-RX-1</back_end_name>
@@ -365,6 +377,10 @@ should always be in sync with it -->
             <cps_enabled>0</cps_enabled>
             <is_24_bit_supported>0</is_24_bit_supported>
             <Charge_concurrency_enabled>0</Charge_concurrency_enabled>
+            <!--specify the supported bit format on speaker end point -->
+            <!--this should be in the form of pal_audio_fmt_id-->
+            <!--e.g <supported_bit_format >PAL_AUDIO_FMT_PCM_S24_LE</supported_bit_format>-->
+            <supported_bit_format>PAL_AUDIO_FMT_PCM_S16_LE</supported_bit_format>
             <!-- RAS should be enabled with speaker protection always -->
             <ras_enabled>0</ras_enabled>
             <!-- Flag to specify speaker in case Voice call is switched from
@@ -586,12 +602,13 @@ should always be in sync with it -->
         <common_config>
             <param enable_failure_detection="false" />
             <param support_device_switch="true" />
+            <param support_nlpi_switch="true" />
             <param transit_to_non_lpi_on_charging="false" />
             <!-- Param used to indicate if SVA has dedicated back end path and
 ports not conflicting with other audio paths  -->
             <param dedicated_sva_path="true" />
             <param dedicated_headset_path="false" />
-            <param lpi_enable="false" />
+            <param lpi_enable="true" />
             <param enable_debug_dumps="false" />
             <param concurrent_capture="true" />
             <param concurrent_voice_call="true" />

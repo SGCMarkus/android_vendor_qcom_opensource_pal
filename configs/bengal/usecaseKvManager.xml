@@ -626,6 +626,13 @@
                 <graph_kv key="0xB5000000" value="0xB5000005"/>
             </keys_and_values>
         </device>
+        <!-- Echo Ref Device -->
+        <device id="PAL_DEVICE_IN_ECHO_REF">
+            <keys_and_values>
+                <!-- DEVICETX - ECHO_REF_TX -->
+                <graph_kv key="0xA3000000" value="0xA300000D"/>
+            </keys_and_values>
+        </device>
     </devices>
     <devicepps>
         <!-- OUT Speaker DevicePPs -->

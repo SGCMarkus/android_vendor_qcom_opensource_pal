@@ -94,7 +94,9 @@
 #include <mutex>
 #include "kvh2xml.h"
 #include <sys/ioctl.h>
-
+#ifdef EC_REF_CAPTURE_ENABLED
+#include "ECRefDevice.h"
+#endif
 #ifndef FEATURE_IPQ_OPENWRT
 #include <cutils/str_parms.h>
 #endif
@@ -251,6 +253,9 @@ std::vector<std::pair<int32_t, std::string>> ResourceManager::deviceLinkName {
     {PAL_DEVICE_IN_TELEPHONY_RX,          {std::string{ "" }}},
     {PAL_DEVICE_IN_ULTRASOUND_MIC,        {std::string{ "" }}},
     {PAL_DEVICE_IN_EXT_EC_REF,            {std::string{ "none" }}},
+#ifdef EC_REF_CAPTURE_ENABLED
+    {PAL_DEVICE_IN_ECHO_REF,              {std::string{ "" }}},
+#endif
     {PAL_DEVICE_IN_MAX,                   {std::string{ "" }}},
 };
 
@@ -297,6 +302,9 @@ std::vector<std::pair<int32_t, int32_t>> ResourceManager::devicePcmId {
     {PAL_DEVICE_IN_TELEPHONY_RX,          0},
     {PAL_DEVICE_IN_ULTRASOUND_MIC,        0},
     {PAL_DEVICE_IN_EXT_EC_REF,            0},
+#ifdef EC_REF_CAPTURE_ENABLED
+    {PAL_DEVICE_IN_ECHO_REF,              0},
+#endif
     {PAL_DEVICE_IN_MAX,                   0},
 };
 
@@ -345,6 +353,9 @@ std::vector<std::pair<int32_t, std::string>> ResourceManager::sndDeviceNameLUT {
     {PAL_DEVICE_IN_TELEPHONY_RX,          {std::string{ "" }}},
     {PAL_DEVICE_IN_ULTRASOUND_MIC,        {std::string{ "" }}},
     {PAL_DEVICE_IN_EXT_EC_REF,            {std::string{ "none" }}},
+#ifdef EC_REF_CAPTURE_ENABLED
+    {PAL_DEVICE_IN_ECHO_REF,              {std::string{ "" }}},
+#endif
     {PAL_DEVICE_IN_MAX,                   {std::string{ "" }}},
 };
 
@@ -561,6 +572,9 @@ std::vector<std::pair<int32_t, std::string>> ResourceManager::listAllBackEndIds 
     {PAL_DEVICE_IN_TELEPHONY_RX,          {std::string{ "" }}},
     {PAL_DEVICE_IN_ULTRASOUND_MIC,        {std::string{ "none" }}},
     {PAL_DEVICE_IN_EXT_EC_REF,            {std::string{ "none" }}},
+#ifdef EC_REF_CAPTURE_ENABLED
+    {PAL_DEVICE_IN_ECHO_REF,              {std::string{ "" }}},
+#endif
     {PAL_DEVICE_IN_MAX,                   {std::string{ "" }}},
 };
 
@@ -6601,14 +6615,21 @@ int32_t ResourceManager::forceDeviceSwitch(std::shared_ptr<Device> inDev,
     for (sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++) {
         streamDevDisconnect.push_back({(*sIter), inDev->getSndDeviceId()});
         streamDevConnect.push_back({(*sIter), newDevAttr});
-        (*sIter)->lockStreamMutex();
-        (*sIter)->clearOutPalDevices();
-        (*sIter)->addPalDevice(newDevAttr);
-        (*sIter)->unlockStreamMutex();
     }
     mActiveStreamMutex.unlock();
     status = streamDevSwitch(streamDevDisconnect, streamDevConnect);
-    if (status) {
+    if (!status) {
+        mActiveStreamMutex.lock();
+        for (sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++) {
+            if (((*sIter) != NULL) && isStreamActive(*sIter, mActiveStreams)) {
+                (*sIter)->lockStreamMutex();
+                (*sIter)->clearOutPalDevices();
+                (*sIter)->addPalDevice(newDevAttr);
+                (*sIter)->unlockStreamMutex();
+            }
+        }
+        mActiveStreamMutex.unlock();
+    } else {
         PAL_ERR(LOG_TAG, "forceDeviceSwitch failed %d", status);
     }
 
@@ -7215,21 +7236,21 @@ int32_t ResourceManager::a2dpSuspend()
                      * As a result, ramp down will not happen and will only occur after resume,
                      * which is perceived as audio leakage.
                      */
-                    (*sIter)->mute_l(true);
-                    (*sIter)->a2dpMuted = true;
+                    if (!(*sIter)->mute_l(true))
+                        (*sIter)->a2dpMuted = true;
                     // Pause only if the stream is not explicitly paused.
                     // In some scenarios, stream might have already paused prior to a2dpsuspend.
                     if (((*sIter)->isPaused) == false) {
-                        (*sIter)->pause_l();
-                        (*sIter)->a2dpPaused = true;
+                        if (!(*sIter)->pause_l())
+                            (*sIter)->a2dpPaused = true;
                     }
                 } else {
                     latencyMs = (*sIter)->getLatency();
                     if (maxLatencyMs < latencyMs)
                         maxLatencyMs = latencyMs;
                     // Mute
-                    (*sIter)->mute_l(true);
-                    (*sIter)->a2dpMuted = true;
+                    if (!(*sIter)->mute_l(true))
+                        (*sIter)->a2dpMuted = true;
                 }
             }
             (*sIter)->unlockStreamMutex();
@@ -7261,8 +7282,8 @@ int32_t ResourceManager::a2dpSuspend()
                  * This is to avoid resuming during regular pause.
                  */
                 if (((*sIter)->a2dpPaused) == true) {
-                    (*sIter)->resume_l();
-                    (*sIter)->a2dpPaused = false;
+                    if (!(*sIter)->resume_l())
+                        (*sIter)->a2dpPaused = false;
                 }
             }
             (*sIter)->suspendedDevIds.push_back(PAL_DEVICE_OUT_BLUETOOTH_A2DP);
@@ -7379,16 +7400,6 @@ int32_t ResourceManager::a2dpResume()
         mActiveStreamMutex.unlock();
         goto exit;
     }
-
-    // update pal device for the streams getting restored
-    for (sIter = restoredStreams.begin(); sIter != restoredStreams.end(); sIter++) {
-        (*sIter)->lockStreamMutex();
-        if ((*sIter)->suspendedDevIds.size() == 1 /* non-combo */) {
-            (*sIter)->clearOutPalDevices();
-        }
-        (*sIter)->addPalDevice(&a2dpDattr);
-        (*sIter)->unlockStreamMutex();
-    }
     mActiveStreamMutex.unlock();
 
     PAL_DBG(LOG_TAG, "restoring A2dp and unmuting stream");
@@ -7402,6 +7413,12 @@ int32_t ResourceManager::a2dpResume()
     for (sIter = restoredStreams.begin(); sIter != restoredStreams.end(); sIter++) {
         if (((*sIter) != NULL) && isStreamActive(*sIter, mActiveStreams)) {
             (*sIter)->lockStreamMutex();
+            // update PAL devices for the restored streams
+            if ((*sIter)->suspendedDevIds.size() == 1 /* non-combo */) {
+                (*sIter)->clearOutPalDevices();
+            }
+            (*sIter)->addPalDevice(&a2dpDattr);
+
             (*sIter)->suspendedDevIds.clear();
             status = (*sIter)->getVolumeData(volume);
             if (status) {
@@ -7409,6 +7426,9 @@ int32_t ResourceManager::a2dpResume()
                 (*sIter)->unlockStreamMutex();
                 continue;
             }
+            /* set a2dpMuted to false so that volume can be applied
+             * volume gets cached if a2dpMuted is set to true
+             */
             (*sIter)->a2dpMuted = false;
             status = (*sIter)->setVolume(volume);
             if (status) {
@@ -7417,7 +7437,9 @@ int32_t ResourceManager::a2dpResume()
                 (*sIter)->unlockStreamMutex();
                 continue;
             }
-            (*sIter)->mute_l(false);
+            // set a2dpMuted to true in case unmute failed
+            if ((*sIter)->mute_l(false))
+                (*sIter)->a2dpMuted = true;
             (*sIter)->unlockStreamMutex();
         }
     }
