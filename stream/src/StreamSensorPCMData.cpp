@@ -521,6 +521,13 @@ int32_t StreamSensorPCMData::HandleConcurrentStream(bool active)
     if (active == false)
         mStreamMutex.lock();
 
+    if (currentState != STREAM_STARTED) {
+        PAL_INFO(LOG_TAG, "Stream is not in started state");
+        if (active == true)
+            mStreamMutex.unlock();
+        return status;
+    }
+
     new_cap_prof = GetCurrentCaptureProfile();
     if (new_cap_prof && cap_prof_ != new_cap_prof) {
         PAL_DBG(LOG_TAG,
