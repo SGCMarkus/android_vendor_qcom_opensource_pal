@@ -8978,7 +8978,8 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                             }
                         }
                     } else if ((sAttr.direction == PAL_AUDIO_INPUT) &&
-                            (sAttr.type == PAL_STREAM_VOIP_TX)) {
+                            ((sAttr.type == PAL_STREAM_VOIP_TX)||
+                            (sAttr.type == PAL_STREAM_DEEP_BUFFER))) {
                         str->getAssociatedDevices(associatedDevices);
                         for (int i = 0; i < associatedDevices.size(); i++) {
                             if (!isDeviceActive_l(associatedDevices[i], str) ||
