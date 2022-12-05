@@ -3418,7 +3418,7 @@ int ResourceManager::deactivateStreamUserCounter(Stream *s)
     lockActiveStream();
     printStreamUserCounter(s);
     it = mActiveStreamUserCounter.find(s);
-    if (it != mActiveStreamUserCounter.end()) {
+    if (it != mActiveStreamUserCounter.end() && it->second.second == true) {
         PAL_DBG(LOG_TAG, "stream %p is to be deactivated.", s);
         it->second.second = false;
         unlockActiveStream();
@@ -3427,7 +3427,7 @@ int ResourceManager::deactivateStreamUserCounter(Stream *s)
         s->deinitStreamSmph();
         return 0;
     } else {
-        PAL_ERR(LOG_TAG, "stream %p is not found.", s);
+        PAL_ERR(LOG_TAG, "stream %p is not found or inactive", s);
         unlockActiveStream();
         return -EINVAL;
     }
