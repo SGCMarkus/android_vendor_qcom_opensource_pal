@@ -875,6 +875,9 @@
                 <graph_kv key="0xA3000000" value="0xA3000004"/>
                 <!-- DEVICEPP_TX - DEVICEPP_TX_VOIP_FLUENCE_SMECNS -->
                 <graph_kv key="0xAD000000" value="0xAD000007"/>
+            <!-- Comment graph kv-pair for DEVICEPP_TX_VOIP_FLUENCE_SMECNS and uncomment below line in order to test the fluence VoIP use cases
+                <graph_kv key="0xAD000000" value="0xAD00000D"/>
+            -->
             </keys_and_values>
             <keys_and_values StreamType="PAL_STREAM_VOIP_TX" CustomConfig="dual-mic">
                 <!-- DEVICETX - HANDSETMIC -->
@@ -950,6 +953,9 @@
                 <graph_kv key="0xA3000000" value="0xA3000001"/>
                 <!-- DEVICEPP_TX - DEVICEPP_TX_VOIP_FLUENCE_SMECNS -->
                 <graph_kv key="0xAD000000" value="0xAD000007"/>
+            <!-- Comment graph kv-pair for DEVICEPP_TX_VOIP_FLUENCE_SMECNS and uncomment below line in order to test the fluence VoIP use cases
+                <graph_kv key="0xAD000000" value="0xAD00000D"/>
+            -->
             </keys_and_values>
             <keys_and_values StreamType="PAL_STREAM_VOIP_TX" CustomConfig="dual-mic">>
                 <!-- DEVICETX - SPEAKER_MIC -->
