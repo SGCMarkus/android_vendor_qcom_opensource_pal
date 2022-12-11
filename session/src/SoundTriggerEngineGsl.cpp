@@ -480,14 +480,14 @@ SoundTriggerEngineGsl::SoundTriggerEngineGsl(
 
 SoundTriggerEngineGsl::~SoundTriggerEngineGsl() {
     PAL_INFO(LOG_TAG, "Enter");
-    if (buffer_thread_handler_.joinable()) {
+    {
         exit_buffering_ = true;
         std::unique_lock<std::mutex> lck(mutex_);
         exit_thread_ = true;
         cv_.notify_one();
-        lck.unlock();
+    }
+    if (buffer_thread_handler_.joinable()) {
         buffer_thread_handler_.join();
-        lck.lock();
         PAL_INFO(LOG_TAG, "Thread joined");
     }
 
