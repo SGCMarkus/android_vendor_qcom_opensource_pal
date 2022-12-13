@@ -234,7 +234,9 @@ int32_t  StreamPCM::open()
                         continue;
                     }
 
-                    ret = setEffectParameters(paramData);
+                   pal_param_payload *pal_param = (pal_param_payload *)paramData;
+                   effect_pal_payload_t *effectPayload = (effect_pal_payload_t *)pal_param->payload;
+                   ret = session->setEffectParameters(this, effectPayload);
                     if (ret) {
                         PAL_ERR(LOG_TAG, "failed to set dual mono param.");
                     } else {
