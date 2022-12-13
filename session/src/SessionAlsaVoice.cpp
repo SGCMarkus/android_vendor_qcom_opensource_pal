@@ -2018,6 +2018,12 @@ int SessionAlsaVoice::setPopSuppressorMute(Stream *s)
         goto exit;
     }
 
+    if (!pcmDevRxIds.size()) {
+        PAL_ERR(LOG_TAG,"No pcmDevRxIds found failed");
+        status = -EINVAL;
+        goto exit;
+    }
+
     status = SessionAlsaUtils::getModuleInstanceId(mixer, pcmDevRxIds.at(0),
                                                    rxAifBackEnds[0].second.c_str(),
                                                    DEVICE_POP_SUPPRESSOR, &miid);
