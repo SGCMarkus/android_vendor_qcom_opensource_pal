@@ -1248,7 +1248,13 @@ int32_t Stream::connectStreamDevice_l(Stream* streamHandle, struct pal_device *d
             rm->unlockGraph();
             goto dev_close;
         }
+    } else if (rm->isBtDevice((pal_device_id_t)dev->getSndDeviceId())) {
+        PAL_DBG(LOG_TAG, "stream is in %d state, no need to switch to BT", currentState);
+        status = 0;
+        rm->unlockGraph();
+        goto dev_close;
     }
+
     status = session->connectSessionDevice(streamHandle, mStreamAttr->type, dev);
     if (0 != status) {
         PAL_ERR(LOG_TAG, "connectSessionDevice failed:%d", status);
