@@ -604,19 +604,21 @@ int SessionAlsaPcm::setConfig(Stream * s, configType type, int tag)
                 PAL_ERR(LOG_TAG, "failed to set the tag calibration %d", status);
                 goto exit;
             }
+            ctl = NULL;
             tkv.clear();
-            break;
+            goto exit;
         case CALIBRATION:
+            kvMutex.lock();
             ckv.clear();
             status = builder->populateCalKeyVector(s, ckv, tag);
             if (0 != status) {
                 PAL_ERR(LOG_TAG, "Failed to set the calibration data\n");
-                goto exit;
+                goto unlock_kvMutex;
             }
 
             if (ckv.size() == 0) {
                 status = -EINVAL;
-                goto exit;
+                goto unlock_kvMutex;
             }
 
             cal_config_size = sizeof(struct agm_cal_config) +
@@ -625,7 +627,7 @@ int SessionAlsaPcm::setConfig(Stream * s, configType type, int tag)
 
             if (!calConfig) {
                 status = -EINVAL;
-                goto exit;
+                goto unlock_kvMutex;
             }
 
             status = SessionAlsaUtils::getCalMetadata(ckv, calConfig);
@@ -639,7 +641,7 @@ int SessionAlsaPcm::setConfig(Stream * s, configType type, int tag)
                     // support volume
                     PAL_DBG(LOG_TAG, "RX/TX only Loopback don't support volume");
                     status = -EINVAL;
-                    goto exit;
+                    goto unlock_kvMutex;
                 }
 
                 if (pcmDevRxIds.size() > 0)
@@ -651,21 +653,21 @@ int SessionAlsaPcm::setConfig(Stream * s, configType type, int tag)
 
             if (calCntrlName.str().length() == 0) {
                 status = -EINVAL;
-                goto exit;
+                goto unlock_kvMutex;
             }
 
             ctl = mixer_get_ctl_by_name(mixer, calCntrlName.str().data());
             if (!ctl) {
                 PAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", calCntrlName.str().data());
                 status = -ENOENT;
-                goto exit;
+                goto unlock_kvMutex;
             }
 
             status = mixer_ctl_set_array(ctl, calConfig, cal_config_size);
             if (status != 0) {
                 PAL_ERR(LOG_TAG, "failed to set the tag calibration %d", status);
-                goto exit;
             }
+            ctl = NULL;
             ckv.clear();
             break;
         default:
@@ -673,12 +675,13 @@ int SessionAlsaPcm::setConfig(Stream * s, configType type, int tag)
             status = -EINVAL;
             goto exit;
     }
-
+unlock_kvMutex:
+    if (calConfig)
+        free(calConfig);
+    kvMutex.unlock();
 exit:
     if (tagConfig)
         free(tagConfig);
-    if (calConfig)
-        free(calConfig);
 
     PAL_DBG(LOG_TAG, "exit status: %d ", status);
     return status;

@@ -1097,13 +1097,13 @@ int SessionAlsaCompress::setConfig(Stream * s, configType type, int tag)
     int status = 0;
     struct pal_stream_attributes sAttr;
     uint32_t tagsent;
-    struct agm_tag_config* tagConfig;
+    struct agm_tag_config* tagConfig = nullptr;
     const char *setParamTagControl = "setParamTag";
     const char *stream = "COMPRESS";
     const char *setCalibrationControl = "setCalibration";
     const char *setBEControl = "control";
     struct mixer_ctl *ctl;
-    struct agm_cal_config *calConfig;
+    struct agm_cal_config *calConfig = nullptr;
     std::ostringstream beCntrlName;
     std::ostringstream tagCntrlName;
     std::ostringstream calCntrlName;
@@ -1181,25 +1181,26 @@ int SessionAlsaCompress::setConfig(Stream * s, configType type, int tag)
             if (tagConfig)
                 free(tagConfig);
             tkv.clear();
-            break;
+            goto exit;
             //todo calibration
         case CALIBRATION:
+            kvMutex.lock();
             ckv.clear();
             status = builder->populateCalKeyVector(s, ckv, tag);
             if (0 != status) {
                 PAL_ERR(LOG_TAG, "Failed to set the calibration data\n");
-                goto exit;
+                goto unlock_kvMutex;
             }
             if (ckv.size() == 0) {
                 status = -EINVAL;
-                goto exit;
+                goto unlock_kvMutex;
             }
 
             calConfig = (struct agm_cal_config*)malloc (sizeof(struct agm_cal_config) +
                             (ckv.size() * sizeof(agm_key_value)));
             if (!calConfig) {
                 status = -EINVAL;
-                goto exit;
+                goto unlock_kvMutex;
             }
             status = SessionAlsaUtils::getCalMetadata(ckv, calConfig);
             //TODO: how to get the id '0'
@@ -1207,9 +1208,8 @@ int SessionAlsaCompress::setConfig(Stream * s, configType type, int tag)
             ctl = mixer_get_ctl_by_name(mixer, calCntrlName.str().data());
             if (!ctl) {
                 PAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", calCntrlName.str().data());
-                if (calConfig)
-                    free(calConfig);
-                return -ENOENT;
+                status = -ENOENT;
+                goto unlock_kvMutex;
             }
             PAL_VERBOSE(LOG_TAG, "mixer control: %s\n", calCntrlName.str().data());
             ckv_size = ckv.size()*sizeof(struct agm_key_value);
@@ -1219,16 +1219,17 @@ int SessionAlsaCompress::setConfig(Stream * s, configType type, int tag)
                 PAL_ERR(LOG_TAG, "failed to set the tag calibration %d", status);
             }
             ctl = NULL;
-            if (calConfig)
-                free(calConfig);
             ckv.clear();
             break;
         default:
             PAL_ERR(LOG_TAG, "invalid type ");
             status = -EINVAL;
-            break;
+            goto exit;
     }
-
+unlock_kvMutex:
+    if (calConfig)
+        free(calConfig);
+    kvMutex.unlock();
 exit:
     PAL_DBG(LOG_TAG, "exit status:%d ", status);
     return status;
