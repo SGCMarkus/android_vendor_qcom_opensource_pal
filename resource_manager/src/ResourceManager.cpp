@@ -804,7 +804,6 @@ ResourceManager::ResourceManager()
     vsidInfo.loopback_delay = 0;
 
     //Initialize class members in the construct
-    cardState = CARD_STATUS_OFFLINE;
     bOverwriteFlag = false;
     cookie = 0;
     memset(&this->linear_gain, 0, sizeof(pal_param_mspp_linear_gain_t));
@@ -824,6 +823,7 @@ ResourceManager::ResourceManager()
         throw std::runtime_error("error in init audio route and audio mixer");
     }
 
+    cardState = CARD_STATUS_ONLINE;
     ret = ResourceManager::XmlParser(rmngr_xml_file);
     if (ret == -ENOENT) // try resourcemanager xml without variant name
         ret = ResourceManager::XmlParser(rmngr_xml_file_wo_variant);
@@ -1369,12 +1369,8 @@ int ResourceManager::initSndMonitor()
     if (!sndmon) {
         ret = -EINVAL;
         PAL_ERR(LOG_TAG, "Sound monitor creation failed, ret %d", ret);
-        return ret;
-    } else {
-        cardState = CARD_STATUS_ONLINE;
-        PAL_VERBOSE(LOG_TAG, "Sound monitor initialized");
-        return ret;
     }
+    return ret;
 }
 
 void ResourceManager::ssrHandler(card_status_t state)
