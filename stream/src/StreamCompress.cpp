@@ -865,7 +865,7 @@ int32_t StreamCompress::pause_l()
     PAL_DBG(LOG_TAG,"Enter, session handle - %p, state %d",
                session, currentState);
 
-    if ((currentState == STREAM_PAUSED) && isPaused) {
+    if (isPaused) {
         PAL_INFO(LOG_TAG, "Stream is already paused");
     } else {
         //caching the volume before setting it to 0
