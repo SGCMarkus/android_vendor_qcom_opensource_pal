@@ -1028,14 +1028,6 @@ int32_t StreamCompress::flush()
         return 0;
     }
 
-    mStreamMutex.unlock();
-    rm->lockActiveStream();
-    mStreamMutex.lock();
-    for (int i = 0; i < mDevices.size(); i++) {
-        if (rm->isDeviceActive_l(mDevices[i], this))
-            rm->deregisterDevice(mDevices[i], this);
-    }
-    rm->unlockActiveStream();
     return session->flush();
 }
 
