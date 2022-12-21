@@ -2299,7 +2299,8 @@ int32_t SoundTriggerEngineGsl::setECRef(Stream *s, std::shared_ptr<Device> dev, 
         return -EINVAL;
     }
 
-    is_dev_enabled_ext_ec = rm->isExternalECRefEnabled(dev->getSndDeviceId());
+    if (dev)
+        is_dev_enabled_ext_ec = rm->isExternalECRefEnabled(dev->getSndDeviceId());
     std::unique_lock<std::mutex> lck(ec_ref_mutex_);
     if (is_enable) {
         if (is_crr_dev_using_ext_ec_ && !is_dev_enabled_ext_ec) {
