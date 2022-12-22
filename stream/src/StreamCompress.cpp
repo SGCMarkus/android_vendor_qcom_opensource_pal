@@ -327,6 +327,26 @@ int32_t StreamCompress::stop()
             rm->unlockGraph();
             PAL_VERBOSE(LOG_TAG,"devices stop successful");
             break;
+        case PAL_AUDIO_INPUT:
+             rm->lockGraph();
+            for (int32_t i = 0; i < mDevices.size(); i++) {
+                PAL_ERR(LOG_TAG, "device %d name %s, going to stop",
+                        mDevices[i]->getSndDeviceId(),
+                        mDevices[i]->getPALDeviceName().c_str());
+                status = mDevices[i]->stop();
+                if (0 != status) {
+                    PAL_ERR(LOG_TAG, "Tx device stop failed with status %d",
+                            status);
+                }
+            }
+            PAL_VERBOSE(LOG_TAG,"devices stop successful");
+            status = session->stop(this);
+            if (0 != status) {
+                PAL_ERR(LOG_TAG,"Tx session stop failed with status %d",status);
+            }
+            rm->unlockGraph();
+            PAL_VERBOSE(LOG_TAG,"session stop successful");
+            break;
         default:
             status = -EINVAL;
             PAL_ERR(LOG_TAG, "invalid direction %d", mStreamAttr->direction);
@@ -441,15 +461,61 @@ int32_t StreamCompress::start()
                     a2dpMuted = true;
                 }
             }
+            currentState = STREAM_OPENED;
+            break;
+        case PAL_AUDIO_INPUT:
+            PAL_VERBOSE(LOG_TAG, "Inside PAL_AUDIO_INPUT device count - %zu", mDevices.size());
+            rm->lockGraph();
+            for (int32_t i = 0; i < mDevices.size(); i++) {
+                PAL_ERR(LOG_TAG, "device %d name %s, going to start",
+                        mDevices[i]->getSndDeviceId(),
+                        mDevices[i]->getPALDeviceName().c_str());
+                status = mDevices[i]->start();
+                if (0 != status) {
+                    PAL_ERR(LOG_TAG, "Tx device start failed with status %d",
+                            status);
+                    rm->unlockGraph();
+                    goto exit;
+                }
+            }
+            PAL_VERBOSE(LOG_TAG,"devices started successfully");
+            status = session->prepare(this);
+            if (0 != status) {
+                PAL_ERR(LOG_TAG, "Tx session prepare is failed with status %d",
+                        status);
+                rm->unlockGraph();
+                goto session_fail;
+            }
+            PAL_VERBOSE(LOG_TAG, "session prepare successful");
+            status = session->start(this);
+            if (errno == -ENETRESET) {
+                if (rm->cardState != CARD_STATUS_OFFLINE) {
+                    PAL_ERR(LOG_TAG, "Sound card offline, informing rm");
+                    rm->ssrHandler(CARD_STATUS_OFFLINE);
+                }
+                status = 0;
+                rm->unlockGraph();
+                goto session_fail;
+            }
+            if (0 != status) {
+                PAL_ERR(LOG_TAG,"Tx session start is failed with status %d",status);
+                rm->unlockGraph();
+                goto session_fail;
+            }
+            for (int i = 0; i < mDevices.size(); i++) {
+                rm->registerDevice(mDevices[i], this);
+            }
+            currentState = STREAM_STARTED;
+            PAL_VERBOSE(LOG_TAG, "session start successful");
+            rm->unlockGraph();
             break;
         default:
             status = -EINVAL;
             PAL_ERR(LOG_TAG, "direction %d not supported for compress streams", mStreamAttr->direction);
             break;
         }
-        currentState = STREAM_OPENED;
         goto exit;
-    } else if (currentState == STREAM_OPENED) {
+    } else if (currentState == STREAM_OPENED || currentState == STREAM_STARTED) {
         PAL_ERR(LOG_TAG, "Stream in already in started state, state %d", currentState);
         status = 0;
         goto exit;
@@ -500,9 +566,48 @@ exit:
     return status;
 }
 
-int32_t StreamCompress::read(struct pal_buffer * /*buf*/)
+int32_t StreamCompress::read(struct pal_buffer *buf)
 {
-    return 0;
+    int32_t status = 0;
+    int32_t size = buf->size;
+    PAL_VERBOSE(LOG_TAG, "Enter. session handle - %pK, state %d", session,
+                currentState);
+    mStreamMutex.lock();
+    if (rm->cardState == CARD_STATUS_OFFLINE) {
+        status = -ENETRESET;
+        PAL_ERR(LOG_TAG, "Sound Card offline, can not write, status %d",
+                status);
+        mStreamMutex.unlock();
+        return status;
+    }
+    if (currentState == STREAM_STARTED) {
+        status = session->read(this, SHMEM_ENDPOINT, buf, &size);
+        if (0 != status) {
+            PAL_ERR(LOG_TAG, "session read is failed with status %d", status);
+            if (errno == -ENETRESET && rm->cardState != CARD_STATUS_OFFLINE) {
+                PAL_ERR(LOG_TAG, "Sound card offline, informing RM");
+                rm->ssrHandler(CARD_STATUS_OFFLINE);
+                size = buf->size;
+                status = size;
+                PAL_DBG(LOG_TAG, "dropped buffer size - %d", size);
+                goto err;
+            } else if (rm->cardState == CARD_STATUS_OFFLINE) {
+                size = buf->size;
+                status = size;
+                PAL_DBG(LOG_TAG, "dropped buffer size - %d", size);
+                goto err;
+            } else {
+                goto err;
+            }
+        }
+    } else {
+        PAL_ERR(LOG_TAG, "Stream not started yet, state %d", currentState);
+        status = -EINVAL;
+        goto err;
+    }
+err:
+    mStreamMutex.unlock();
+    return size;
 }
 
 int32_t StreamCompress::write(struct pal_buffer *buf)

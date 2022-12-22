@@ -94,6 +94,8 @@ private:
     std::vector<int> compressDevIds;
     std::unique_ptr<std::thread> worker_thread;
     std::queue<std::shared_ptr<offload_msg>> msg_queue_;
+    size_t compress_cap_buf_size;
+    std::vector<std::pair<std::string, int>> freeDeviceMetadata;
 
     std::condition_variable cv_; /* used to wait for incoming requests */
     std::mutex cv_mutex_; /* mutex used in conjunction with above cv */
@@ -101,7 +103,9 @@ private:
     int getSndCodecId(pal_audio_fmt_t fmt);
     int setCustomFormatParam(pal_audio_fmt_t audio_fmt);
     bool playback_started;
+    bool capture_started;
     bool playback_paused;
+    bool capture_paused;
     int ioMode;
     session_callback sessionCb;
     uint64_t cbCookie;
@@ -112,9 +116,10 @@ private:
     bool isGaplessFmt = false;
     bool sendNextTrackParams = false;
     bool isGaplessFormat(pal_audio_fmt_t fmt);
-    bool isCodecConfigNeeded(pal_audio_fmt_t audio_fmt);
+    bool isCodecConfigNeeded(pal_audio_fmt_t audio_fmt, pal_stream_direction_t stream_direction);
     int configureEarlyEOSDelay(void);
-    void updateCodecOptions(pal_param_payload *param_payload);
+    void updateCodecOptions(pal_param_payload *param_payload, pal_stream_direction_t stream_direction);
+    pal_device_id_t ecRefDevId;
 public:
     SessionAlsaCompress(std::shared_ptr<ResourceManager> Rm);
     virtual ~SessionAlsaCompress();
