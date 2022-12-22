@@ -1897,15 +1897,8 @@ int SessionAlsaPcm::write(Stream *s, int tag, struct pal_buffer *buf, int * size
         data = buf->buffer;
         data = static_cast<char *>(data) + offset;
         sizeWritten = out_buf_size;  //initialize 0
-        if (pcm && (mState == SESSION_FLUSHED)) {
-            status = pcm_start(pcm);
-            if (status) {
-                status = errno;
-                PAL_ERR(LOG_TAG, "pcm_start failed %d", status);
-                goto exit;
-            }
-            mState = SESSION_STARTED;
-        } else if (!pcm) {
+
+        if (!pcm) {
             PAL_ERR(LOG_TAG, "pcm is NULL");
             status = -EINVAL;
             goto exit;
@@ -1934,15 +1927,8 @@ int SessionAlsaPcm::write(Stream *s, int tag, struct pal_buffer *buf, int * size
     offset = bytesWritten + buf->offset;
     sizeWritten = bytesRemaining;
     data = buf->buffer;
-    if (pcm && (mState == SESSION_FLUSHED)) {
-        status = pcm_start(pcm);
-        if (status) {
-            status = errno;
-            PAL_ERR(LOG_TAG, "pcm_start failed %d", status);
-            goto exit;
-        }
-        mState = SESSION_STARTED;
-    } else if (!pcm) {
+
+    if (!pcm) {
         PAL_ERR(LOG_TAG, "pcm is NULL");
         status = -EINVAL;
         goto exit;
@@ -2614,23 +2600,16 @@ int SessionAlsaPcm::drain(pal_drain_type_t type __unused)
 int SessionAlsaPcm::flush()
 {
     int status = 0;
+    PAL_VERBOSE(LOG_TAG, "Enter flush");
 
-    if (!pcm) {
-        PAL_ERR(LOG_TAG, "Pcm is invalid");
+    if (pcmDevIds.size() > 0) {
+        status = SessionAlsaUtils::flush(rm, pcmDevIds.at(0));
+    } else {
+        PAL_ERR(LOG_TAG, "DevIds size is invalid");
         return -EINVAL;
     }
-    PAL_VERBOSE(LOG_TAG, "Enter flush\n");
-    if (pcm && isActive()) {
-        status = pcm_stop(pcm);
 
-        if (!status)
-            mState = SESSION_FLUSHED;
-        else
-            status = errno;
-    }
-
-    PAL_VERBOSE(LOG_TAG, "status %d\n", status);
-
+    PAL_VERBOSE(LOG_TAG, "Exit status: %d", status);
     return status;
 }
 
