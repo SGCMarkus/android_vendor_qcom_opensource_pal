@@ -578,6 +578,8 @@ public:
     static bool mixerClosed;
     enum card_status_t cardState;
     bool ssrStarted = false;
+    //Variable to check if multiple sampe rate during combo device supported
+    bool is_multiple_sample_rate_combo_supported = true;
     /* Variable to store whether Speaker protection is enabled or not */
     static bool isSpeakerProtectionEnabled;
     static bool isHandsetProtectionEnabled;

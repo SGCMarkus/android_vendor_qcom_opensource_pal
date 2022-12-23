@@ -708,6 +708,7 @@ struct pal_stream_attributes {
     pal_stream_direction_t direction;            /**<  direction of the streams */
     struct pal_media_config in_media_config;     /**<  media config of the input audio samples */
     struct pal_media_config out_media_config;    /**<  media config of the output audio samples */
+    bool isComboHeadsetActive;
 };
 
 /**< Key value pair to identify the topology of a usecase from default  */
