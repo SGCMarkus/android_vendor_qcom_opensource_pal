@@ -205,7 +205,9 @@ int32_t  StreamPCM::open()
     }
 
     if (currentState == STREAM_IDLE) {
+        rm->lockGraph();
         status = session->open(this);
+        rm->unlockGraph();
         if (0 != status) {
             PAL_ERR(LOG_TAG, "session open failed with status %d", status);
             goto exit;
