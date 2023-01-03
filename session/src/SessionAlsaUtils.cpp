@@ -513,7 +513,14 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
         }
 
         deviceCKV.clear();
-
+        if (be->first == PAL_DEVICE_OUT_SPEAKER) {
+            status = builder->populateCalKeyVector(streamHandle, deviceCKV,
+                            MUX_DEMUX_CHANNELS);
+            if (status != 0) {
+                PAL_VERBOSE(LOG_TAG, "Unable to populate mux channels");
+                status = 0; /**< ignore device MUX CKV failures */
+            }
+        }
         if (ResourceManager::isSpeakerProtectionEnabled) {
             PAL_DBG(LOG_TAG, "Speaker protection enabled");
             if (be->first == PAL_DEVICE_OUT_SPEAKER) {
@@ -1600,6 +1607,15 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
         }
     }
     deviceCKV.clear();
+	if (rxBackEnds[0].first == PAL_DEVICE_OUT_SPEAKER) {
+            status = builder->populateCalKeyVector(streamHandle, deviceCKV,
+                            MUX_DEMUX_CHANNELS);
+            if (status != 0) {
+                PAL_VERBOSE(LOG_TAG, "Unable to populate mux channels");
+                status = 0; /**< ignore device MUX CKV failures */
+            }
+    }
+
     if (ResourceManager::isSpeakerProtectionEnabled) {
         PAL_DBG(LOG_TAG, "Speaker protection enabled");
         if (rxBackEnds[0].first == PAL_DEVICE_OUT_SPEAKER) {
@@ -2494,6 +2510,15 @@ int SessionAlsaUtils::setupSessionDevice(Stream* streamHandle, pal_stream_type_t
     }
 
     deviceCKV.clear();
+
+    if (aifBackEndsToConnect[0].first == PAL_DEVICE_OUT_SPEAKER) {
+            status = builder->populateCalKeyVector(streamHandle, deviceCKV,
+                            MUX_DEMUX_CHANNELS);
+            if (status != 0) {
+                PAL_VERBOSE(LOG_TAG, "Unable to populate mux channels");
+                status = 0; /**< ignore device MUX CKV failures */
+            }
+    }
 
     if (ResourceManager::isSpeakerProtectionEnabled) {
         PAL_DBG(LOG_TAG, "Speaker protection enabled");

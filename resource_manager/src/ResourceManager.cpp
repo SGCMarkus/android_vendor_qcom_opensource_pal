@@ -487,6 +487,13 @@ bool ResourceManager::isSpeakerProtectionEnabled = false;
 bool ResourceManager::isHandsetProtectionEnabled = false;
 bool ResourceManager::isChargeConcurrencyEnabled = false;
 int ResourceManager::cpsMode = 0;
+int ResourceManager::wsa2_enable = 0;
+int ResourceManager::wsa_wr_cmd_reg_phy_addr = 0;
+int ResourceManager::wsa_rd_cmd_reg_phy_addr = 0;
+int ResourceManager::wsa_rd_fifo_reg_phy_addr = 0;
+int ResourceManager::wsa2_wr_cmd_reg_phy_addr = 0;
+int ResourceManager::wsa2_rd_cmd_reg_phy_addr = 0;
+int ResourceManager::wsa2_rd_fifo_reg_phy_addr = 0;
 bool ResourceManager::isVbatEnabled = false;
 static int max_nt_sessions;
 bool ResourceManager::isRasEnabled = false;
@@ -1286,6 +1293,11 @@ void ResourceManager::ssrHandlingLoop(std::shared_ptr<ResourceManager> rm)
                 PAL_INFO(LOG_TAG, "%d state already handled", state);
             } else if (state == CARD_STATUS_OFFLINE) {
                 for (auto str: rm->mActiveStreams) {
+                    ret = increaseStreamUserCounter(str);
+                    if (0 != ret) {
+                        PAL_ERR(LOG_TAG, "Error incrementing the stream counter for the stream handle: %pK", str);
+                        continue;
+                    }
                     ret = str->ssrDownHandler();
                     if (0 != ret) {
                         PAL_ERR(LOG_TAG, "Ssr down handling failed for %pK ret %d",
@@ -1296,6 +1308,10 @@ void ResourceManager::ssrHandlingLoop(std::shared_ptr<ResourceManager> rm)
                         ret = voteSleepMonitor(str, false);
                         if (ret)
                             PAL_DBG(LOG_TAG, "Failed to unvote for stream type %d", type);
+                    }
+                    ret = decreaseStreamUserCounter(str);
+                    if (0 != ret) {
+                        PAL_ERR(LOG_TAG, "Error decrementing the stream counter for the stream handle: %pK", str);
                     }
                 }
                 if (isContextManagerEnabled) {
@@ -1319,10 +1335,19 @@ void ResourceManager::ssrHandlingLoop(std::shared_ptr<ResourceManager> rm)
 
                 SoundTriggerCaptureProfile = GetCaptureProfileByPriority(nullptr);
                 for (auto str: rm->mActiveStreams) {
+                    ret = increaseStreamUserCounter(str);
+                    if (0 != ret) {
+                        PAL_ERR(LOG_TAG, "Error incrementing the stream counter for the stream handle: %pK", str);
+                        continue;
+                    }
                     ret = str->ssrUpHandler();
                     if (0 != ret) {
                         PAL_ERR(LOG_TAG, "Ssr up handling failed for %pK ret %d",
                                           str, ret);
+                    }
+                    ret = decreaseStreamUserCounter(str);
+                    if (0 != ret) {
+                        PAL_ERR(LOG_TAG, "Error decrementing the stream counter for the stream handle: %pK", str);
                     }
                 }
                 prevState = state;
@@ -2878,8 +2903,14 @@ bool ResourceManager::isStreamSupported(struct pal_stream_attributes *attributes
         return result;
     }
     if (cur_sessions == max_sessions && type != PAL_STREAM_VOICE_CALL) {
-        PAL_ERR(LOG_TAG, "no new session allowed for stream %d", type);
-        return result;
+        if (type == PAL_STREAM_VOICE_RECOGNITION &&
+            active_streams_db.size() < MAX_SESSIONS_DEEP_BUFFER) {
+                attributes->type = PAL_STREAM_DEEP_BUFFER;
+                type = PAL_STREAM_DEEP_BUFFER;
+        } else {
+            PAL_ERR(LOG_TAG, "no new session allowed for stream %d", type);
+            return result;
+        }
     }
 
     // check if param supported by audio configruation
@@ -3375,27 +3406,45 @@ int ResourceManager::isActiveStream(pal_stream_handle_t *handle) {
 int ResourceManager::initStreamUserCounter(Stream *s)
 {
     lockActiveStream();
-    mActiveStreamUserCounter.insert(std::make_pair(s, 0));
+    mActiveStreamUserCounter.insert(std::make_pair(s, std::make_pair(0, true)));
     s->initStreamSmph();
     unlockActiveStream();
     return 0;
 }
 
-int ResourceManager::deinitStreamUserCounter(Stream *s)
+int ResourceManager::deactivateStreamUserCounter(Stream *s)
 {
-    std::map<Stream *, uint32_t>::iterator it;
+    std::map<Stream*, std::pair<uint32_t, bool>>::iterator it;
     lockActiveStream();
     printStreamUserCounter(s);
     it = mActiveStreamUserCounter.find(s);
     if (it != mActiveStreamUserCounter.end()) {
-        PAL_INFO(LOG_TAG, "stream %p is to be erased.", s);
-        s->waitStreamSmph();
-        mActiveStreamUserCounter.erase(it);
-        s->deinitStreamSmph();
+        PAL_DBG(LOG_TAG, "stream %p is to be deactivated.", s);
+        it->second.second = false;
         unlockActiveStream();
+        s->waitStreamSmph();
+        PAL_DBG(LOG_TAG, "stream %p is inactive.", s);
+        s->deinitStreamSmph();
         return 0;
     } else {
         PAL_ERR(LOG_TAG, "stream %p is not found.", s);
+        unlockActiveStream();
+        return -EINVAL;
+    }
+}
+
+int ResourceManager::eraseStreamUserCounter(Stream *s)
+{
+    std::map<Stream*, std::pair<uint32_t, bool>>::iterator it;
+    lockActiveStream();
+    it = mActiveStreamUserCounter.find(s);
+    if (it != mActiveStreamUserCounter.end()) {
+        mActiveStreamUserCounter.erase(it);
+        PAL_DBG(LOG_TAG, "stream counter for %p is erased.", s);
+        unlockActiveStream();
+        return 0;
+    } else {
+        PAL_ERR(LOG_TAG, "stream counter for %p is not found.", s);
         unlockActiveStream();
         return -EINVAL;
     }
@@ -3403,42 +3452,43 @@ int ResourceManager::deinitStreamUserCounter(Stream *s)
 
 int ResourceManager::increaseStreamUserCounter(Stream* s)
 {
-    std::map<Stream *, uint32_t>::iterator it;
+    std::map<Stream*, std::pair<uint32_t, bool>>::iterator it;
     printStreamUserCounter(s);
     it = mActiveStreamUserCounter.find(s);
-    if (it != mActiveStreamUserCounter.end()) {
-        if (0 == it->second) {
+    if (it != mActiveStreamUserCounter.end() &&
+        it->second.second) {
+        if (0 == it->second.first) {
             s->waitStreamSmph();
             PAL_DBG(LOG_TAG, "stream %p in use", s);
         }
-        PAL_DBG(LOG_TAG, "stream %p counter was %d", s, it->second);
-        it->second = it->second + 1;
-        PAL_DBG(LOG_TAG, "stream %p counter increased to %d", s, it->second);
+        PAL_DBG(LOG_TAG, "stream %p counter was %d", s, it->second.first);
+        it->second.first = it->second.first + 1;
+        PAL_DBG(LOG_TAG, "stream %p counter increased to %d", s, it->second.first);
         return 0;
     } else {
-        PAL_ERR(LOG_TAG, "stream %p is not found.", s);
+        PAL_ERR(LOG_TAG, "stream %p is not found or inactive.", s);
         return -EINVAL;
     }
 }
 
 int ResourceManager::decreaseStreamUserCounter(Stream* s)
 {
-    std::map<Stream *, uint32_t>::iterator it;
+    std::map<Stream*, std::pair<uint32_t, bool>>::iterator it;
     printStreamUserCounter(s);
     it = mActiveStreamUserCounter.find(s);
     if (it != mActiveStreamUserCounter.end()) {
-        PAL_DBG(LOG_TAG, "stream %p counter was %d", s, it->second);
-        if (0 == it->second) {
+        PAL_DBG(LOG_TAG, "stream %p counter was %d", s, it->second.first);
+        if (0 == it->second.first) {
             PAL_ERR(LOG_TAG, "counter of stream %p has already been 0.", s);
             return -EINVAL;
         }
 
-        it->second = it->second - 1;
-        if (0 == it->second) {
+        it->second.first = it->second.first - 1;
+        if (0 == it->second.first) {
             PAL_DBG(LOG_TAG, "stream %p not in use", s);
             s->postStreamSmph();
         }
-        PAL_DBG(LOG_TAG, "stream %p counter decreased to %d", s, it->second);
+        PAL_DBG(LOG_TAG, "stream %p counter decreased to %d", s, it->second.first);
         return 0;
     } else {
         PAL_ERR(LOG_TAG, "stream %p is not found.", s);
@@ -3448,11 +3498,11 @@ int ResourceManager::decreaseStreamUserCounter(Stream* s)
 
 int ResourceManager::getStreamUserCounter(Stream *s)
 {
-    std::map<Stream *, uint32_t>::iterator it;
+    std::map<Stream*, std::pair<uint32_t, bool>>::iterator it;
     printStreamUserCounter(s);
     it = mActiveStreamUserCounter.find(s);
     if (it != mActiveStreamUserCounter.end()) {
-        return it->second;
+        return it->second.first;
     } else {
         PAL_ERR(LOG_TAG, "stream %p is not found.", s);
         return -EINVAL;
@@ -3461,11 +3511,11 @@ int ResourceManager::getStreamUserCounter(Stream *s)
 
 int ResourceManager::printStreamUserCounter(Stream *s)
 {
-    std::map<Stream *, uint32_t>::iterator it;
+    std::map<Stream*, std::pair<uint32_t, bool>>::iterator it;
     for (it = mActiveStreamUserCounter.begin();
             it != mActiveStreamUserCounter.end(); it++) {
-        PAL_VERBOSE(LOG_TAG, "stream = %p count = %d",
-                    it->first, it->second);
+        PAL_VERBOSE(LOG_TAG, "stream = %p count = %d active = %d",
+                    it->first, it->second.first, it->second.second);
     }
 
     return 0;
@@ -3659,8 +3709,7 @@ int ResourceManager::checkandEnableECForTXStream_l(std::shared_ptr<Device> tx_de
     if (ec_on) {
         rx_dev = getActiveEchoReferenceRxDevices_l(tx_stream);
         if (!rx_dev) {
-            PAL_ERR(LOG_TAG, "RX device empty.");
-            status = -EINVAL;
+            PAL_VERBOSE(LOG_TAG, "EC device not found, skip EC set");
             goto exit;
         }
         getActiveStream_l(activeStreams, rx_dev);
@@ -4672,7 +4721,7 @@ int ResourceManager::handleMixerEvent(struct mixer *mixer, char *mixer_str) {
 
     // callback
     session_cb(cookie, params->event_id, (void *)params->event_payload,
-                 params->event_payload_size);
+                 params->event_payload_size, params->source_module_id);
 
 exit:
     if (buf)
@@ -7025,23 +7074,13 @@ int32_t ResourceManager::streamDevConnect_l(std::vector <std::tuple<Stream *, st
             if (status) {
                 PAL_ERR(LOG_TAG,"failed to connect stream %pK from device %d",
                         std::get<0>(*sIter), (std::get<1>(*sIter))->id);
-
-                /* If connectStreamDevice_l failed during SSR down state, allow all other active
-                 * streams to pass through connectStreamDevice_l() so that associated device will be
-                 * pushed to the streams. When SSR is up streams will be routed to device properly
-                 */
-                if (status == -ENETRESET) {
-                    continue;
-                } else {
-                    goto error;
-                }
             } else {
                 PAL_DBG(LOG_TAG,"connected stream %pK from device %d",
                         std::get<0>(*sIter), (std::get<1>(*sIter))->id);
             }
         }
     }
-error:
+
     PAL_DBG(LOG_TAG, "Exit status: %d", status);
     return status;
 }
@@ -7294,6 +7333,10 @@ int32_t ResourceManager::forceDeviceSwitch(std::shared_ptr<Device> inDev,
     for (sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++) {
         streamDevDisconnect.push_back({(*sIter), inDev->getSndDeviceId()});
         streamDevConnect.push_back({(*sIter), newDevAttr});
+        (*sIter)->lockStreamMutex();
+        (*sIter)->clearOutPalDevices(*sIter);
+        (*sIter)->addPalDevice(*sIter, newDevAttr);
+        (*sIter)->unlockStreamMutex();
     }
     mActiveStreamMutex.unlock();
     status = streamDevSwitch(streamDevDisconnect, streamDevConnect);
@@ -8194,6 +8237,16 @@ int32_t ResourceManager::a2dpResume(pal_device_id_t dev_id)
         PAL_DBG(LOG_TAG, "no streams to be restored");
         mActiveStreamMutex.unlock();
         goto exit;
+    }
+
+    // update pal device for the streams getting restored
+    for (sIter = restoredStreams.begin(); sIter != restoredStreams.end(); sIter++) {
+        (*sIter)->lockStreamMutex();
+        if ((*sIter)->suspendedDevIds.size() == 1 /* non-combo */) {
+            (*sIter)->clearOutPalDevices(*sIter);
+        }
+        (*sIter)->addPalDevice(*sIter, &a2dpDattr);
+        (*sIter)->unlockStreamMutex();
     }
     mActiveStreamMutex.unlock();
 
@@ -10812,6 +10865,20 @@ void ResourceManager::process_device_info(struct xml_userdata *data, const XML_C
                 isChargeConcurrencyEnabled = true;
         } else if (!strcmp(tag_name, "cps_mode")) {
             cpsMode = atoi(data->data_buf);
+        } else if (!strcmp(tag_name, "wsa2_enable")) {
+            wsa2_enable = atoi(data->data_buf);
+        } else if (!strcmp(tag_name, "wsa_wr_cmd_reg_phy_addr")) {
+            wsa_wr_cmd_reg_phy_addr = atoi(data->data_buf);
+        } else if (!strcmp(tag_name, "wsa_rd_cmd_reg_phy_addr")) {
+            wsa_rd_cmd_reg_phy_addr = atoi(data->data_buf);
+        } else if (!strcmp(tag_name, "wsa_rd_fifo_reg_phy_addr")) {
+            wsa_rd_fifo_reg_phy_addr = atoi(data->data_buf);
+        } else if (!strcmp(tag_name, "wsa2_wr_cmd_reg_phy_addr")) {
+            wsa2_wr_cmd_reg_phy_addr = atoi(data->data_buf);
+        } else if (!strcmp(tag_name, "wsa2_rd_cmd_reg_phy_addr")) {
+            wsa2_rd_cmd_reg_phy_addr = atoi(data->data_buf);
+        } else if (!strcmp(tag_name, "wsa2_rd_fifo_reg_phy_addr")) {
+            wsa2_rd_fifo_reg_phy_addr = atoi(data->data_buf);
         } else if (!strcmp(tag_name, "supported_bit_format")) {
             size = deviceInfo.size() - 1;
             if(!strcmp(data->data_buf, "PAL_AUDIO_FMT_PCM_S24_3LE"))

@@ -25,7 +25,8 @@ LOCAL_CFLAGS        += -Wno-macro-redefined
 LOCAL_CFLAGS        += -Wall -Werror -Wno-unused-variable -Wno-unused-parameter
 LOCAL_CFLAGS        += -DCONFIG_GSL
 LOCAL_CFLAGS        += -D_GNU_SOURCE
-LOCAL_CFLAGS        += -DPAL_SP_TEMP_PATH=\"/data/vendor/audio/audio.cal\"
+LOCAL_CFLAGS        += -DPAL_SP_I_TEMP_PATH=\"/data/vendor/audio/audio_sp1.cal\"
+LOCAL_CFLAGS        += -DPAL_SP_II_TEMP_PATH=\"/data/vendor/audio/audio_sp2.cal\"
 LOCAL_CFLAGS        += -DACD_SM_FILEPATH=\"/vendor/etc/models/acd/\"
 ifeq ($(TARGET_BOARD_PLATFORM), kalama)
 LOCAL_CFLAGS        += -DSOC_PERIPHERAL_PROT

@@ -378,7 +378,7 @@ void ACDEngine::HandleSessionEvent(uint32_t event_id __unused,
 }
 
 void ACDEngine::HandleSessionCallBack(uint64_t hdl, uint32_t event_id,
-                                      void *data, uint32_t event_size)
+                                      void *data, uint32_t event_size, uint32_t miid __unused)
 {
     ACDEngine *engine = nullptr;
 

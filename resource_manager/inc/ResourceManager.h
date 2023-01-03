@@ -386,7 +386,7 @@ enum NTStreamTypes_t : uint32_t {
 };
 
 typedef void (*session_callback)(uint64_t hdl, uint32_t event_id, void *event_data,
-                uint32_t event_size);
+                uint32_t event_size, uint32_t miid);
 bool isPalPCMFormat(uint32_t fmt_id);
 
 typedef void* (*adm_init_t)();
@@ -520,7 +520,7 @@ protected:
     std::vector <std::pair<std::shared_ptr<Device>, Stream*>> active_devices;
     std::vector <std::shared_ptr<Device>> plugin_devices_;
     std::vector <pal_device_id_t> avail_devices_;
-    std::map<Stream*, uint32_t> mActiveStreamUserCounter;
+    std::map<Stream*, std::pair<uint32_t, bool>> mActiveStreamUserCounter;
     bool bOverwriteFlag;
     bool screen_state_ = true;
     bool charging_state_;
@@ -627,6 +627,13 @@ public:
     static bool isHandsetProtectionEnabled;
     static bool isChargeConcurrencyEnabled;
     static int cpsMode;
+    static int wsa2_enable;
+    static int wsa_wr_cmd_reg_phy_addr;
+    static int wsa_rd_cmd_reg_phy_addr;
+    static int wsa_rd_fifo_reg_phy_addr;
+    static int wsa2_wr_cmd_reg_phy_addr;
+    static int wsa2_rd_cmd_reg_phy_addr;
+    static int wsa2_rd_fifo_reg_phy_addr;
     static bool isVbatEnabled;
     static bool isRasEnabled;
     static bool isGaplessEnabled;
@@ -726,7 +733,8 @@ public:
     int deregisterStream(Stream *s);
     int isActiveStream(pal_stream_handle_t *handle);
     int initStreamUserCounter(Stream *s);
-    int deinitStreamUserCounter(Stream *s);
+    int deactivateStreamUserCounter(Stream *s);
+    int eraseStreamUserCounter(Stream *s);
     int increaseStreamUserCounter(Stream* s);
     int decreaseStreamUserCounter(Stream* s);
     int getStreamUserCounter(Stream *s);

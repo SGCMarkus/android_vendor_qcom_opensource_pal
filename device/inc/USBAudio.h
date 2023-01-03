@@ -86,7 +86,7 @@
 #define MAX_HIFI_CHANNEL_COUNT 8
 #define MIN_CHANNEL_COUNT 1
 #define DEFAULT_CHANNEL_COUNT 2
-#define  MAX_SAMPLE_RATE_SIZE 14
+#define  MAX_SAMPLE_RATE_SIZE 15
 #define DEFAULT_SERVICE_INTERVAL_US    0
 #define USB_IN_JACK_SUFFIX "Input Jack"
 #define USB_OUT_JACK_SUFFIX "Output Jack"
@@ -101,8 +101,7 @@ class USBDeviceConfig {
 protected:
     unsigned int bit_width_;
     unsigned int channels_;
-    unsigned int rate_size_;
-    unsigned int rates_[MAX_SAMPLE_RATE_SIZE];
+    std::vector <unsigned int> rates_;
     unsigned long service_interval_us_;
     usb_usecase_type_t type_;
     unsigned int supported_sample_rates_mask_[2] = {0};
@@ -118,12 +117,14 @@ public:
     unsigned long getInterval();
     unsigned int getDefaultRate();
     int getSampleRates(int type, char *rates_str);
+    bool isRateSupported(int requested_rate);
     int getBestRate(int requested_rate, int candidate_rate, unsigned int *best_rate);
-    int getBestChInfo(struct pal_channel_info *requested_ch_info,
-                        struct pal_channel_info *best);
+    void usb_find_sample_rate_candidate(int base, int requested_rate,
+                                    int cur_rate, int candidate_rate, unsigned int *best_rate);
+    int updateBestChInfo(struct pal_channel_info *requested_ch_info,
+                         struct pal_channel_info *best);
     int getServiceInterval(const char *interval_str_start);
     static const unsigned int supported_sample_rates_[MAX_SAMPLE_RATE_SIZE];
-    int isCustomRateSupported(int requested_rate, unsigned int *best_rate);
     void setJackStatus(bool jack_status);
     bool getJackStatus();
     unsigned int getSRMask(usb_usecase_type_t type) {return supported_sample_rates_mask_[type];} ;
