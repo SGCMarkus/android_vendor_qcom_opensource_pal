@@ -1196,6 +1196,13 @@ int ResourceManager::init_audio()
                     PAL_VERBOSE(LOG_TAG, "Found Codec sound card");
                     snd_card_found = true;
                     audio_hw_mixer = tmp_mixer;
+                    //for bengal target multiple same rate on combo device not supported
+                    if(strstr(snd_card_name, "bengal"))
+                    {   PAL_INFO(LOG_TAG, "%s: setting is_multiple_sample_rate_combo_supported false for bengal",__func__);
+                        is_multiple_sample_rate_combo_supported = false;
+                    } else {
+                        is_multiple_sample_rate_combo_supported = true;
+                    }
                     break;
                 } else {
                     if (snd_card_name) {
@@ -10761,6 +10768,11 @@ int ResourceManager::updatePriorityAttr(pal_device_id_t dev_id,
         }
         getDeviceConfig(&tempDev, &sAttr);
         compareAndUpdateDevAttr(&tempDev, &devInfo, incomingDev, &highPrioDevInfo);
+        if(currentStrAttr->isComboHeadsetActive && !is_multiple_sample_rate_combo_supported)
+        {
+           PAL_DBG(LOG_TAG," update incomingDev ->config.sample_rate ");
+           incomingDev->config.sample_rate = 48000;
+        }
         /*incoming stream prio is greater than or equal to active streams*/
         if (devInfo.priority <= highPrioDevInfo.priority  ) {
             highPrioDevInfo = devInfo;
