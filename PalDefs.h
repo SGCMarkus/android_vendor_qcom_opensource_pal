@@ -135,6 +135,16 @@ static const std::map<std::string, pal_audio_fmt_t> PalAudioFormatMap
 };
 #endif
 
+struct aac_enc_cfg {
+    uint16_t aac_enc_mode; /**< AAC encoder mode */
+    uint16_t aac_fmt_flag; /**< AAC format flag */
+};
+
+struct pal_snd_enc_aac {
+    uint32_t aac_bit_rate;
+    struct aac_enc_cfg enc_cfg;
+};
+
 struct pal_snd_dec_aac {
     uint16_t audio_obj_type;
     uint16_t pce_bits_size;
@@ -253,6 +263,10 @@ typedef union {
     struct pal_snd_dec_vorbis vorbis_dec;
 } pal_snd_dec_t;
 
+/** Audio encoder parameter data*/
+typedef union {
+    struct pal_snd_enc_aac aac_enc;
+} pal_snd_enc_t;
 
 /** Audio parameter data*/
 typedef struct pal_param_payload_s {

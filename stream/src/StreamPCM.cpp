@@ -205,7 +205,9 @@ int32_t  StreamPCM::open()
     }
 
     if (currentState == STREAM_IDLE) {
+        rm->lockGraph();
         status = session->open(this);
+        rm->unlockGraph();
         if (0 != status) {
             PAL_ERR(LOG_TAG, "session open failed with status %d", status);
             goto exit;
@@ -1247,15 +1249,6 @@ int32_t StreamPCM::flush()
         goto exit;
     }
 
-    mStreamMutex.unlock();
-    rm->lockActiveStream();
-    mStreamMutex.lock();
-    for (int i = 0; i < mDevices.size(); i++) {
-        if (rm->isDeviceActive_l(mDevices[i], this))
-            rm->deregisterDevice(mDevices[i], this);
-    }
-    rm->unlockActiveStream();
-
     status = session->flush();
 exit:
     mStreamMutex.unlock();
@@ -1393,7 +1386,7 @@ int32_t StreamPCM::setECRef_l(std::shared_ptr<Device> dev, bool is_enable)
 
 int32_t StreamPCM::ssrDownHandler()
 {
-    int status = 0;
+    int32_t status = 0;
 
     mStreamMutex.lock();
     /* Updating cached state here only if it's STREAM_IDLE,
@@ -1438,7 +1431,7 @@ exit :
 
 int32_t StreamPCM::ssrUpHandler()
 {
-    int status = 0;
+    int32_t status = 0;
 
     mStreamMutex.lock();
     PAL_DBG(LOG_TAG, "Enter. session handle - %pK state %d",

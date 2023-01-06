@@ -864,6 +864,7 @@ SoundTriggerEngineGsl::SoundTriggerEngineGsl(
     lpi_miid_ = 0;
     nlpi_miid_ = 0;
     ec_ref_count_ = 0;
+    is_crr_dev_using_ext_ec_ = false;
 
     UpdateState(ENG_IDLE);
 
@@ -2739,6 +2740,7 @@ int32_t SoundTriggerEngineGsl::setECRef(Stream *s, std::shared_ptr<Device> dev, 
 
     int32_t status = 0;
     bool force_enable = false;
+    bool is_dev_enabled_ext_ec = false;
 
     if (!session_) {
         PAL_ERR(LOG_TAG, "Invalid session");
@@ -2747,8 +2749,21 @@ int32_t SoundTriggerEngineGsl::setECRef(Stream *s, std::shared_ptr<Device> dev, 
     PAL_DBG(LOG_TAG, "Enter, EC ref count : %d, enable : %d", ec_ref_count_, is_enable);
     PAL_DBG(LOG_TAG, "Rx device : %s, stream is setting EC for first time : %d",
             dev ? dev->getPALDeviceName().c_str() :  "Null", setECForFirstTime);
+
+    std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
+    if (!rm) {
+        PAL_ERR(LOG_TAG, "Failed to get resource manager instance");
+        return -EINVAL;
+    }
+
+    if (dev)
+        is_dev_enabled_ext_ec = rm->isExternalECRefEnabled(dev->getSndDeviceId());
     std::unique_lock<std::mutex> lck(ec_ref_mutex_);
     if (is_enable) {
+        if (is_crr_dev_using_ext_ec_ && !is_dev_enabled_ext_ec) {
+            PAL_ERR(LOG_TAG, "Internal EC connot be set, when external EC is active");
+            return -EINVAL;
+        }
         if (setECForFirstTime) {
             ec_ref_count_++;
         } else if (rx_ec_dev_!=dev) {
@@ -2756,7 +2771,6 @@ int32_t SoundTriggerEngineGsl::setECRef(Stream *s, std::shared_ptr<Device> dev, 
         } else {
             return status;
         }
-        rx_ec_dev_ = dev;
         if (force_enable || ec_ref_count_ == 1) {
             status = session_->setECRef(s, dev, is_enable);
             if (status) {
@@ -2768,6 +2782,9 @@ int32_t SoundTriggerEngineGsl::setECRef(Stream *s, std::shared_ptr<Device> dev, 
                 if (force_enable || ec_ref_count_ == 0) {
                     rx_ec_dev_ = nullptr;
                 }
+            } else {
+                is_crr_dev_using_ext_ec_ = is_dev_enabled_ext_ec;
+                rx_ec_dev_ = dev;
             }
         }
     } else {
@@ -2775,10 +2792,12 @@ int32_t SoundTriggerEngineGsl::setECRef(Stream *s, std::shared_ptr<Device> dev, 
             if (ec_ref_count_ > 0) {
                 ec_ref_count_--;
                 if (ec_ref_count_ == 0) {
-                    rx_ec_dev_ = nullptr;
                     status = session_->setECRef(s, dev, is_enable);
                     if (status) {
                         PAL_ERR(LOG_TAG, "Failed to reset EC Ref");
+                    } else {
+                        rx_ec_dev_ = nullptr;
+                        is_crr_dev_using_ext_ec_ = false;
                     }
                 }
             } else {

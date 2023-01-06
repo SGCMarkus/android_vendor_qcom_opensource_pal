@@ -80,6 +80,10 @@ codec_library="lib_bt_aptx.so" />
             <samplerate>48000</samplerate>
             <bit_width>16</bit_width>
             <snd_device_name>handset-mic</snd_device_name>
+        <!-- Comment the channels and backend lines and uncomment this when handset-dmic-endfire is needed
+            <channels>2</channels>
+            <snd_device_name>handset-dmic-endfire</snd_device_name>
+        -->
             <usecase>
                 <name>PAL_STREAM_LOW_LATENCY</name>
                 <devicePP-metadata>
@@ -119,6 +123,26 @@ should always be in sync with it -->
                 <devicePP-metadata>
                 </devicePP-metadata>
             </usecase>
+            <usecase>
+                <name>PAL_STREAM_COMPRESSED</name>
+                <ec_enable>1</ec_enable>
+                <custom-config key="unprocessed-hdr-mic-landscape">
+                    <channels>4</channels>
+                    <snd_device_name>unprocessed-hdr-mic-landscape</snd_device_name>
+                </custom-config>
+                <custom-config key="unprocessed-hdr-mic-portrait">
+                    <channels>4</channels>
+                    <snd_device_name>unprocessed-hdr-mic-portrait</snd_device_name>
+                </custom-config>
+                <custom-config key="unprocessed-hdr-mic-inverted-landscape">
+                    <channels>4</channels>
+                    <snd_device_name>unprocessed-hdr-mic-inverted-landscape</snd_device_name>
+                </custom-config>
+                <custom-config key="unprocessed-hdr-mic-inverted-portrait">
+                    <channels>4</channels>
+                <snd_device_name>unprocessed-hdr-mic-inverted-portrait</snd_device_name>
+               </custom-config>
+            </usecase>
             <ec_rx_device>
                 <id>PAL_DEVICE_OUT_HANDSET</id>
                 <id>PAL_DEVICE_OUT_SPEAKER</id>
@@ -132,6 +156,10 @@ should always be in sync with it -->
             <bit_width>16</bit_width>
             <channels>1</channels>
             <snd_device_name>speaker-mic</snd_device_name>
+        <!-- Comment the channels and backend lines and uncomment this when speaker-dmic-endfire is needed
+            <channels>2</channels>
+            <snd_device_name>speaker-dmic-endfire</snd_device_name>
+        -->
             <usecase>
                 <name>PAL_STREAM_LOW_LATENCY</name>
                 <devicePP-metadata>
@@ -165,6 +193,26 @@ should always be in sync with it -->
                     <!-- These key and value are derived from kvh2xml.h and
 should always be in sync with it -->
                 </devicePP-metadata>
+            </usecase>
+            <usecase>
+                <name>PAL_STREAM_COMPRESSED</name>
+                <ec_enable>1</ec_enable>
+                <custom-config key="unprocessed-hdr-mic-landscape">
+                    <channels>4</channels>
+                    <snd_device_name>unprocessed-hdr-mic-landscape</snd_device_name>
+                </custom-config>
+                <custom-config key="unprocessed-hdr-mic-portrait">
+                    <channels>4</channels>
+                    <snd_device_name>unprocessed-hdr-mic-portrait</snd_device_name>
+                </custom-config>
+                <custom-config key="unprocessed-hdr-mic-inverted-landscape">
+                    <channels>4</channels>
+                    <snd_device_name>unprocessed-hdr-mic-inverted-landscape</snd_device_name>
+                </custom-config>
+                <custom-config key="unprocessed-hdr-mic-inverted-portrait">
+                    <channels>4</channels>
+                    <snd_device_name>unprocessed-hdr-mic-inverted-portrait</snd_device_name>
+                </custom-config>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_LOOPBACK</name>
@@ -207,6 +255,10 @@ should always be in sync with it -->
             <usecase>
                 <name>PAL_STREAM_ULTRA_LOW_LATENCY</name>
             </usecase>
+            <usecase>
+                <name>PAL_STREAM_COMPRESSED</name>
+                <ec_enable>1</ec_enable>
+            </usecase>
             <ec_rx_device>
                 <id>PAL_DEVICE_OUT_WIRED_HEADSET</id>
                 <id>PAL_DEVICE_OUT_WIRED_HEADPHONE</id>
@@ -236,6 +288,10 @@ should always be in sync with it -->
             </usecase>
             <usecase>
                 <name>PAL_STREAM_ULTRA_LOW_LATENCY</name>
+            </usecase>
+            <usecase>
+                <name>PAL_STREAM_COMPRESSED</name>
+                <ec_enable>1</ec_enable>
             </usecase>
         </in-device>
         <in-device>
@@ -305,6 +361,10 @@ should always be in sync with it -->
                 <devicePP-metadata>
                 </devicePP-metadata>
             </usecase>
+            <usecase>
+                <name>PAL_STREAM_COMPRESSED</name>
+                <ec_enable>1</ec_enable>
+            </usecase>
         </in-device>
         <in-device>
             <id>PAL_DEVICE_IN_HANDSET_VA_MIC</id>
@@ -365,6 +425,15 @@ should always be in sync with it -->
                 <name>PAL_STREAM_RAW</name>
             </usecase>
         </in-device>
+        <out-device>
+            <id>PAL_DEVICE_NONE</id>
+            <back_end_name>CODEC_DMA-LPAIF_WSA-RX-0</back_end_name>
+            <max_channels>2</max_channels>
+            <channels>1</channels>
+            <snd_device_name>none</snd_device_name>
+            <samplerate>48000</samplerate>
+            <bit_width>16</bit_width>
+        </out-device>
         <out-device>
             <id>PAL_DEVICE_OUT_SPEAKER</id>
             <back_end_name>CODEC_DMA-LPAIF_RXTX-RX-1</back_end_name>
@@ -601,6 +670,15 @@ should always be in sync with it -->
                     </ec_ref>
                 </policies>
         </in_stream>
+        <in_stream>
+           <name>PAL_STREAM_COMPRESSED</name>
+              <policies>
+                  <ec_ref>
+                      <disabled_stream>PAL_STREAM_LOW_LATENCY</disabled_stream>
+                      <disabled_stream>PAL_STREAM_GENERIC</disabled_stream>
+                  </ec_ref>
+              </policies>
+       </in_stream>
     </in_streams>
     <sound_trigger_platform_info>
         <param version="0x0100" /> <!-- this must be the first param -->

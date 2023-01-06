@@ -617,7 +617,7 @@ int32_t StreamNonTunnel::isBitWidthSupported(uint32_t bitWidth)
 
 int32_t StreamNonTunnel::ssrDownHandler()
 {
-    int status = 0;
+    int32_t status = 0;
 
 
     mStreamMutex.lock();
