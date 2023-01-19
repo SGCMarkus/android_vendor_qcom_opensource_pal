@@ -604,19 +604,21 @@ int SessionAlsaPcm::setConfig(Stream * s, configType type, int tag)
                 PAL_ERR(LOG_TAG, "failed to set the tag calibration %d", status);
                 goto exit;
             }
+            ctl = NULL;
             tkv.clear();
-            break;
+            goto exit;
         case CALIBRATION:
+            kvMutex.lock();
             ckv.clear();
             status = builder->populateCalKeyVector(s, ckv, tag);
             if (0 != status) {
                 PAL_ERR(LOG_TAG, "Failed to set the calibration data\n");
-                goto exit;
+                goto unlock_kvMutex;
             }
 
             if (ckv.size() == 0) {
                 status = -EINVAL;
-                goto exit;
+                goto unlock_kvMutex;
             }
 
             cal_config_size = sizeof(struct agm_cal_config) +
@@ -625,7 +627,7 @@ int SessionAlsaPcm::setConfig(Stream * s, configType type, int tag)
 
             if (!calConfig) {
                 status = -EINVAL;
-                goto exit;
+                goto unlock_kvMutex;
             }
 
             status = SessionAlsaUtils::getCalMetadata(ckv, calConfig);
@@ -639,7 +641,7 @@ int SessionAlsaPcm::setConfig(Stream * s, configType type, int tag)
                     // support volume
                     PAL_DBG(LOG_TAG, "RX/TX only Loopback don't support volume");
                     status = -EINVAL;
-                    goto exit;
+                    goto unlock_kvMutex;
                 }
 
                 if (pcmDevRxIds.size() > 0)
@@ -651,21 +653,21 @@ int SessionAlsaPcm::setConfig(Stream * s, configType type, int tag)
 
             if (calCntrlName.str().length() == 0) {
                 status = -EINVAL;
-                goto exit;
+                goto unlock_kvMutex;
             }
 
             ctl = mixer_get_ctl_by_name(mixer, calCntrlName.str().data());
             if (!ctl) {
                 PAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", calCntrlName.str().data());
                 status = -ENOENT;
-                goto exit;
+                goto unlock_kvMutex;
             }
 
             status = mixer_ctl_set_array(ctl, calConfig, cal_config_size);
             if (status != 0) {
                 PAL_ERR(LOG_TAG, "failed to set the tag calibration %d", status);
-                goto exit;
             }
+            ctl = NULL;
             ckv.clear();
             break;
         default:
@@ -673,12 +675,13 @@ int SessionAlsaPcm::setConfig(Stream * s, configType type, int tag)
             status = -EINVAL;
             goto exit;
     }
-
+unlock_kvMutex:
+    if (calConfig)
+        free(calConfig);
+    kvMutex.unlock();
 exit:
     if (tagConfig)
         free(tagConfig);
-    if (calConfig)
-        free(calConfig);
 
     PAL_DBG(LOG_TAG, "exit status: %d ", status);
     return status;
@@ -1128,6 +1131,13 @@ int SessionAlsaPcm::start(Stream * s)
                             streamData.sampleRate = codecConfig.sample_rate;
                             streamData.bitWidth   = AUDIO_BIT_WIDTH_DEFAULT_16;
                             streamData.numChannel = 0xFFFF;
+                        } else if (dAttr.id == PAL_DEVICE_IN_USB_DEVICE ||
+                                   dAttr.id == PAL_DEVICE_IN_USB_HEADSET) {
+                            streamData.sampleRate = (dAttr.config.sample_rate % SAMPLINGRATE_8K == 0 &&
+                                                     dAttr.config.sample_rate <= SAMPLINGRATE_48K) ?
+                                                    dAttr.config.sample_rate : SAMPLINGRATE_48K;
+                            streamData.bitWidth   = AUDIO_BIT_WIDTH_DEFAULT_16;
+                            streamData.numChannel = 0xFFFF;
                         } else {
                             streamData.sampleRate = dAttr.config.sample_rate;
                             streamData.bitWidth   = AUDIO_BIT_WIDTH_DEFAULT_16;
@@ -1241,8 +1251,51 @@ set_mixer:
                 } else {
                     PAL_INFO(LOG_TAG, "eventPayload is NULL");
                 }
+            } else if (sAttr.type == PAL_STREAM_ULTRA_LOW_LATENCY) {
+                status = s->getAssociatedDevices(associatedDevices);
+                for (int i = 0; i < associatedDevices.size(); i++) {
+                    status = associatedDevices[i]->getDeviceAttributes(&dAttr);
+                    if (0 != status) {
+                        PAL_ERR(LOG_TAG, "get Device Attributes Failed\n");
+                        continue;
+                    }
+                    if ((dAttr.id == PAL_DEVICE_IN_USB_DEVICE) ||
+                        (dAttr.id == PAL_DEVICE_IN_USB_HEADSET)) {
+                        status = SessionAlsaUtils::getModuleInstanceId(mixer, pcmDevIds.at(0),
+                                                    txAifBackEnds[0].second.data(),
+                                                    TAG_STREAM_MFC_SR, &miid);
+                        if (status != 0) {
+                            PAL_ERR(LOG_TAG, "getModuleInstanceId failed\n");
+                            continue;
+                        }
+                        PAL_DBG(LOG_TAG, "ULL record, miid : %x id = %d\n", miid, pcmDevIds.at(0));
+                        if (isPalPCMFormat(sAttr.in_media_config.aud_fmt_id))
+                            streamData.bitWidth = ResourceManager::palFormatToBitwidthLookup(sAttr.in_media_config.aud_fmt_id);
+                        else
+                            streamData.bitWidth = sAttr.in_media_config.bit_width;
+                        streamData.sampleRate = sAttr.in_media_config.sample_rate;
+                        streamData.numChannel = sAttr.in_media_config.ch_info.channels;
+                        streamData.rotation_type = PAL_SPEAKER_ROTATION_LR;
+                        streamData.ch_info = nullptr;
+                        builder->payloadMFCConfig(&payload, &payloadSize, miid, &streamData);
+                        if (payloadSize && payload) {
+                            status = updateCustomPayload(payload, payloadSize);
+                            freeCustomPayload(&payload, &payloadSize);
+                            if (0 != status) {
+                                PAL_ERR(LOG_TAG, "updateCustomPayload Failed\n");
+                                continue;
+                            }
+                        }
+                        status = SessionAlsaUtils::setMixerParameter(mixer, pcmDevIds.at(0),
+                                                         customPayload, customPayloadSize);
+                        freeCustomPayload();
+                        if (status != 0) {
+                            PAL_ERR(LOG_TAG, "setMixerParameter failed");
+                            continue;
+                        }
+                    }
+                }
             }
-
             if (ResourceManager::isLpiLoggingEnabled()) {
                 struct audio_route *audioRoute;
 
@@ -2180,15 +2233,8 @@ int SessionAlsaPcm::write(Stream *s, int tag, struct pal_buffer *buf, int * size
         data = buf->buffer;
         data = static_cast<char *>(data) + offset;
         sizeWritten = out_buf_size;  //initialize 0
-        if (pcm && (mState == SESSION_FLUSHED)) {
-            status = pcm_start(pcm);
-            if (status) {
-                status = errno;
-                PAL_ERR(LOG_TAG, "pcm_start failed %d", status);
-                goto exit;
-            }
-            mState = SESSION_STARTED;
-        } else if (!pcm) {
+
+        if (!pcm) {
             PAL_ERR(LOG_TAG, "pcm is NULL");
             status = -EINVAL;
             goto exit;
@@ -2217,15 +2263,8 @@ int SessionAlsaPcm::write(Stream *s, int tag, struct pal_buffer *buf, int * size
     offset = bytesWritten + buf->offset;
     sizeWritten = bytesRemaining;
     data = buf->buffer;
-    if (pcm && (mState == SESSION_FLUSHED)) {
-        status = pcm_start(pcm);
-        if (status) {
-            status = errno;
-            PAL_ERR(LOG_TAG, "pcm_start failed %d", status);
-            goto exit;
-        }
-        mState = SESSION_STARTED;
-    } else if (!pcm) {
+
+    if (!pcm) {
         PAL_ERR(LOG_TAG, "pcm is NULL");
         status = -EINVAL;
         goto exit;
@@ -2971,23 +3010,16 @@ int SessionAlsaPcm::drain(pal_drain_type_t type __unused)
 int SessionAlsaPcm::flush()
 {
     int status = 0;
+    PAL_VERBOSE(LOG_TAG, "Enter flush");
 
-    if (!pcm) {
-        PAL_ERR(LOG_TAG, "Pcm is invalid");
+    if (pcmDevIds.size() > 0) {
+        status = SessionAlsaUtils::flush(rm, pcmDevIds.at(0));
+    } else {
+        PAL_ERR(LOG_TAG, "DevIds size is invalid");
         return -EINVAL;
     }
-    PAL_VERBOSE(LOG_TAG, "Enter flush\n");
-    if (pcm && isActive()) {
-        status = pcm_stop(pcm);
 
-        if (!status)
-            mState = SESSION_FLUSHED;
-        else
-            status = errno;
-    }
-
-    PAL_VERBOSE(LOG_TAG, "status %d\n", status);
-
+    PAL_VERBOSE(LOG_TAG, "Exit status: %d", status);
     return status;
 }
 

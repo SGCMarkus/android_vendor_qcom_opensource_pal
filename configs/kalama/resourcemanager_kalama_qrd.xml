@@ -70,7 +70,7 @@
         <param key="max_sessions" value="128"/>
         <param key="max_nonTunnel_sessions" value="4"/>
         <param key="logging_level" value ="3" />
-        <param key="context_manager_enable" value ="false" />
+        <param key="context_manager_enable" value ="true" />
         <param key="lpi_logging_enable" value ="false" />
         <param key="upd_dedicated_be" value ="true" />
         <param key="signal_handler" value ="true" />

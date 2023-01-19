@@ -865,7 +865,7 @@ int32_t StreamCompress::pause_l()
     PAL_DBG(LOG_TAG,"Enter, session handle - %p, state %d",
                session, currentState);
 
-    if ((currentState == STREAM_PAUSED) && isPaused) {
+    if (isPaused) {
         PAL_INFO(LOG_TAG, "Stream is already paused");
     } else {
         //caching the volume before setting it to 0
@@ -1028,14 +1028,6 @@ int32_t StreamCompress::flush()
         return 0;
     }
 
-    mStreamMutex.unlock();
-    rm->lockActiveStream();
-    mStreamMutex.lock();
-    for (int i = 0; i < mDevices.size(); i++) {
-        if (rm->isDeviceActive_l(mDevices[i], this))
-            rm->deregisterDevice(mDevices[i], this);
-    }
-    rm->unlockActiveStream();
     return session->flush();
 }
 
@@ -1123,7 +1115,7 @@ int32_t StreamCompress::setECRef_l(std::shared_ptr<Device> dev, bool is_enable)
 
 int32_t StreamCompress::ssrDownHandler()
 {
-    int status = 0;
+    int32_t status = 0;
 
     mStreamMutex.lock();
     PAL_DBG(LOG_TAG, "Enter. session handle - %pK state %d", session, currentState);

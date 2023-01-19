@@ -1254,7 +1254,13 @@ free_fe:
         rm->freeFrontEndIds(fbpcmDevIds, sAttr, dir);
         fbpcmDevIds.clear();
     }
-    isAbrEnabled = false;
+
+    /* Check for deviceStartStopCount, to avoid false reset of isAbrEnabled flag in
+     * case of BLE playback path stops during ongoing capture session
+     */
+    if (deviceStartStopCount == 1) {
+        isAbrEnabled = false;
+    }
 
     if (isfbDeviceLocked) {
         isfbDeviceLocked = false;
@@ -1545,7 +1551,11 @@ void BtA2dp::init_a2dp_sink()
             audio_sink_close = (audio_sink_close_t)
                 dlsym(bt_lib_sink_handle, "audio_stream_close");
 
-            open_a2dp_sink();
+#ifdef A2DP_SINK_SUPPORTED
+
+                open_a2dp_sink();
+#endif
+
 #else
             // On Linux Builds - A2DP Sink Profile is supported via different lib
             PAL_ERR(LOG_TAG, "DLOPEN failed for %s", BT_IPC_SINK_LIB);
@@ -1650,14 +1660,12 @@ int BtA2dp::start()
 
     status = (a2dpRole == SOURCE) ? startPlayback() : startCapture();
     if (status) {
-        mDeviceMutex.unlock();
         goto exit;
     }
 
     if (totalActiveSessionRequests == 1) {
         status = configureSlimbusClockSrc();
         if (status) {
-            mDeviceMutex.unlock();
             goto exit;
         }
     }
@@ -1669,12 +1677,11 @@ int BtA2dp::start()
         customPayload = NULL;
         customPayloadSize = 0;
     }
-    mDeviceMutex.unlock();
 
     if (!status && isAbrEnabled)
         startAbr();
-
 exit:
+    mDeviceMutex.unlock();
     return status;
 }
 
@@ -1682,10 +1689,9 @@ int BtA2dp::stop()
 {
     int status = 0;
 
+    mDeviceMutex.lock();
     if (isAbrEnabled)
         stopAbr();
-
-    mDeviceMutex.lock();
 
     Device::stop_l();
 
@@ -2063,14 +2069,29 @@ int32_t BtA2dp::setDeviceParameter(uint32_t param_id, void *param)
         if (device_connection->connection_state == true) {
             if (a2dpRole == SOURCE)
                 open_a2dp_source();
+
             else {
+#ifdef A2DP_SINK_SUPPORTED
+
                 open_a2dp_sink();
+#else
+                a2dpState = A2DP_STATE_CONNECTED;
+#endif
             }
         } else {
             if (a2dpRole == SOURCE) {
                 status = close_audio_source();
             } else {
+#ifdef A2DP_SINK_SUPPORTED
                 status = close_audio_sink();
+#else
+                totalActiveSessionRequests = 0;
+                param_bt_a2dp.a2dp_suspended = false;
+                param_bt_a2dp.a2dp_capture_suspended = false;
+                param_bt_a2dp.reconfig = false;
+                param_bt_a2dp.latency = 0;
+                a2dpState = A2DP_STATE_DISCONNECTED;
+#endif
             }
         }
         break;

@@ -1248,7 +1248,13 @@ int32_t Stream::connectStreamDevice_l(Stream* streamHandle, struct pal_device *d
             rm->unlockGraph();
             goto dev_close;
         }
+    } else if (rm->isBtDevice((pal_device_id_t)dev->getSndDeviceId())) {
+        PAL_DBG(LOG_TAG, "stream is in %d state, no need to switch to BT", currentState);
+        status = 0;
+        rm->unlockGraph();
+        goto dev_close;
     }
+
     status = session->connectSessionDevice(streamHandle, mStreamAttr->type, dev);
     if (0 != status) {
         PAL_ERR(LOG_TAG, "connectSessionDevice failed:%d", status);
@@ -1474,6 +1480,9 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
     for (int i = 0; i < numDev; i++) {
         struct pal_device_info devinfo = {};
         std::shared_ptr<Device> dev = nullptr;
+        bool devReadyStatus = 0;
+        uint32_t retryCnt = 20;
+        uint32_t retryPeriodMs = 100;
         /*
          * When A2DP, Out Proxy and DP device is disconnected the
          * music playback is paused and the policy manager sends routing=0
@@ -1498,7 +1507,13 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
             return 0;
         }
 
-        if (!rm->isDeviceReady(newDevices[i].id)) {
+        while (!devReadyStatus && --retryCnt) {
+            devReadyStatus = rm->isDeviceReady(newDevices[i].id);
+            if (devReadyStatus)
+                break;
+            usleep(retryPeriodMs * 1000);
+        }
+        if (!devReadyStatus) {
             PAL_ERR(LOG_TAG, "Device %d is not ready", newDevices[i].id);
             if (((newDevices[i].id == PAL_DEVICE_OUT_BLUETOOTH_A2DP) ||
                 (newDevices[i].id == PAL_DEVICE_OUT_BLUETOOTH_BLE) ||
