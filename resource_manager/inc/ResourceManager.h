@@ -28,7 +28,7 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * Changes from Qualcomm Innovation Center are provided under the following license:
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted (subject to the limitations in the
@@ -916,6 +916,11 @@ public:
                                  std::vector<Stream*> &streamsToSwitch,
                                  struct pal_device *streamDevAttr,
                                  bool streamEnable);
+    void checkSpeakerConcurrency(struct pal_device *deviceattr,
+                             const struct pal_stream_attributes *sAttr,
+                             std::vector<Stream*> &streamsToSwitch,
+                             struct pal_device *streamDevAttr);
+
     void checkHapticsConcurrency(struct pal_device *deviceattr,
                              const struct pal_stream_attributes *sAttr,
                              std::vector<Stream*> &streamsToSwitch,

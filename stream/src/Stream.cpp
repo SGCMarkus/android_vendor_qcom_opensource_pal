@@ -28,7 +28,7 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * Changes from Qualcomm Innovation Center are provided under the following license:
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted (subject to the limitations in the
@@ -1559,6 +1559,17 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
                 }
             }
             streamsToSwitch.clear();
+
+            if (!rm->is_multiple_sample_rate_combo_supported) {
+            // check if headset config needs to update when speaker is active
+                rm->checkSpeakerConcurrency(&newDevices[newDeviceSlots[i]], &strAttr, streamsToSwitch/* not used */, &streamDevAttr);
+                if (!streamsToSwitch.empty()) {
+                     for(sIter = streamsToSwitch.begin(); sIter != streamsToSwitch.end(); sIter++) {
+                         streamDevDisconnect.push_back({(*sIter), streamDevAttr.id});
+                         StreamDevConnect.push_back({(*sIter), &streamDevAttr});
+                     }
+                }
+            }
 
             // check if headset config needs to update when haptics is active
             rm->checkHapticsConcurrency(&newDevices[newDeviceSlots[i]], NULL, streamsToSwitch/* not used */, NULL);
