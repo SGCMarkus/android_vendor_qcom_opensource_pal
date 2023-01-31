@@ -3507,6 +3507,7 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
             StDeviceConnectedEventConfigData *data =
                 (StDeviceConnectedEventConfigData *)ev_cfg->data_.get();
             pal_device_id_t dev_id = data->dev_id_;
+            std::vector<std::shared_ptr<SoundTriggerEngine>> tmp_engines;
 
             // mDevices should be empty as we have just disconnected device
             if (st_stream_.mDevices.size() != 0) {
@@ -3573,8 +3574,38 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
             } else if (st_stream_.isActive() && !st_stream_.paused_) {
                 if (!rm->isDeviceActive_l(dev, &st_stream_))
                     st_stream_.rm->registerDevice(dev, &st_stream_);
+                if (st_stream_.second_stage_processing_) {
+                    /* Start the engines */
+                    for (auto& eng: st_stream_.engines_) {
+                        PAL_VERBOSE(LOG_TAG, "Start st engine %d", eng->GetEngineId());
+                        status = eng->GetEngine()->StartRecognition(&st_stream_);
+                        if (0 != status) {
+                            PAL_ERR(LOG_TAG, "Start st engine %d failed, status %d",
+                                    eng->GetEngineId(), status);
+                            goto err_start;
+                        } else {
+                            tmp_engines.push_back(eng->GetEngine());
+                        }
+                    }
+
+                    if (st_stream_.reader_)
+                        st_stream_.reader_->reset();
+                    st_stream_.second_stage_processing_ = false;
+                } else {
+                    st_stream_.gsl_engine_->UpdateStateToActive();
+                }
                 TransitTo(ST_STATE_ACTIVE);
-                st_stream_.gsl_engine_->UpdateStateToActive();
+            }
+            break;
+        err_start:
+            for (auto& eng: tmp_engines)
+                eng->StopRecognition(&st_stream_);
+
+            if (st_stream_.mDevices.size() > 0) {
+                st_stream_.rm->deregisterDevice(st_stream_.mDevices[0], &st_stream_);
+                st_stream_.mDevices[0]->stop();
+                st_stream_.mDevices[0]->close();
+                st_stream_.device_opened_ = false;
             }
         connect_err:
             delete pal_dev;
