@@ -6650,7 +6650,7 @@ int32_t ResourceManager::forceDeviceSwitch(std::shared_ptr<Device> inDev,
     std::vector<Stream*>::iterator sIter;
 
     if (!inDev || !newDevAttr) {
-        PAL_ERR(LOG_TAG, "invalud input parameters");
+        PAL_ERR(LOG_TAG, "invalid input parameters");
         return -EINVAL;
     }
 
@@ -6686,6 +6686,48 @@ int32_t ResourceManager::forceDeviceSwitch(std::shared_ptr<Device> inDev,
     }
 
 done:
+    return 0;
+}
+
+int32_t ResourceManager::forceDeviceSwitch(std::shared_ptr<Device> inDev,
+                                           struct pal_device *newDevAttr,
+                                           std::vector<Stream*> prevActiveStreams)
+{
+    int status = 0;
+    std::vector <std::tuple<Stream *, uint32_t>> streamDevDisconnect;
+    std::vector <std::tuple<Stream *, struct pal_device *>> streamDevConnect;
+    std::vector<Stream*>::iterator sIter;
+
+    if (!inDev || !newDevAttr) {
+        PAL_ERR(LOG_TAG, "invalid input parameters");
+        return -EINVAL;
+    }
+
+    // create dev switch vectors
+    mActiveStreamMutex.lock();
+    for (sIter = prevActiveStreams.begin(); sIter != prevActiveStreams.end(); sIter++) {
+        if (((*sIter) != NULL) && isStreamActive((*sIter), mActiveStreams)) {
+            streamDevDisconnect.push_back({(*sIter), inDev->getSndDeviceId()});
+            streamDevConnect.push_back({(*sIter), newDevAttr});
+        }
+    }
+    mActiveStreamMutex.unlock();
+    status = streamDevSwitch(streamDevDisconnect, streamDevConnect);
+    if (!status) {
+        mActiveStreamMutex.lock();
+        for (sIter = prevActiveStreams.begin(); sIter != prevActiveStreams.end(); sIter++) {
+            if (((*sIter) != NULL) && isStreamActive(*sIter, mActiveStreams)) {
+                (*sIter)->lockStreamMutex();
+                (*sIter)->clearOutPalDevices();
+                (*sIter)->addPalDevice(newDevAttr);
+                (*sIter)->unlockStreamMutex();
+            }
+        }
+        mActiveStreamMutex.unlock();
+    } else {
+        PAL_ERR(LOG_TAG, "forceDeviceSwitch failed %d", status);
+    }
+
     return 0;
 }
 
@@ -7319,7 +7361,7 @@ int32_t ResourceManager::a2dpSuspend()
         usleep(maxLatencyMs * 1000 * latencyMuteFactor);
     }
 
-    forceDeviceSwitch(a2dpDev, &switchDevDattr);
+    forceDeviceSwitch(a2dpDev, &switchDevDattr, activeA2dpStreams);
 
     mActiveStreamMutex.lock();
     for (sIter = activeA2dpStreams.begin(); sIter != activeA2dpStreams.end(); sIter++) {
@@ -7521,9 +7563,11 @@ int32_t ResourceManager::a2dpCaptureSuspend()
     a2dpDattr.id = PAL_DEVICE_IN_BLUETOOTH_A2DP;
     a2dpDev = Device::getInstance(&a2dpDattr, rm);
 
+    mActiveStreamMutex.lock();
     getActiveStream_l(activeA2dpStreams, a2dpDev);
     if (activeA2dpStreams.size() == 0) {
         PAL_DBG(LOG_TAG, "no active streams found");
+        mActiveStreamMutex.unlock();
         goto exit;
     }
 
@@ -7539,6 +7583,7 @@ int32_t ResourceManager::a2dpCaptureSuspend()
     handsetmicDev = Device::getInstance(&handsetmicDattr, rm);
     if (!handsetmicDev) {
         PAL_ERR(LOG_TAG, "Getting handset-mic device instance failed");
+        mActiveStreamMutex.unlock();
         goto exit;
     }
     getActiveStream_l(activeStreams, handsetmicDev);
@@ -7557,14 +7602,19 @@ int32_t ResourceManager::a2dpCaptureSuspend()
         // activestream found on handset-mic
         status = handsetmicDev->getDeviceAttributes(&handsetmicDattr);
     }
+    mActiveStreamMutex.unlock();
 
     PAL_DBG(LOG_TAG, "selecting handset_mic and muting stream");
-    forceDeviceSwitch(a2dpDev, &handsetmicDattr);
+    forceDeviceSwitch(a2dpDev, &handsetmicDattr, activeA2dpStreams);
 
+    mActiveStreamMutex.lock();
     for (sIter = activeA2dpStreams.begin(); sIter != activeA2dpStreams.end(); sIter++) {
-        (*sIter)->suspendedDevIds.clear();
-        (*sIter)->suspendedDevIds.push_back(PAL_DEVICE_IN_BLUETOOTH_A2DP);
+        if (((*sIter) != NULL) && isStreamActive(*sIter, mActiveStreams)) {
+            (*sIter)->suspendedDevIds.clear();
+            (*sIter)->suspendedDevIds.push_back(a2dpDattr.id);
+        }
     }
+    mActiveStreamMutex.unlock();
 
 exit:
     PAL_DBG(LOG_TAG, "exit status: %d", status);
