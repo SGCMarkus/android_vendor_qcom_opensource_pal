@@ -28,7 +28,7 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * Changes from Qualcomm Innovation Center are provided under the following license:
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted (subject to the limitations in the
@@ -990,10 +990,12 @@ int32_t Stream::handleBTDeviceNotReady(bool& a2dpSuspend)
                 goto exit;
             }
 
+            mDevices.push_back(dev);
             status = session->setupSessionDevice(this, mStreamAttr->type, dev);
             if (0 != status) {
                 PAL_ERR(LOG_TAG, "setupSessionDevice failed:%d", status);
                 dev->close();
+                mDevices.pop_back();
                 goto exit;
             }
 
@@ -1001,9 +1003,9 @@ int32_t Stream::handleBTDeviceNotReady(bool& a2dpSuspend)
             if (0 != status) {
                 PAL_ERR(LOG_TAG, "connectSessionDevice failed:%d", status);
                 dev->close();
+                mDevices.pop_back();
                 goto exit;
             }
-            mDevices.push_back(dev);
             dev->getDeviceAttributes(&dattr);
             updatePalDevice(&dattr, dattr.id);
         }
@@ -1181,7 +1183,6 @@ dev_close:
      */
     if (status != -ENETRESET) {
         mDevices.pop_back();
-        mPalDevice.pop_back();
     }
     dev->close();
 
@@ -1560,6 +1561,17 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
             }
             streamsToSwitch.clear();
 
+            if (!rm->is_multiple_sample_rate_combo_supported) {
+            // check if headset config needs to update when speaker is active
+                rm->checkSpeakerConcurrency(&newDevices[newDeviceSlots[i]], &strAttr, streamsToSwitch/* not used */, &streamDevAttr);
+                if (!streamsToSwitch.empty()) {
+                     for(sIter = streamsToSwitch.begin(); sIter != streamsToSwitch.end(); sIter++) {
+                         streamDevDisconnect.push_back({(*sIter), streamDevAttr.id});
+                         StreamDevConnect.push_back({(*sIter), &streamDevAttr});
+                     }
+                }
+            }
+
             // check if headset config needs to update when haptics is active
             rm->checkHapticsConcurrency(&newDevices[newDeviceSlots[i]], NULL, streamsToSwitch/* not used */, NULL);
         }
@@ -1600,7 +1612,7 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
         /* Add device associated with current stream to streamDevDisconnect/StreamDevConnect list */
         for (int j = 0; j < disconnectCount; j++) {
             // check to make sure device direction is the same
-            if (rm->matchDevDir(mDevices[curDeviceSlots[j]]->getSndDeviceId(), newDeviceId)) {
+            if ((mDevices[curDeviceSlots[j]] != NULL) &&  rm->matchDevDir(mDevices[curDeviceSlots[j]]->getSndDeviceId(), newDeviceId)) {
                 streamDevDisconnect.push_back({streamHandle, mDevices[curDeviceSlots[j]]->getSndDeviceId()});
                 // if something disconnected incoming device and current dev diff so push on a switchwe need to add the deivce
                 matchFound = true;
@@ -1659,7 +1671,7 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
 
 done:
     mStreamMutex.lock();
-    if (a2dpMuted && !isNewDeviceA2dp) {
+    if (a2dpMuted) {
         volume = (struct pal_volume_data *)calloc(1, (sizeof(uint32_t) +
                               (sizeof(struct pal_channel_vol_kv) * (0xFFFF))));
         if (!volume) {
