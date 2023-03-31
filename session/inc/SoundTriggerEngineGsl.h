@@ -119,6 +119,7 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
 
  private:
     int32_t StartBuffering(Stream *s);
+    int32_t RestartRecognition_l(Stream *s);
     int32_t UpdateSessionPayload(st_param_id_type_t param);
     int32_t ParseDetectionPayloadPDK(void *event_data);
     int32_t ParseDetectionPayload(void *event_data);
