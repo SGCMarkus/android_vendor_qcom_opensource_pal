@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -329,7 +330,7 @@ ACDPlatformInfo::ACDPlatformInfo() :
     support_nlpi_switch_(true),
     dedicated_sva_path_(true),
     dedicated_headset_path_(false),
-    lpi_enable_(true),
+    lpi_enable_(false),
     enable_debug_dumps_(false),
     concurrent_capture_(false),
     concurrent_voice_call_(false),

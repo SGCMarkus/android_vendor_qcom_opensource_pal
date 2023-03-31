@@ -26,7 +26,7 @@
  * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted (subject to the limitations in the
@@ -397,7 +397,7 @@ SoundTriggerPlatformInfo::SoundTriggerPlatformInfo() :
     transit_to_non_lpi_on_charging_(false),
     dedicated_sva_path_(true),
     dedicated_headset_path_(false),
-    lpi_enable_(true),
+    lpi_enable_(false),
     enable_debug_dumps_(false),
     non_lpi_without_ec_(false),
     concurrent_capture_(false),
