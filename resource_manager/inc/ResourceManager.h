@@ -87,12 +87,14 @@
 #include "ACDPlatformInfo.h"
 #include "ContextManager.h"
 #include "SignalHandler.h"
+#include <fstream>
 
 typedef enum {
     RX_HOSTLESS = 1,
     TX_HOSTLESS,
 } hostless_dir_t;
 
+#define ARRAX_SOC_ID 585
 #define audio_mixer mixer
 #define MAX_SND_CARD 10
 #define DUMMY_SND_CARD MAX_SND_CARD
@@ -931,5 +933,26 @@ public:
                              struct pal_device *streamDevAttr);
     static void sendCrashSignal(int signal, pid_t pid, uid_t uid);
 };
+
+static int getSocId() {
+    std::ifstream fd;
+    std::string strData;
+    int soc_id = -1;
+    std::string socbuf = "/sys/devices/soc0/soc_id";
+    fd.open(socbuf, std::ios::in);
+    if (!fd.is_open()) {
+        PAL_ERR(LOG_TAG, "Unable to open file");
+        return -1;
+    }
+
+    getline(fd, strData);
+    if (strData.length() != 0) {
+        soc_id = stoi(strData);
+    } else {
+        PAL_ERR(LOG_TAG, "id is null");
+    }
+    fd.close();
+    return soc_id;
+}
 
 #endif

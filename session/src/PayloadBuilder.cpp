@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -48,6 +48,7 @@
 #define USECASE_XML_FILE "/vendor/etc/usecaseKvManager.xml"
 #endif
 
+#define USECASE_ARRAX_XML_FILE "/vendor/etc/usecaseKvManager_arrax.xml"
 #define PARAM_ID_CHMIXER_COEFF 0x0800101F
 #define CUSTOM_STEREO_NUM_OUT_CH 0x0002
 #define CUSTOM_STEREO_NUM_IN_CH 0x0002
@@ -809,8 +810,13 @@ int PayloadBuilder::init()
     all_devices.clear();
     all_devicepps.clear();
 
-    PAL_INFO(LOG_TAG, "XML parsing started %s", USECASE_XML_FILE);
-    file = fopen(USECASE_XML_FILE, "r");
+    if (getSocId() == ARRAX_SOC_ID) {
+        PAL_INFO(LOG_TAG, "XML parsing started %s", USECASE_ARRAX_XML_FILE);
+        file = fopen(USECASE_ARRAX_XML_FILE, "r");
+    } else {
+        PAL_INFO(LOG_TAG, "XML parsing started %s", USECASE_XML_FILE);
+        file = fopen(USECASE_XML_FILE, "r");
+    }
     if (!file) {
         PAL_ERR(LOG_TAG, "Failed to open xml");
         ret = -EINVAL;

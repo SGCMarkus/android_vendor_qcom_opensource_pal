@@ -131,6 +131,7 @@
 
 #define MIXER_XML_BASE_STRING_NAME "mixer_paths"
 #define RMNGR_XMLFILE_BASE_STRING_NAME "resourcemanager"
+#define RMNGR_ARRAX_XMLFILE_EXTN "_arrax"
 
 #define MAX_RETRY_CNT 20
 #define LOWLATENCY_PCM_DEVICE 15
@@ -1252,6 +1253,9 @@ int ResourceManager::init_audio()
     strlcat(mixer_xml_file, file_name_extn, XML_PATH_MAX_LENGTH);
     strlcat(rmngr_xml_file, XML_FILE_DELIMITER, XML_PATH_MAX_LENGTH);
     strlcat(rmngr_xml_file, file_name_extn, XML_PATH_MAX_LENGTH);
+    if (getSocId() == ARRAX_SOC_ID) {
+        strlcat(rmngr_xml_file, RMNGR_ARRAX_XMLFILE_EXTN, XML_PATH_MAX_LENGTH);
+    }
 
     strlcat(mixer_xml_file, XML_FILE_EXT, XML_PATH_MAX_LENGTH);
     strlcat(rmngr_xml_file, XML_FILE_EXT, XML_PATH_MAX_LENGTH);
