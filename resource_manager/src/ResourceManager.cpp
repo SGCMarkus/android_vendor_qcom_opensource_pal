@@ -1194,6 +1194,7 @@ int ResourceManager::init_audio()
                     strstr(snd_card_name, "diwali") ||
                     strstr(snd_card_name, "bengal") ||
                     strstr(snd_card_name, "holi") ||
+                    strstr(snd_card_name, "blair") ||
                     strstr(snd_card_name, "monaco") ||
                     strstr(snd_card_name, "parrot")) {
                     PAL_VERBOSE(LOG_TAG, "Found Codec sound card");
