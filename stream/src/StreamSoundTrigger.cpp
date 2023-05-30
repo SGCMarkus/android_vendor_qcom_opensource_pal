@@ -1903,7 +1903,7 @@ int32_t StreamSoundTrigger::notifyClient(bool detection) {
             (long long)total_process_duration);
         mStreamMutex.unlock();
         callback_((pal_stream_handle_t *)this, 0, (uint32_t *)rec_event,
-                  event_size, (uint64_t)rec_config_->cookie);
+                  event_size, cookie_);
 
         /*
          * client may call unload when we are doing callback with mutex
